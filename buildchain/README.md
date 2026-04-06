@@ -8,7 +8,7 @@ Diese Build-Struktur basiert auf dem Beispiel aus [ai-playground](https://github
 |-----------|-------------|---------|
 | **Framework** | Next.js | 14+ |
 | **Styling** | Tailwind CSS | 3.x |
-| **Build Tool** | Vite / Webpack (via Next.js) | - |
+| **Build Tool** | Webpack (via Next.js) | - |
 | **TypeScript** | TypeScript | 5.0+ |
 
 ## 📋 Voraussetzungen
@@ -48,18 +48,67 @@ Dann öffne [http://localhost:3000](http://localhost:3000) in deinem Browser.
 npm run build
 ```
 
-Output wird im `out/` oder `dist/MatheManager/` Verzeichnis generiert.
+Output wird im `out/` Verzeichnis generiert (für Netlify Deployment).
+
+## 🌐 Website ansehen
+
+### Lokalt entwickeln
+
+Während des Development-Mode:
+- **Dev Server:** [http://localhost:3000](http://localhost:3000)
+- **Hot Reload** ist aktiv - Änderungen werden automatisch neu geladen
+
+### Live auf Netlify (Production)
+
+Nach Deployment erscheint die Website unter deiner Netlify Domain, z.B.:
+- `https://[deine-site-name].netlify.app`
+
+Die URL wird automatisch aktualisiert, sobald ein neuer Build erfolgreich deployed wurde.
+
+## 🔧 Build-Prozess im Detail
+
+### Manuelles Build ausführen
+
+```bash
+# Production Build mit Optimierung
+npm run build
+
+# Watch-Mode: Änderungen überwachen und automatisch rebuilden
+npm run watch
+```
+
+### Build-Ausgaben
+
+| Umgebung | Output-Pfad | Verwendung |
+|----------|-------------|------------|
+| Development | `src/` + `node_modules/` | Lokales Entwickeln |
+| **Production** | `out/` (oder `dist/MatheManager/`) | Deployment zu Netlify |
+
+### CI/CD Pipeline (GitHub Actions)
+
+Der Workflow in `.github/workflows/deploy.yml` führt automatisch aus:
+
+```
+Push zur main Branch → Installieren → Build verifizieren → Deploy zu Netlify ✓
+```
+
+**Schritte:**
+1. **Checkout Repository** - Code herunterladen
+2. **Node.js Setup** - Node 18 + npm Caching
+3. **Dependencies installieren** - `npm install`
+4. **Build-Verifikation** - `npm run build` (Fehler melden)
+5. **Netlify Deploy** - `netlify deploy --prod --dir=out/`
 
 ## 🧪 Laufende Tests (Optional)
 
-Wenn du Unit-Tests möchtest, kannst du eine Test-Framework-Konfiguration hinzufügen:
+Wenn du Unit-Tests möchtest, kannst du ein Test-Framework hinzufügen:
 
 ```bash
 # Beispiel: Jest für Node.js Tests
 npm install -D jest @types/jest ts-jest
 ```
 
-### Test ausführen
+### Tests ausführen
 
 ```bash
 # Unit-Tests mit Jest
@@ -71,13 +120,15 @@ npm test
 ```
 MatheManager/
 ├── buildchain/                    # Build-Konfiguration und CI/CD
-│   ├── README.md                  # Diese Datei
+│   ├── README.md                  # Diese Dokumentation
 │   ├── package.json               # Dependencies und Scripts
 │   ├── next.config.js             # Next.js Konfiguration
-│   └── .github/workflows/         # GitHub Actions CI/CD Pipelines
-│       └── deploy.yml            # Build-Verifikation & Netlify Deployment
+│   ├── tailwind.config.js         # Tailwind CSS Setup
+│   ├── tsconfig.json             # TypeScript Konfiguration
+│   └── .github/workflows/
+│       └── deploy.yml            # GitHub Actions CI/CD Pipeline
 ├── src/                           # Quellcode
-│   ├── app/                       # Next.js App Router oder Pages
+│   ├── app/                       # Next.js App Router
 │   │   ├── components/           # UI-Komponenten
 │   │   ├── pages/                # Seiten (falls Pages Router)
 │   │   └── styles/               # Globale Styles
@@ -107,8 +158,8 @@ Die Konfiguration unterstützt automatisches Deployment zu Netlify bei jedem Pus
    - Meldet Fehler sofort
 
 2. **Deployment** (wenn Build erfolgreich ist)
-   - Deployt den build-output zu Netlify
-   - Aktualisiert live Website URL
+   - Deployt den `out/` Inhalt zu Netlify
+   - Aktualisiert live Website URL automatisch
 
 ### Manuelles Deployment
 
@@ -133,4 +184,4 @@ netlify deploy --prod --dir=out/
 
 **Made with ❤️ basierend auf dem Beispiel von [ai-playground](https://github.com/goebelt/ai-playground)**
 
-*Last Updated: 2026-04-01 | Next.js 14+ | TypeScript 5.2+ | Tailwind CSS 3.x*
+*Last Updated: 2026-04-01 | Next.js 14+ | TypeScript 5.2+ | Tailwind CSS 3.x | Netlify Deployment*
