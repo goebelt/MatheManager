@@ -1,7 +1,7 @@
 /**
  * Landing page for MatheManager
  */
-import { ArrowRight, BookOpen, Calendar, Users } from "lucide-react";
+import { ArrowRight, BookOpen, Calendar, Users, LayoutDashboard } from "lucide-react";
 
 export default function Home() {
   return (
@@ -14,22 +14,27 @@ export default function Home() {
         <p className="text-xl text-gray-600 dark:text-gray-300 max-w-2xl mx-auto mb-8">
           Ihre persönliche Nachhilfe-Verwaltung für Familien, Schüler und Termine.
         </p>
-        
+
         {/* Features */}
         <div className="grid md:grid-cols-3 gap-8 mt-16">
           <FeatureCard icon={<Calendar size={40} />} title="Termine" description="Wöchentliche oder zweiwöchentliche Termine automatisch verwalten" />
           <FeatureCard icon={<Users size={40} />} title="Gruppenunterricht" description="Max. 2 Schüler teilen sich einen Preis pro Zeiträume-Versionierung" />
           <FeatureCard icon={<BookOpen size={40} />} title="Preise" description="Flexibel veränderliche Preise mit Validitäts-Perioden" />
         </div>
+
+        {/* CTA */}
+        <section className="container mx-auto px-4 py-16 text-center">
+          <button onClick={() => window.location.href = '/dashboard'} className="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-8 rounded-lg inline-flex items-center gap-2 transition-colors">
+            Dashboard öffnen
+            <ArrowRight size={20} />
+          </button>
+        </section>
       </section>
 
-      {/* CTA */}
-      <section className="container mx-auto px-4 py-16 text-center">
-        <button className="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-8 rounded-lg inline-flex items-center gap-2 transition-colors">
-          Starten
-          <ArrowRight size={20} />
-        </button>
-      </section>
+      {/* Footer */}
+      <footer className="container mx-auto px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+        MatheManager &copy; 2026 - Nachhilfe-Verwaltung mit Next.js & Tailwind CSS
+      </footer>
     </main>
   );
 }
