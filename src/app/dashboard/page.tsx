@@ -15,7 +15,7 @@ export default function DashboardPage() {
   // Load data on mount and when date changes (for new week)
   useEffect(() => {
     loadData();
-    
+
     const interval = setInterval(() => {
       loadData();
     }, 30000); // Refresh every 30 seconds
@@ -37,12 +37,12 @@ export default function DashboardPage() {
     }
   };
 
-  const handleStatusUpdate = (appointmentId: string, newStatus: 'attended' | 'canceled_paid' | 'canceled_free') => => {
+  const handleStatusUpdate = (appointmentId: string, newStatus: 'attended' | 'canceled_paid' | 'canceled_free') => {
     // Update in localStorage and UI
     if (!data) return;
 
-    const updatedAppointments = data.appointments.map(appointment => 
-      appointment.id === appointmentId 
+    const updatedAppointments = data.appointments.map(appointment =>
+      appointment.id === appointmentId
         ? { ...appointment, status: newStatus }
         : appointment
     );
