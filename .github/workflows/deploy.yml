@@ -1,0 +1,42 @@
+# Build and Deploy to Netlify
+
+name: Build and Deploy to Netlify
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+  NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Verify Build (Automated Test)
+        run: |
+          echo "🧪 Running build verification..."
+          npm run build
+        env:
+          CI: true
+
+      - name: Deploy to Netlify
+        uses: netlify/actions/cli@v2
+        with:
+          command: deploy --prod --dir=out/
