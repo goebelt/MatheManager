@@ -94,3 +94,22 @@ export function getEarningsBreakdown(
     return breakdown;
   }, { individual: 0, group: 0 });
 }
+
+export function calculateTotalPrice(
+  items: Array<{ quantity: number; unitPrice: number }>
+): number {
+  if (!items || items.length === 0) return 0;
+  
+  const total = items.reduce((sum, item) => 
+    sum + (item.quantity * item.unitPrice), 0);
+  return Math.round(total * 100) / 100;
+}
+
+export function formatCurrency(amount: number): string {
+  return new Intl.NumberFormat('de-DE', {
+    style: 'currency',
+    currency: 'EUR',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount);
+}
