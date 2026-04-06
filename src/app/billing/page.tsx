@@ -1,446 +1,424 @@
 /**
- * Billing Page - Übersicht der Finanzen mit Zeitraum-Filtern und Honorarberechnung
+ * Billing Page - Overview of earnings with date range filters and price calculations
  */
 
 'use client';
 
 import { useState, useMemo } from 'react';
-import { DollarSign, Calendar, Users, Filter, ArrowUpRight, Clock } from 'lucide-react';
-import type { Appointment, Student, PriceEntry } from '@/types';
-import { calculateAllFees } from '@/lib/billing';
+import { DollarSign, Calendar, User, Filter, ArrowUpRight, Loader2 } from 'lucide-react';
+import type { Appointment, Student, PriceEntry, DataContainer } from '@/types';
+import { calculateAppointmentFee } from '@/lib/billing';
 
 export default function BillingPage() {
-  const [data, setData] = useState<{ students: Student[]; priceEntries: PriceEntry[]; appointments: Appointment[] } | null>(null);
+  const [data, setData] = useState<DataContainer | null>(null);
   const [loading, setLoading] = useState(true);
   
-  // Filter State
-  const [selectedPeriod, setSelectedPeriod] = useState<'month' | 'year' | 'custom'>('month');
+  // Filter states
+  const [selectedStudentId, setSelectedStudentId] = useState<string>('all');
+  const [timeRange, setTimeRange] = useState<'month' | 'year' | 'custom'>('month');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
-  const [selectedStudentId, setSelectedStudentId] = useState<string>('all');
 
-  // Lade Daten bei Mount
+  // Load data
+  useEffect(() => {
+    loadData();
+    const interval = setInterval(loadData, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
   const loadData = () => {
     setLoading(true);
     try {
-      const storedData = localStorage.getItem('mathe_manager_data');
-      if (storedData) {
-        setData(JSON.parse(storedData));
+      const stored = localStorage.getItem('mathe_manager_data');
+      if (stored) {
+        setData(JSON.parse(stored));
       }
     } catch (error) {
-      console.error('Fehler beim Laden der Daten:', error);
+      console.error('Error loading data:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handlePeriodChange = (period: 'month' | 'year' | 'custom') => {
-    setSelectedPeriod(period);
-    if (period === 'month') {
-      const now = new Date();
-      setStartDate(now.toISOString().split('T')[0]);
-      setEndDate(now.toISOString().split('T')[0]);
-    } else if (period === 'year') {
-      const yearStart = new Date(now.getFullYear(), 0, 1).toISOString().split('T')[0];
-      setStartDate(yearStart);
-      setEndDate(new Date(now.getFullYear(), 11, 31).toISOString().split('T')[0]);
-    } else if (period === 'custom') {
-      setStartDate('');
-      setEndDate(new Date().toISOString().split('T')[0]);
-    }
-  };
-
-  // Filter appointments based on selection
+  // Filter appointments based on selected filters
   const filteredAppointments = useMemo(() => {
     if (!data) return [];
 
-    let filtered = data.appointments.filter(appt => 
-      !appt.status.startsWith('canceled') && appt.status !== 'pending'
-    );
+    let result = data.appointments || [];
 
     // Apply date range filter
-    if (selectedPeriod === 'custom' || selectedPeriod === 'month') {
-      const startDateObj = startDate ? new Date(startDate) : null;
-      const endDateObj = new Date(endDate);
-
-      filtered = filtered.filter(appt => {
-        const apptDate = new Date(appt.date).getTime();
-        if (startDateObj) {
-          const start = startDateObj.setHours(0, 0, 0, 0);
-          return apptDate >= start;
-        }
-        return apptDate <= endDateObj.getTime();
-      });
-    }
-
-    // Apply student filter
-    if (selectedStudentId !== 'all' && data.students) {
-      filtered = filtered.filter(appt => 
-        appt.studentIds.includes(selectedStudentId)
+    if (timeRange === 'month') {
+      const now = new Date();
+      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+      result = result.filter(app => new Date(app.date) >= firstDay);
+    } else if (timeRange === 'year') {
+      const now = new Date();
+      const startOfYear = new Date(now.getFullYear(), 0, 1);
+      result = result.filter(app => new Date(app.date) >= startOfYear);
+    } else if (timeRange === 'custom' && startDate && endDate) {
+      result = result.filter(
+        app => app.date >= startDate + 'T00:00:00Z' && app.date <= endDate + 'T23:59:59Z'
       );
     }
 
-    return filtered;
-  }, [data, selectedPeriod, startDate, endDate, selectedStudentId]);
+    // Apply student filter
+    if (selectedStudentId !== 'all') {
+      result = result.filter(
+        app => app.studentIds.includes(selectedStudentId)
+      );
+    }
 
-  // Calculate fees for filtered appointments
-  const { appointments: calculatedAppointments, totalFee } = useMemo(() => {
-    if (!filteredAppointments.length) return { appointments: [], totalFee: 0 };
-    return calculateAllFees(filteredAppointments, data?.priceEntries || []);
+    return result;
+  }, [data, selectedStudentId, timeRange, startDate, endDate]);
+
+  // Calculate fees for each appointment
+  const appointmentsWithFees = useMemo(() => {
+    if (!data) return [];
+
+    return filteredAppointments.map(appointment => {
+      // Determine appointment type: 'einzel' or 'gruppe'
+      const studentIds = appointment.studentIds || [];
+      const appointmentType = studentIds.length === 1 ? 'einzel' : 'gruppe';
+
+      // Find matching price entry
+      let priceEntry: PriceEntry | undefined;
+      for (const entry of data.priceEntries || []) {
+        if (entry.type === appointmentType && 
+            new Date(appointment.date) >= new Date(entry.validFrom)) {
+          const validTo = entry.validTo ? new Date(entry.validTo) : null;
+          if (!validTo || new Date(appointment.date) <= validTo) {
+            priceEntry = entry;
+            break;
+          }
+        }
+      }
+
+      // Calculate fee based on formula: Amount × (Duration / 60)
+      const duration = appointment.duration || 60;
+      const amount = priceEntry ? priceEntry.amount : 0;
+      const fee = calculateAppointmentFee(appointment, studentIds[0], data.priceEntries || []);
+
+      return {
+        ...appointment,
+        calculatedFee: fee,
+        originalAmount: amount,
+        priceEntryType: appointmentType,
+        hasPrice: !!priceEntry
+      };
+    });
   }, [filteredAppointments, data]);
 
-  // Format currency
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('de-DE', {
-      style: 'currency',
-      currency: 'EUR',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(amount);
-  };
+  // Calculate totals
+  const totalEarnings = useMemo(() => {
+    return appointmentsWithFees.reduce((sum, app) => sum + (app.calculatedFee || 0), 0);
+  }, [appointmentsWithFees]);
 
-  // Format date
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString('de-DE', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
+  const individualEarnings = useMemo(() => {
+    return appointmentsWithFees.filter(a => a.priceEntryType === 'einzel').reduce(
+      (sum, app) => sum + (app.calculatedFee || 0), 0
+    );
+  }, [appointmentsWithFees]);
 
-  // Calculate average fee per appointment
-  const avgFee = calculatedAppointments.length > 0 
-    ? (totalFee / calculatedAppointments.length).toFixed(2) 
-    : '0.00';
+  const groupEarnings = useMemo(() => {
+    return appointmentsWithFees.filter(a => a.priceEntryType === 'gruppe').reduce(
+      (sum, app) => sum + (app.calculatedFee || 0), 0
+    );
+  }, [appointmentsWithFees]);
+
+  const appointmentCount = filteredAppointments.length;
+  const freeFallCount = filteredAppointments.filter(a => a.status === 'canceled_free').length;
+
+  // Get selected student name for display
+  const selectedStudent = useMemo(() => {
+    if (selectedStudentId !== 'all' && data?.students) {
+      return data.students.find(s => s.id === selectedStudentId);
+    }
+    return null;
+  }, [selectedStudentId, data]);
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-        <p className="text-gray-500 dark:text-gray-400">Lade Finanzübersicht...</p>
-      </div>
-    );
-  }
-
-  if (!data) {
-    return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-        <div className="text-center p-8 max-w-md">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">Abrechnung</h1>
-          <p className="text-gray-600 dark:text-gray-400">Bitte erstelle einige Termine oder lade Daten aus dem LocalStorage.</p>
-        </div>
+      <div className="min-h-screen bg-gray-50 dark:bg-slate-900 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-green-600" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 sm:p-6 lg:p-8">
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
       {/* Header */}
-      <div className="max-w-7xl mx-auto mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-          <DollarSign className="w-8 h-8 text-green-600 dark:text-green-500" />
-          Abrechnung & Finanzen
-        </h1>
-      </div>
-
-      {/* Summary Cards */}
-      <div className="max-w-7xl mx-auto mb-6 grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <SummaryCard 
-          title="Gesamtsaldo" 
-          value={formatCurrency(totalFee)}
-          icon={<DollarSign />}
-          color="green"
-        />
-        <SummaryCard 
-          title="Termine" 
-          value={calculatedAppointments.length.toString()}
-          subtitle="in Zeitraum"
-          icon={<Clock />}
-          color="blue"
-        />
-        <SummaryCard 
-          title="Avg. Honorar" 
-          value={formatCurrency(parseFloat(avgFee))}
-          subtitle={`pro Termin`}
-          icon={<Users />}
-          color="purple"
-        />
-        <SummaryCard 
-          title="Preiseinträge" 
-          value={data.priceEntries.length.toString()}
-          subtitle="verfügbar"
-          icon={<Filter />}
-          color="orange"
-        />
-      </div>
-
-      {/* Filters */}
-      <div className="max-w-7xl mx-auto mb-6">
-        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-4 sm:p-5">
-          {/* Period Filter */}
-          <div className="flex flex-col sm:flex-row gap-4 mb-4 pb-4 border-b border-gray-200 dark:border-slate-700">
-            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wide w-full sm:w-auto flex items-center gap-2">
-              <Calendar className="w-4 h-4" />
-              Zeitraum:
-            </h3>
-
-            <div className="flex gap-2 flex-1">
-              {[
-                { id: 'month', label: 'Diesen Monat' },
-                { id: 'year', label: 'Letztes Jahr' },
-                { id: 'custom', label: 'Benutzerdefiniert' }
-              ].map((option) => (
-                <button
-                  key={option.id}
-                  onClick={() => handlePeriodChange(option.id as any)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    selectedPeriod === option.id
-                      ? 'bg-green-600 text-white'
-                      : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-600'
-                  }`}
-                >
-                  {option.label}
-                </button>
-              ))}
+      <header className="bg-white dark:bg-slate-800 shadow-sm border-b border-gray-200 dark:border-slate-700 sticky top-0 z-10">
+        <div className="max-w-5xl mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <DollarSign className="w-6 h-6 text-green-600" />
+                Abrechnung
+              </h1>
+              <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
+                Übersicht der Einnahmen und Honorare
+              </p>
             </div>
           </div>
 
-          {/* Date Range & Student Filter */}
-          <div className="flex flex-col sm:flex-row gap-4">
-            {/* Date Range (only show for custom) */}
-            {(selectedPeriod === 'custom') && (
-              <>
-                <div className="flex-1">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Startdatum: {startDate || ''}
-                  </label>
+          {/* Filter Controls */}
+          <div className="mt-6 grid gap-4 sm:grid-cols-3">
+            {/* Student Filter */}
+            <div className="flex items-center gap-2 p-3 bg-gray-50 dark:bg-slate-700/50 rounded-lg border border-gray-200 dark:border-slate-600">
+              <User className="w-4 h-4 text-gray-400" />
+              <select
+                value={selectedStudentId}
+                onChange={(e) => setSelectedStudentId(e.target.value)}
+                className="flex-1 bg-transparent text-sm focus:outline-none dark:text-white"
+              >
+                <option value="all">Alle Schüler</option>
+                {data?.students.map(student => (
+                  <option key={student.id} value={student.id}>
+                    {student.firstName} {student.lastName || ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Time Range Filter */}
+            <div className="flex items-center gap-2 p-3 bg-gray-50 dark:bg-slate-700/50 rounded-lg border border-gray-200 dark:border-slate-600">
+              <Calendar className="w-4 h-4 text-gray-400" />
+              <select
+                value={timeRange}
+                onChange={(e) => {
+                  const range = e.target.value;
+                  if (range === 'month') {
+                    setTimeRange('month');
+                    setStartDate('');
+                    setEndDate('');
+                  } else if (range === 'year') {
+                    setTimeRange('year');
+                    setStartDate('');
+                    setEndDate('');
+                  } else {
+                    setTimeRange('custom');
+                  }
+                }}
+                className="flex-1 bg-transparent text-sm focus:outline-none dark:text-white"
+              >
+                <option value="month">Diesen Monat</option>
+                <option value="year">Letztes Jahr</option>
+                <option value="custom">Freier Zeitraum</option>
+              </select>
+
+              {/* Date Range Input (only show for custom) */}
+              {timeRange === 'custom' && (
+                <>
                   <input
                     type="date"
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    className="w-20 text-sm bg-transparent focus:outline-none dark:text-white"
+                    disabled={!startDate}
                   />
-                </div>
-                <div className="flex-1">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Enddatum: {endDate || ''}
-                  </label>
+                  <span className="text-gray-400">bis</span>
                   <input
                     type="date"
                     value={endDate}
                     onChange={(e) => setEndDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    className="w-20 text-sm bg-transparent focus:outline-none dark:text-white"
+                    disabled={!endDate}
+                    min={startDate || undefined}
                   />
-                </div>
-              </>
-            )}
+                </>
+              )}
+            </div>
 
-            {/* Student Filter */}
-            {data.students.length > 1 && (
-              <div className="flex-1">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Schüler filtern:
-                </label>
-                <select
-                  value={selectedStudentId}
-                  onChange={(e) => setSelectedStudentId(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                >
-                  <option value="all">Alle Schüler</option>
-                  {data.students.map((student) => (
-                    <option key={student.id} value={student.id}>
-                      {student.firstName} {(student.lastName || '') ? `${student.lastName}` : ''}
-                    </option>
-                  ))}
-                </select>
+            {/* Results Summary */}
+            <div className="flex items-center gap-2 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
+              <DollarSign className="w-4 h-4 text-green-600" />
+              <div>
+                <p className="text-xs text-green-600 dark:text-green-400 uppercase font-medium">Gesamtsumme</p>
+                <p className="text-lg font-bold text-gray-900 dark:text-white">
+                  {totalEarnings.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="max-w-5xl mx-auto px-4 py-6">
+        {/* Summary Cards */}
+        {!loading && (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6">
+            <SummaryCard
+              label="Termine"
+              value={appointmentCount.toString()}
+              icon={<Calendar className="w-5 h-5 text-blue-600" />}
+            />
+            <SummaryCard
+              label="Einzeltermine"
+              value={appointmentsWithFees.filter(a => a.priceEntryType === 'einzel').length.toString()}
+              icon={<User className="w-5 h-5 text-purple-600" />}
+            />
+            <SummaryCard
+              label="Gruppentermine"
+              value={appointmentsWithFees.filter(a => a.priceEntryType === 'gruppe').length.toString()}
+              icon={<DollarSign className="w-5 h-5 text-green-600" />}
+            />
+            <SummaryCard
+              label="Ausfälle (frei)"
+              value={freeFallCount.toString()}
+              icon={<Filter className="w-5 h-5 text-gray-400" />}
+            />
+          </div>
+        )}
+
+        {/* Earnings Breakdown */}
+        {!loading && data && (
+          <div className="grid gap-4 mb-6">
+            <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-slate-700/30 rounded-lg border border-gray-200 dark:border-slate-600">
+              <div>
+                <p className="text-sm text-gray-500 dark:text-slate-400">Einzelstunden Honorar</p>
+              </div>
+              <div className="text-right">
+                <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                  {individualEarnings.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-slate-700/30 rounded-lg border border-gray-200 dark:border-slate-600">
+              <div>
+                <p className="text-sm text-gray-500 dark:text-slate-400">Gruppenstunden Honorar</p>
+              </div>
+              <div className="text-right">
+                <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                  {groupEarnings.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Appointments Table */}
+        {!loading && (
+          <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-700">
+                <thead className="bg-gray-50 dark:bg-slate-700/30">
+                  <tr>
+                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">
+                      Datum
+                    </th>
+                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">
+                      Schüler
+                    </th>
+                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">
+                      Typ
+                    </th>
+                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">
+                      Dauer
+                    </th>
+                    <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">
+                      Honorar
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white dark:bg-slate-800 divide-y divide-gray-200 dark:divide-slate-700">
+                  {appointmentsWithFees.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">
+                        Keine Termine im ausgewählten Zeitraum gefunden.
+                      </td>
+                    </tr>
+                  ) : (
+                    appointmentsWithFees.map((appointment) => (
+                      <tr key={appointment.id} className="hover:bg-gray-50 dark:hover:bg-slate-700/30">
+                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                          {new Date(appointment.date).toLocaleDateString('de-DE', {
+                            day: '2-digit',
+                            month: 'short',
+                            year: 'numeric'
+                          })}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">
+                          {appointment.studentIds.slice(0, 2).map(id => {
+                            const student = data?.students.find(s => s.id === id);
+                            return student ? `${student.firstName} ${student.lastName || ''}` : '';
+                          }).join(', ')}
+                        </td>
+                        <td className="px-4 py-3">
+                          {appointment.priceEntryType === 'einzel' ? (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
+                              Einzel
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
+                              Gruppe
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">
+                          {appointment.duration} min
+                        </td>
+                        <td className="px-4 py-3 text-right text-sm font-medium text-gray-900 dark:text-white">
+                          {appointment.calculatedFee ? (
+                            <>
+                              €{appointment.calculatedFee.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              {!appointment.hasPrice && (
+                                <span className="ml-1 text-xs text-gray-400">
+                                  *keine Preisregelung
+                                </span>
+                              )}
+                            </>
+                          ) : (
+                            <>
+                              €{appointment.calculatedFee?.toFixed(2) ?? '0.00'}
+                              {!appointment.hasPrice && (
+                                <span className="ml-1 text-xs text-gray-400">
+                                  *keine Preisregelung
+                                </span>
+                              )}
+                            </>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Footer Total */}
+            {!loading && appointmentsWithFees.length > 0 && (
+              <div className="bg-gray-50 dark:bg-slate-700/30 px-4 py-4 sm:px-6">
+                <div className="flex flex-col sm:flex-row justify-between items-center gap-2">
+                  <p className="text-sm text-gray-500 dark:text-slate-400">
+                    Gesamtsumme für {timeRange}
+                  </p>
+                  <p className="text-lg font-bold text-green-600 dark:text-green-500 flex items-center gap-2">
+                    <ArrowUpRight className="w-5 h-5" />
+                    {totalEarnings.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}
+                  </p>
+                </div>
               </div>
             )}
           </div>
-        </div>
-      </div>
-
-      {/* Table */}
-      <div className="max-w-7xl mx-auto">
-        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 overflow-hidden">
-          {calculatedAppointments.length === 0 ? (
-            <div className="text-center py-16 text-gray-500 dark:text-gray-400">
-              <Calendar className="w-16 h-16 mx-auto mb-4 opacity-30" />
-              <p className="text-lg font-medium">Keine Termine für den ausgewählten Zeitraum</p>
-              <p className="text-sm mt-2">Wähle einen anderen Zeitraum oder füge Termine hinzu.</p>
-            </div>
-          ) : (
-            <>
-              {/* Table Header */}
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-700">
-                  <thead className="bg-gray-50 dark:bg-slate-700/50">
-                    <tr>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                        Datum & Zeit
-                      </th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                        Schüler
-                      </th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                        Typ
-                      </th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                        Dauer
-                      </th>
-                      <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                        Honorar
-                      </th>
-                    </tr>
-                  </thead>
-                  
-                  {/* Table Body */}
-                  <tbody className="bg-white dark:bg-slate-800 divide-y divide-gray-200 dark:divide-slate-700">
-                    {calculatedAppointments.map((appt) => (
-                      <tr key={appt.id} className="hover:bg-gray-50 dark:hover:bg-slate-700/30 transition-colors">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                          <div>{formatDate(appt.date)}</div>
-                          <div className="text-xs text-gray-500 dark:text-gray-400">{new Date(appt.date).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
-                            {appt.studentIds.map(id => {
-                              const student = data.students.find(s => s.id === id);
-                              return student ? (
-                                <span key={student.id}>
-                                  {student.firstName} {(student.lastName || '') && `${student.lastName}`.charAt(0)}
-                                  {student.lastName && !student.firstName.includes(student.lastName) && ', '}
-                                </span>
-                              ) : null;
-                            })}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            appt.studentIds.length === 1 
-                              ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300'
-                              : 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
-                          }`}>
-                            {appt.studentIds.length === 1 ? (
-                              <>Einzel</>
-                            ) : (
-                              <>Gruppenkurs</>
-                            )}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                          {appt.duration} min
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                          <span className={`inline-flex items-center gap-1 ${
-                            appt.calculatedFee > 0 
-                              ? 'text-green-600 dark:text-green-500' 
-                              : 'text-gray-400 dark:text-gray-500'
-                          }`}>
-                            {appt.calculatedFee > 0 && (
-                              <ArrowUpRight className="w-3 h-3" />
-                            )}
-                            {formatCurrency(appt.calculatedFee)}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-
-                  {/* Footer Total */}
-                  <tfoot className="bg-gray-50 dark:bg-slate-700/50 border-t border-gray-200 dark:border-slate-700">
-                    <tr>
-                      <td colspan={3} className="px-6 py-4 text-right text-sm font-medium text-gray-900 dark:text-white uppercase tracking-wide">
-                        Gesamt:
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap"></td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-lg font-bold text-green-600 dark:text-green-500">
-                        {formatCurrency(totalFee)}
-                      </td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Legend */}
-      <div className="max-w-7xl mx-auto mt-8 text-center">
-        <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">Status Legende</h4>
-        <div className="flex justify-center gap-6 flex-wrap">
-          <LegendItem 
-            status="attended" 
-            label="Stattgefunden" 
-            color="green" 
-            icon={<CheckCircle />}
-          />
-          <LegendItem 
-            status="canceled_paid" 
-            label="Ausfall bezahlt" 
-            color="yellow" 
-            icon={<AlertCircle />}
-          />
-          <LegendItem 
-            status="canceled_free" 
-            label="Ausfall frei" 
-            color="gray" 
-            icon={<XCircle />}
-          />
-        </div>
-      </div>
+        )}
+      </main>
     </div>
   );
 }
 
-// Legend Item Component
-function LegendItem({ status, label, color, icon }) {
-  const colors = {
-    green: 'bg-green-500',
-    yellow: 'bg-yellow-500',
-    gray: 'bg-gray-400',
-  };
-
+function SummaryCard({ label, value, icon }: { label: string; value: string | number; icon: React.ReactNode }) {
   return (
-    <div className="flex items-center gap-2">
-      <span className={`w-3 h-3 rounded-full ${colors[color as keyof typeof colors] || colors.gray}`}></span>
-      <span className="text-sm text-gray-700 dark:text-gray-300">{label}</span>
-    </div>
-  );
-}
-
-// Summary Card Component
-interface SummaryCardProps {
-  title: string;
-  value: string;
-  subtitle?: string;
-  icon: React.ReactNode;
-  color: 'green' | 'blue' | 'purple' | 'orange';
-}
-
-function SummaryCard({ title, value, subtitle, icon, color }: SummaryCardProps) {
-  const colors = {
-    green: 'bg-green-50 dark:bg-green-900/20 border-l-4 border-green-600',
-    blue: 'bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-600',
-    purple: 'bg-purple-50 dark:bg-purple-900/20 border-l-4 border-purple-600',
-    orange: 'bg-orange-50 dark:bg-orange-900/20 border-l-4 border-orange-600',
-  };
-
-  return (
-    <div className={`${colors[color]} p-5 rounded-xl shadow-sm`}>
-      <div className="flex items-center justify-between">
+    <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl p-4 shadow-sm">
+      <div className="flex items-start justify-between">
         <div>
-          <p className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide">{title}</p>
-          {subtitle && (
-            <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">{subtitle}</p>
-          )}
+          <p className="text-xs text-gray-500 dark:text-slate-400 uppercase tracking-wider">{label}</p>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{value}</p>
         </div>
-        <div className={`p-2 rounded-lg ${color === 'green' ? 'bg-green-100 dark:bg-green-900/30 text-green-600' : color === 'blue' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600' : color === 'purple' ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600' : 'bg-orange-100 dark:bg-orange-900/30 text-orange-600'}`}>
+        <div className="p-2 bg-gray-50 dark:bg-slate-700/50 rounded-lg">
           {icon}
         </div>
       </div>
-      <p className="text-2xl font-bold text-gray-900 dark:text-white mt-4">{value}</p>
     </div>
   );
 }
