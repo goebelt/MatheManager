@@ -1,130 +1,96 @@
 /**
- * Pricing Engine - Berechnet Honorare basierend auf Preis-Einträgen und Termin-Daten
+ * Pricing Engine - Calculates fees based on appointments and price entries
  */
 
 import type { Appointment, PriceEntry } from '@/types';
 
 /**
- * Typ für berechneten Termin mit Honorar
- */
-export interface CalculatedAppointment extends Appointment {
-  calculatedFee: number;
-  priceEntry?: PriceEntry; // Der verwendete Preis-Eintrag (falls gefunden)
-}
-
-/**
- * Bestimmt den Geschlechtstyp basierend auf der Anzahl der Schüler
- * @param studentIds Array von Student-IDs
- * @returns 'einzel' für Einzeltermine, 'gruppe' für Gruppentermine
- */
-function determineAppointmentType(studentIds: string[]): 'einzel' | 'gruppe' {
-  if (studentIds.length === 1) return 'einzel';
-  // Bei 2 Schülern ist es ein Gruppenkurs
-  if (studentIds.length === 2) return 'gruppe';
-  // Bei mehr als 2 Schülern ebenfalls Gruppe (aber max 2 pro Termin laut Anforderung)
-  return 'gruppe';
-}
-
-/**
- * Sucht einen gültigen Preis-Eintrag für eine gegebene Kombination von Datum und Typ
- * @param appointmentId ID des Termins zur Bestimmung des Typs
- * @param appointmentDate Datum des Termins (ISO String)
- * @param priceEntries Array verfügbarer Preiseinträge
- * @returns Findeter PriceEntry oder undefined wenn keiner passt
- */
-function findMatchingPriceEntry(
-  appointmentId: string,
-  appointmentDate: string,
-  priceEntries: PriceEntry[]
-): PriceEntry | undefined {
-  const appointmentType = determineAppointmentType([appointmentId]);
-
-  // Preis-Einträge nach validFrom sortieren (für effiziente Suche)
-  const sortedEntries = [...priceEntries].sort((a, b) => 
-    new Date(a.validFrom).getTime() - new Date(b.validFrom).getTime()
-  );
-
-  for (const entry of sortedEntries) {
-    // Prüfen ob Typ stimmt
-    if (entry.type !== appointmentType) continue;
-
-    // Prüfen ob Datum im Gültigkeitsbereich liegt
-    const validFrom = new Date(entry.validFrom);
-    const validTo = entry.validTo ? new Date(entry.validTo) : null;
-
-    const appointmentTime = new Date(appointmentDate).getTime();
-    const fromTime = validFrom.getTime();
-    const toTime = validTo ? validTo.getTime() : Infinity; // Wenn kein Enddatum, gilt bis heute
-
-    if (appointmentTime >= fromTime && appointmentTime <= toTime) {
-      return entry;
-    }
-  }
-
-  return undefined;
-}
-
-/**
- * Berechnet das Honorar für einen Termin basierend auf Preis-Einträgen
+ * Calculate the fee for a single appointment based on price rules
  * 
- * Logik:
- * - Bestimmt Typ (einzel/gruppe) basierend auf Schüler-Anzahl
- * - Sucht passenden Preis-Eintrag für Datum und Typ
- * - Formel: Betrag × (Dauer / 60)
+ * Formula: Fee = Amount × (Duration / 60)
  * 
- * @param appointment Der Termin zu berechnen
- * @param priceEntries Verfügbare Preis-Einträge
- * @returns Objekt mit calculatedFee und dem verwendeten PriceEntry
+ * @param appointment - The appointment to calculate the fee for
+ * @param studentId - ID of the primary student (first in array)
+ * @param priceEntries - All available price entries
+ * @returns The calculated fee, or 0 if no matching price entry is found
  */
 export function calculateAppointmentFee(
   appointment: Appointment,
-  priceEntries: PriceEntry[] = []
-): { fee: number; priceEntry?: PriceEntry } {
-  // Status-Logik: ausfall_frei wird mit 0 gewertet
-  if (appointment.status === 'canceled_free') {
-    return { fee: 0 };
+  studentId?: string,
+  priceEntries?: PriceEntry[]
+): number {
+  try {
+    // Determine appointment type based on number of students
+    const studentIds = appointment.studentIds || [];
+    const appointmentType = studentIds.length === 1 ? 'einzel' : 'gruppe';
+
+    // Find matching price entry:
+    // - Type must match (individual vs group)
+    // - Appointment date must be between validFrom and validTo (if present)
+    let matchedEntry: PriceEntry | undefined;
+    
+    for (const entry of priceEntries || []) {
+      if (entry.type === appointmentType && 
+          new Date(appointment.date) >= new Date(entry.validFrom)) {
+        const validTo = entry.validTo ? new Date(entry.validTo) : null;
+        
+        // Check if date is within valid range (or no end date defined)
+        if (!validTo || new Date(appointment.date) <= validTo) {
+          matchedEntry = entry;
+          break;
+        }
+      }
+    }
+
+    // Get price from matched entry, default to 0
+    const amount = matchedEntry ? matchedEntry.amount : 0;
+    const duration = appointment.duration || 60;
+
+    // Calculate: Fee = Amount × (Duration / 60)
+    return Math.round(amount * (duration / 60) * 100) / 100;
+  } catch (error) {
+    console.warn(`[Billing] Error calculating fee for appointment ${appointment.id}:`, error);
+    // Return 0 on error - safe default
+    return 0;
   }
-
-  // Alle anderen Status (stattgefunden, canceled_paid) werden berechnet
-  
-  const priceEntry = findMatchingPriceEntry(appointment.id, appointment.date, priceEntries);
-
-  let fee = 0;
-
-  if (priceEntry) {
-    // Honorar berechnen: Betrag × (Dauer / 60)
-    fee = (priceEntry.amount * appointment.duration) / 60;
-  } else {
-    // Kein Preis-Eintrag gefunden - Hinweis geben, aber 0 zurückgeben
-    console.warn(`[Billing] Kein Preis-Eintrag gefunden für Termin ${appointment.id} am ${appointment.date}`);
-    fee = 0;
-  }
-
-  return { fee, priceEntry };
 }
 
 /**
- * Berechnet alle Honorare für eine Liste von Terminen
- * @param appointments Array von Terminen (wird um calculatedFee erweitert)
- * @param priceEntries Verfügbare Preis-Einträge
- * @returns Array mit berechneten Terminen und Gesamtsumme
+ * Calculate total earnings from a list of appointments
+ * 
+ * @param appointments - Array of appointments to calculate fees for
+ * @param priceEntries - All available price entries
+ * @returns Total calculated fees
  */
-export function calculateAllFees(
+export function calculateTotalEarnings(
   appointments: Appointment[],
-  priceEntries: PriceEntry[] = []
-): { appointments: CalculatedAppointment[]; totalFee: number } => {
-  const calculatedAppointments = appointments.map(appointment => ({
-    ...appointment,
-    calculatedFee: calculateAppointmentFee(appointment, priceEntries).fee,
-    priceEntry: calculateAppointmentFee(appointment, priceEntries).priceEntry,
-  })) as CalculatedAppointment[];
+  priceEntries?: PriceEntry[]
+): number {
+  return appointments.reduce((total, appointment) => {
+    return total + calculateAppointmentFee(appointment, undefined, priceEntries);
+  }, 0);
+}
 
-  // Nach Datum sortieren
-  calculatedAppointments.sort((a, b) => 
-    new Date(a.date).getTime() - new Date(b.date).getTime()
-  );
-
-  const totalFee = calculatedAppointments.reduce((sum, appt) => sum + appt.calculatedFee, 0);
-
-  return { appointments: calculatedAppointments, totalFee };
+/**
+ * Get earnings breakdown by appointment type (individual vs group)
+ * 
+ * @param appointments - Array of appointments to analyze
+ * @param priceEntries - All available price entries
+ * @returns Object with individual and group earnings
+ */
+export function getEarningsBreakdown(
+  appointments: Appointment[],
+  priceEntries?: PriceEntry[]
+): { individual: number; group: number } {
+  return appointments.reduce((breakdown, appointment) => {
+    const fee = calculateAppointmentFee(appointment, undefined, priceEntries);
+    
+    if (appointment.studentIds?.length === 1) {
+      breakdown.individual += fee;
+    } else {
+      breakdown.group += fee;
+    }
+    
+    return breakdown;
+  }, { individual: 0, group: 0 });
 }
