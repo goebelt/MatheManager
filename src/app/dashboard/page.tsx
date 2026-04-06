@@ -2,7 +2,7 @@
  * Dashboard Page - Terminverwaltung mit Wochenübersicht und Auto-Vorschlägen
  */
 
-"use client";
+'use client';
 
 import { useState, useEffect } from 'react';
 import type { Student, Appointment, DataContainer } from '@/types';
@@ -10,17 +10,16 @@ import { DashboardHeader } from '@/components/DashboardHeader';
 import { WeekView } from '@/components/WeekView';
 
 export default function DashboardPage() {
-  const [data, setData] = useState(DataContainer | null)(null);
+  const [data, setData] = useState<DataContainer | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentDate, setCurrentDate] = useState(new Date());
 
-  // Load data on mount and when date changes (for new week)
   useEffect(() => {
     loadData();
 
     const interval = setInterval(() => {
       loadData();
-    }, 30000); // Refresh every 30 seconds
+    }, 30000);
 
     return () => clearInterval(interval);
   }, [currentDate]);
@@ -40,7 +39,6 @@ export default function DashboardPage() {
   };
 
   const handleStatusUpdate = (appointmentId: string, newStatus: 'attended' | 'canceled_paid' | 'canceled_free') => {
-    // Update in localStorage and UI
     if (!data) return;
 
     const updatedAppointments = data.appointments.map(appointment =>
@@ -49,5 +47,7 @@ export default function DashboardPage() {
         : appointment
     );
 
-    const upd
+    const updatedData = {
+      ...data,
+      
 ... [truncated]
