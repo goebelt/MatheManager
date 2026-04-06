@@ -8,7 +8,7 @@ import { DashboardHeader } from '@/components/DashboardHeader';
 import { WeekView } from '@/components/WeekView';
 
 export default function DashboardPage() {
-  const [data, setData] = useState<DataContainer | null>(null);
+  const [data, setData] = useState(DataContainer | null)(null);
   const [loading, setLoading] = useState(true);
   const [currentDate, setCurrentDate] = useState(new Date());
 
