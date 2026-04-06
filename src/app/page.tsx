@@ -1,52 +1,121 @@
 /**
- * Landing page for MatheManager
+ * Landing page for MatheManager with navigation
  */
-import { ArrowRight, BookOpen, Calendar, Users, LayoutDashboard } from "lucide-react";
+
+import { useState, useEffect } from 'react';
+import { ArrowRight, BookOpen, Calendar, Users, DollarSign, Settings as SettingsIcon, LayoutDashboard } from "lucide-react";
+
+interface NavItem {
+  name: string;
+  href: string;
+  icon: React.ReactNode;
+}
+
+const navItems: NavItem[] = [
+  { name: 'Dashboard', href: '/dashboard', icon: <LayoutDashboard size={20} /> },
+  { name: 'Rechnungen', href: '/invoices', icon: <DollarSign size={20} /> },
+  { name: 'Einstellungen', href: '/settings', icon: <SettingsIcon size={20} /> },
+];
 
 export default function Home() {
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  if (!isClient) {
+    return null;
+  }
+
   return (
     <main className="min-h-screen bg-gradient-to-b from-green-50 to-white dark:from-gray-900 dark:to-gray-800">
+      {/* Navigation Bar */}
+      <nav className="bg-white/80 backdrop-blur-sm border-b border-gray-200 dark:border-slate-700 sticky top-0 z-50 print:hidden">
+        <div className="container mx-auto px-4 py-3 flex items-center justify-between max-w-6xl">
+          <div>
+            <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-green-600 to-teal-500">
+              MatheManager
+            </h1>
+          </div>
+
+          {/* Desktop Navigation */}
+          <div className="hidden md:flex items-center gap-1">
+            {navItems.map((item) => (
+              <a
+                key={item.name}
+                href={item.href}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  item.href === '/dashboard'
+                    ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                    : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800'
+                }`}
+              >
+                {item.icon}
+                {item.name}
+              </a>
+            ))}
+          </div>
+
+          {/* Mobile Menu Button - could add hamburger menu here if needed */}
+        </div>
+      </nav>
+
       {/* Hero Section */}
-      <section className="container mx-auto px-4 py-20 text-center">
+      <section className="container mx-auto px-4 py-20 text-center max-w-3xl">
         <h1 className="text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-green-600 to-teal-500 mb-6">
           MatheManager
         </h1>
-        <p className="text-xl text-gray-600 dark:text-gray-300 max-w-2xl mx-auto mb-8">
+        <p className="text-xl text-gray-600 dark:text-slate-300 max-w-2xl mx-auto mb-8">
           Ihre persönliche Nachhilfe-Verwaltung für Familien, Schüler und Termine.
         </p>
 
         {/* Features */}
-        <div className="grid md:grid-cols-3 gap-8 mt-16">
+        <div className="grid md:grid-cols-3 gap-8 mt-16 print:hidden">
           <FeatureCard icon={<Calendar size={40} />} title="Termine" description="Wöchentliche oder zweiwöchentliche Termine automatisch verwalten" />
           <FeatureCard icon={<Users size={40} />} title="Gruppenunterricht" description="Max. 2 Schüler teilen sich einen Preis pro Zeiträume-Versionierung" />
           <FeatureCard icon={<BookOpen size={40} />} title="Preise" description="Flexibel veränderliche Preise mit Validitäts-Perioden" />
         </div>
 
-        {/* CTA */}
-        <section className="container mx-auto px-4 py-16 text-center">
-          <button onClick={() => window.location.href = '/dashboard'} className="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-8 rounded-lg inline-flex items-center gap-2 transition-colors">
-            Dashboard öffnen
-            <ArrowRight size={20} />
-          </button>
+        {/* Navigation Buttons */}
+        <section className="container mx-auto px-4 py-16 text-center print:hidden">
+          <h2 className="text-xl font-semibold mb-6 text-gray-800 dark:text-white">Zu den Hauptfunktionen</h2>
+          <div className="flex flex-wrap justify-center gap-3">
+            {navItems.map((item) => (
+              <a
+                key={item.name}
+                href={item.href}
+                className={`inline-flex items-center gap-2 px-6 py-3 rounded-lg font-semibold transition-all ${
+                  item.href === '/dashboard'
+                    ? 'bg-green-600 hover:bg-green-700 text-white shadow-md hover:shadow-lg'
+                    : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 border border-gray-200 dark:border-slate-600 hover:border-green-500 dark:hover:border-green-500'
+                }`}
+              >
+                {item.icon}
+                <span className="hidden sm:inline">{item.name}</span>
+                <ArrowRight size={18} className={item.href !== '/dashboard' ? 'ml-1' : ''} />
+              </a>
+            ))}
+          </div>
         </section>
-      </section>
 
-      {/* Footer */}
-      <footer className="container mx-auto px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
-        MatheManager &copy; 2026 - Nachhilfe-Verwaltung mit Next.js & Tailwind CSS
-      </footer>
+        {/* Footer */}
+        <footer className="container mx-auto px-4 py-8 text-center text-sm text-gray-500 dark:text-slate-400 border-t border-gray-200 dark:border-slate-700 print:hidden">
+          <p>&copy; 2026 MatheManager - Nachhilfe-Verwaltung mit Next.js & Tailwind CSS</p>
+        </footer>
+      </section>
     </main>
   );
 }
 
 function FeatureCard({ icon, title, description }) {
   return (
-    <div className="p-6 rounded-xl bg-white/80 dark:bg-gray-800/80 shadow-sm hover:shadow-md transition-shadow border border-gray-100 dark:border-gray-700">
+    <div className="p-6 rounded-xl bg-white/80 dark:bg-slate-800/80 shadow-sm hover:shadow-md transition-shadow border border-gray-100 dark:border-slate-700">
       <div className="flex justify-center mb-4 text-green-600 dark:text-green-500">
         {icon}
       </div>
       <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">{title}</h3>
-      <p className="text-gray-600 dark:text-gray-400">{description}</p>
+      <p className="text-gray-600 dark:text-slate-400">{description}</p>
     </div>
   );
 }
