@@ -184,4 +184,4 @@ netlify deploy --prod --dir=out/
 
 **Made with ❤️ basierend auf dem Beispiel von [ai-playground](https://github.com/goebelt/ai-playground)**
 
-*Last Updated: 2026-04-01 | Next.js 14+ | TypeScript 5.2+ | Tailwind CSS 3.x | Netlify Deployment | Last Build: <timestamp>*
+*Last Updated: 2026-04-01 | Next.js 14+ | TypeScript 5.2+ | Tailwind CSS 3.x | Netlify Deployment | Last Build: TBD*
