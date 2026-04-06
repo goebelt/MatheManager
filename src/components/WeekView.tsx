@@ -147,7 +147,7 @@ export function WeekView({ students, existingAppointments }: WeekViewProps) {
               time={appointment.time}
               students={students as any}
               duration={appointment.duration}
-              status={appointment.status || 'pending'}
+              status={appointment.status}
               onUpdateStatus={(status) => {
                 console.log(`Update ${appointment.id} to ${status}`);
                 // In real implementation, this would call an API to update the appointment
