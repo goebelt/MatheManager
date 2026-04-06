@@ -44,4 +44,10 @@ export default function DashboardPage() {
     if (!data) return;
 
     const updatedAppointments = data.appointments.map(appointment =>
-      appointment.id === appointmentI
+      appointment.id === appointmentId
+        ? { ...appointment, status: newStatus }
+        : appointment
+    );
+
+    const upd
+... [truncated]
