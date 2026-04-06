@@ -10,9 +10,16 @@ import { AppointmentCard } from './AppointmentCard';
 interface WeekViewProps {
   students: Student[];
   existingAppointments: Appointment[];
+  onStatusChange?: (appointmentId: string, status: Appointment['status']) => void;
+  onAddStudent?: (appointmentId: string, additionalStudentId: string) => void;
 }
 
-export function WeekView({ students, existingAppointments }: WeekViewProps) {
+export function WeekView({ 
+  students, 
+  existingAppointments,
+  onStatusChange,
+  onAddStudent
+}: WeekViewProps) {
   // Filter only non-canceled appointments for suggestions
   const pendingAppointments = useMemo(() =>
     existingAppointments.filter(
@@ -128,30 +135,24 @@ export function WeekView({ students, existingAppointments }: WeekViewProps) {
           )}
         </div>
       ) : (
-        allAppointments.map(appointment => {
+        allAppointments.map((appointment) => {
           const studentIds = appointment.studentIds || [];
-          const students = studentIds.map(id =>
+          const displayStudents = studentIds.map(id =>
             students.find(s => s.id === id)
           ).filter(Boolean);
 
-          if (!students.length) return null;
+          if (!displayStudents.length) return null;
 
           // Find first student for display since they're in array order
-          const primaryStudent = students[0];
+          const primaryStudent = displayStudents[0];
 
           return (
             <AppointmentCard
               key={appointment.id}
-              appointmentId={appointment.id}
-              date={appointment.date}
-              time={appointment.time}
-              students={students as any}
-              duration={appointment.duration}
-              status={appointment.status}
-              onUpdateStatus={(status) => {
-                console.log(`Update ${appointment.id} to ${status}`);
-                // In real implementation, this would call an API to update the appointment
-              }}
+              appointment={appointment}
+              student={primaryStudent}
+              onStatusChange={onStatusChange}
+              onAddStudent={onAddStudent}
             />
           );
         })
