@@ -2,6 +2,8 @@
  * Landing page for MatheManager with navigation
  */
 
+"use client";
+
 import { useState, useEffect } from 'react';
 import { ArrowRight, BookOpen, Calendar, Users, DollarSign, Settings as SettingsIcon, LayoutDashboard } from "lucide-react";
 
@@ -67,55 +69,5 @@ export default function Home() {
           MatheManager
         </h1>
         <p className="text-xl text-gray-600 dark:text-slate-300 max-w-2xl mx-auto mb-8">
-          Ihre persönliche Nachhilfe-Verwaltung für Familien, Schüler und Termine.
-        </p>
-
-        {/* Features */}
-        <div className="grid md:grid-cols-3 gap-8 mt-16 print:hidden">
-          <FeatureCard icon={<Calendar size={40} />} title="Termine" description="Wöchentliche oder zweiwöchentliche Termine automatisch verwalten" />
-          <FeatureCard icon={<Users size={40} />} title="Gruppenunterricht" description="Max. 2 Schüler teilen sich einen Preis pro Zeiträume-Versionierung" />
-          <FeatureCard icon={<BookOpen size={40} />} title="Preise" description="Flexibel veränderliche Preise mit Validitäts-Perioden" />
-        </div>
-
-        {/* Navigation Buttons */}
-        <section className="container mx-auto px-4 py-16 text-center print:hidden">
-          <h2 className="text-xl font-semibold mb-6 text-gray-800 dark:text-white">Zu den Hauptfunktionen</h2>
-          <div className="flex flex-wrap justify-center gap-3">
-            {navItems.map((item) => (
-              <a
-                key={item.name}
-                href={item.href}
-                className={`inline-flex items-center gap-2 px-6 py-3 rounded-lg font-semibold transition-all ${
-                  item.href === '/dashboard'
-                    ? 'bg-green-600 hover:bg-green-700 text-white shadow-md hover:shadow-lg'
-                    : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 border border-gray-200 dark:border-slate-600 hover:border-green-500 dark:hover:border-green-500'
-                }`}
-              >
-                {item.icon}
-                <span className="hidden sm:inline">{item.name}</span>
-                <ArrowRight size={18} className={item.href !== '/dashboard' ? 'ml-1' : ''} />
-              </a>
-            ))}
-          </div>
-        </section>
-
-        {/* Footer */}
-        <footer className="container mx-auto px-4 py-8 text-center text-sm text-gray-500 dark:text-slate-400 border-t border-gray-200 dark:border-slate-700 print:hidden">
-          <p>&copy; 2026 MatheManager - Nachhilfe-Verwaltung mit Next.js & Tailwind CSS</p>
-        </footer>
-      </section>
-    </main>
-  );
-}
-
-function FeatureCard({ icon, title, description }) {
-  return (
-    <div className="p-6 rounded-xl bg-white/80 dark:bg-slate-800/80 shadow-sm hover:shadow-md transition-shadow border border-gray-100 dark:border-slate-700">
-      <div className="flex justify-center mb-4 text-green-600 dark:text-green-500">
-        {icon}
-      </div>
-      <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">{title}</h3>
-      <p className="text-gray-600 dark:text-slate-400">{description}</p>
-    </div>
-  );
-}
+          Ihre persönlic
+... [truncated]
