@@ -2,7 +2,7 @@
  * WeekView - Displays appointments for the selected week with auto-suggestions
  */
 
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Calendar as CalendarIcon, Sparkles } from 'lucide-react';
 import type { Student, Appointment } from '@/types';
 import { AppointmentCard } from './AppointmentCard';
@@ -14,7 +14,7 @@ interface WeekViewProps {
 
 export function WeekView({ students, existingAppointments }: WeekViewProps) {
   // Filter only non-canceled appointments for suggestions
-  const pendingAppointments = useMemo(() => 
+  const pendingAppointments = useMemo(() =>
     existingAppointments.filter(
       a => !a.status.startsWith('canceled')
     ),
@@ -24,14 +24,14 @@ export function WeekView({ students, existingAppointments }: WeekViewProps) {
   // Group appointments by date
   const appointmentsByDate = useMemo(() => {
     const grouped: Record<string, Appointment[]> = {};
-    
+
     pendingAppointments.forEach(appointment => {
       if (!grouped[appointment.date]) {
         grouped[appointment.date] = [];
       }
       grouped[appointment.date].push(appointment);
     });
-    
+
     return grouped;
   }, [pendingAppointments]);
 
@@ -54,17 +54,15 @@ export function WeekView({ students, existingAppointments }: WeekViewProps) {
           date: new Date().toISOString(),
           time: '09:00',
           duration,
-          status: 'pending' as const,
         });
       } else if (rhythm === 'biweekly') {
         // Biweekly: check calendar week parity (even = attend, odd = skip)
-        // JavaScript Date gets UTC timezone offset, so we need local time
         const now = new Date();
         const dayOfWeek = now.getDay();
-        
+
         // Calculate current week number in the month (1-4)
         const weekInMonth = Math.floor((now.getDate() + dayOfWeek + 1) / 7);
-        
+
         // If even week: attend. If odd week: skip
         if (weekInMonth % 2 === 0) {
           suggestions.push({
@@ -73,7 +71,6 @@ export function WeekView({ students, existingAppointments }: WeekViewProps) {
             date: new Date().toISOString(),
             time: '14:00',
             duration,
-            status: 'pending' as const,
           });
         }
       }
@@ -132,7 +129,8 @@ export function WeekView({ students, existingAppointments }: WeekViewProps) {
         </div>
       ) : (
         allAppointments.map(appointment => {
-          const students = appointment.studentIds.map(id => 
+          const studentIds = appointment.studentIds || [];
+          const students = studentIds.map(id =>
             students.find(s => s.id === id)
           ).filter(Boolean);
 
@@ -149,7 +147,7 @@ export function WeekView({ students, existingAppointments }: WeekViewProps) {
               time={appointment.time}
               students={students as any}
               duration={appointment.duration}
-              status={appointment.status}
+              status={appointment.status || 'pending'}
               onUpdateStatus={(status) => {
                 console.log(`Update ${appointment.id} to ${status}`);
                 // In real implementation, this would call an API to update the appointment
