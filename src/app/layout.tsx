@@ -1,52 +1,122 @@
 /**
- * Main layout for MatheManager app
+ * Root Layout for MatheManager Application
+ * Provides shared header/navigation across all app pages
  */
 
-import Link from 'next/link';
-import type { Metadata } from 'next';
-import { Navigation } from '@/components/Navigation';
-
-export const metadata: Metadata = {
-  title: 'MatheManager - Terminverwaltung',
-  description: 'Next.js App zur Verwaltung von Mathe-Nachhilfe mit Tailwind CSS',
-};
-
-const NAV_ITEMS = [
-  { href: '/', icon: <Home size={20} />, label: 'Startseite' },
-  { href: '/families', icon: <Users size={20} />, label: 'Familien & Schüler' },
-  { href: '/billing', icon: <FileText size={20} />, label: 'Abrechnung' },
-];
-
-interface NavItemProps extends React.HTMLAttributes<HTMLDivElement> {
-  item: { href: string; icon: React.ReactNode; label: string };
-}
-
-function NavItem({ item, className }: NavItemProps) {
-  return (
-    <Link
-      href={item.href}
-      className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${className}`}
-    >
-      {item.icon}
-      {item.label}
-    </Link>
-  );
-}
+import { ArrowLeftRight, Calendar } from 'lucide-react'
+import Link from 'next/link'
 
 export default function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+}: {
+  children: React.ReactNode
+}) {
   return (
     <html lang="de">
+      <head>
+        {/* Tailwind CSS via CDN for development */}
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4" />
+        
+        {/* Open Graph Meta Tags for Social Media Sharing */}
+        <meta property="og:title" content="MatheManager - Nachhilfe-Verwaltung" />
+        <meta 
+          property="og:description" 
+          content="Verwalten Sie Ihre Mathe-Nachhilfe mit Terminplanung, Abrechnung und Rechnungsgenerator" 
+        />
+        <meta property="og:type" content="website" />
+      </head>
       <body className="min-h-screen bg-gray-50 dark:bg-slate-900">
-        {/* Navigation */}
-        <Navigation />
+        
+        {/* Navigation Header - Visible on all pages except landing */}
+        {children !== undefined && (
+          <>
+            {/* Desktop Navigation Bar */}
+            <header className="fixed top-0 left-0 right-0 z-50 bg-white/80 dark:bg-slate-800/90 backdrop-blur-sm border-b border-gray-200 dark:border-slate-700 print:hidden">
+              <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
+                {/* Logo & App Name */}
+                <Link href="/dashboard" className="flex items-center gap-2 group">
+                  <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-teal-600 rounded-lg flex items-center justify-center text-white font-bold text-sm shadow-sm group-hover:shadow-md transition-all">
+                    M
+                  </div>
+                  <span className="font-semibold text-gray-900 dark:text-white hidden sm:block">
+                    MatheManager
+                  </span>
+                </Link>
 
-        {/* Main Content */}
-        <main className="pb-16">{children}</main>
+                {/* Navigation Links */}
+                <nav className="flex items-center gap-1 sm:gap-2" role="navigation" aria-label="Hauptnavigation">
+                  <Link
+                    href="/dashboard"
+                    className="px-3 py-2 text-sm font-medium rounded-lg transition-colors bg-gray-100 dark:bg-slate-700/50 text-gray-900 dark:text-white hover:bg-gray-200 dark:hover:bg-slate-600 focus:outline-none focus:ring-2 focus:ring-green-500"
+                  >
+                    Dashboard
+                  </Link>
+
+                  <Link
+                    href="/billing"
+                    className="px-3 py-2 text-sm font-medium rounded-lg transition-colors bg-gray-100 dark:bg-slate-700/50 text-gray-900 dark:text-white hover:bg-gray-200 dark:hover:bg-slate-600 focus:outline-none focus:ring-2 focus:ring-green-500"
+                  >
+                    Abrechnung
+                  </Link>
+
+                  <ArrowLeftRight className="w-4 h-4 text-gray-400 hidden sm:block" />
+
+                  <Link
+                    href="/invoices"
+                    className="px-3 py-2 text-sm font-medium rounded-lg transition-colors bg-green-600 text-white hover:bg-green-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  >
+                    Rechnungen
+                  </Link>
+
+                  <button
+                    onClick={() => window.location.href = '/settings'}
+                    className="px-3 py-2 text-sm font-medium rounded-lg transition-colors bg-gray-100 dark:bg-slate-700/50 text-gray-900 dark:text-white hover:bg-gray-200 dark:hover:bg-slate-600 focus:outline-none focus:ring-2 focus:ring-green-500"
+                    aria-label="Einstellungen öffnen"
+                  >
+                    Einstellungen
+                  </button>
+                </nav>
+
+                {/* Mobile Menu Icon - Hidden on desktop */}
+                <div className="sm:hidden">
+                  <button className="p-2 text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg">
+                    <Calendar className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+            </header>
+
+            {/* Main Content with margin-top for fixed header */}
+            <main style={{ paddingTop: '64px' }}>
+              {children}
+            </main>
+
+            {/* Simple Footer - Visible on all pages except landing */}
+            <footer className="bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 py-6 print:hidden">
+              <div className="max-w-6xl mx-auto px-4 text-center">
+                <p className="text-sm text-gray-500 dark:text-slate-400">
+                  MatheManager &copy; {new Date().getFullYear()} - Nachhilfe-Verwaltung mit Next.js & Tailwind CSS
+                </p>
+              </div>
+            </footer>
+          </>
+        )}
+
+        {/* Landing Page Content */}
+        {children === undefined && (
+          <div className="min-h-screen">
+            {/* Hero Section - Same as before for landing page */}
+            {children}
+          </div>
+        )}
       </body>
     </html>
-  );
+  )
 }
+
+// Fallback for when children prop is not passed (landing page without nav)
+function LandingPageHeader() {
+  return null
+}
+
+LandingPageHeader.displayName = 'LandingPageHeader'
