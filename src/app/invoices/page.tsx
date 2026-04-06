@@ -1,40 +1,36 @@
 /**
- * Invoices Page - Select family, date range, preview invoice items, generate printable invoice
+ * Invoices Page - Generate and print professional invoices for families
  */
 
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Calendar, DollarSign, Printer, FileText, Loader2 } from 'lucide-react';
-import type { Appointment, DataContainer } from '@/types';
+import { Printer, User, Calendar, DollarSign, ArrowRight, Building2 } from 'lucide-react';
+import type { DataContainer, InvoiceItem, Family } from '@/types';
 import { calculateAppointmentFee } from '@/lib/billing';
 import { InvoiceTemplate } from '@/components/InvoiceTemplate';
 
-interface InvoicesPageProps {
-  onBack?: () => void;
-}
-
-export default function InvoicesPage({ onBack }: InvoicesPageProps) => {
+export default function InvoicesPage() {
   const [data, setData] = useState<DataContainer | null>(null);
   const [loading, setLoading] = useState(true);
   
-  // Settings state
-  const [companyInfo, setCompanyInfo] = useState({
-    name: '',
-    address: '',
-    taxId: ''
-  });
+  // Filter states
+  const [selectedFamilyId, setSelectedFamilyId] = useState<string>('all');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
 
   // Invoice generation state
-  const [selectedFamilyId, setSelectedFamilyId] = useState<string>('all');
-  const [startDateStr, setStartDateStr] = useState('');
-  const [endDateStr, setEndDateStr] = useState(new Date().toISOString().split('T')[0]);
-  const [isGenerating, setIsGenerating] = useState(false);
+  const [invoiceData, setInvoiceData] = useState<{
+    invoice: any;
+    items: InvoiceItem[];
+    total: number;
+  } | null>(null);
 
-  // Load data and settings
+  // Load data
   useEffect(() => {
     loadData();
-    loadSettings();
+    const interval = setInterval(loadData, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   const loadData = () => {
@@ -51,427 +47,354 @@ export default function InvoicesPage({ onBack }: InvoicesPageProps) => {
     }
   };
 
-  const loadSettings = () => {
-    try {
-      const stored = localStorage.getItem('mathe_manager_settings');
-      if (stored) {
-        setCompanyInfo(JSON.parse(stored));
-      }
-    } catch (error) {
-      console.error('Error loading settings:', error);
-    }
-  };
+  // Filter appointments based on selected filters and calculate invoice items
+  const filteredAppointments = useMemo(() => {
+    if (!data) return [];
 
-  // Filter and calculate invoice items
+    let result = data.appointments || [];
+
+    // Apply date range filter
+    if (startDate && endDate) {
+      result = result.filter(
+        app => app.date >= startDate + 'T00:00:00Z' && app.date <= endDate + 'T23:59:59Z'
+      );
+    }
+
+    // Apply family filter (only non-canceled appointments)
+    if (selectedFamilyId !== 'all') {
+      result = result.filter(
+        app => 
+          app.studentIds.includes(selectedFamilyId) &&
+          !app.status.startsWith('canceled')
+      );
+    } else {
+      // Show all families, but exclude canceled
+      result = result.filter(app => !app.status.startsWith('canceled'));
+    }
+
+    return result;
+  }, [data, selectedFamilyId, startDate, endDate]);
+
+  // Calculate invoice items from filtered appointments
   const invoiceItems = useMemo(() => {
     if (!data) return [];
 
-    let filteredAppointments = data.appointments || [];
-
-    // Apply date range filter
-    if (startDateStr && endDateStr) {
-      filteredAppointments = filteredAppointments.filter(
-        app => app.date >= startDateStr + 'T00:00:00Z' && app.date <= endDateStr + 'T23:59:59Z'
-      );
-    }
-
-    // Apply family filter
-    if (selectedFamilyId !== 'all') {
-      filteredAppointments = filteredAppointments.filter(
-        app => app.studentIds.includes(selectedFamilyId)
-      );
-    }
-
-    // Calculate items for invoice
-    const items: Array<{
-      date: string;
-      studentName: string;
-      description: string;
-      amount: number;
-      appointmentType: 'einzel' | 'gruppe';
-    }> = [];
-
-    filteredAppointments.forEach(appointment => {
+    return filteredAppointments.map((appointment: any) => {
       const studentIds = appointment.studentIds || [];
-      const appointmentType = studentIds.length === 1 ? 'einzel' : 'gruppe';
-      
-      // Use first student for display (primary)
       const primaryStudentId = studentIds[0];
       
-      items.push({
-        date: appointment.date,
-        studentName: getStudentName(primaryStudentId),
-        description: `${appointmentType === 'einzel' ? 'Einzelstunde' : 'Gruppenkurs'} ${appointment.duration} Min`,
-        amount: calculateAppointmentFee(appointment, primaryStudentId, data.priceEntries || []),
-        appointmentType
-      });
-    });
-
-    return items.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  }, [data, selectedFamilyId, startDateStr, endDateStr]);
-
-  const totalPrice = useMemo(() => {
-    return invoiceItems.reduce((sum, item) => sum + item.amount, 0);
-  }, [invoiceItems]);
-
-  const appointmentCount = invoiceItems.length;
-  
-  // Get selected family name for display
-  const selectedFamilyName = useMemo(() => {
-    if (selectedFamilyId === 'all') return null;
-    if (!data?.students) return null;
-    
-    const student = data.students.find(s => s.id === selectedFamilyId);
-    return student ? `${student.firstName} ${student.lastName || ''}` : null;
-  }, [selectedFamilyId, data]);
-
-  // Generate unique invoice number: YYYY-MM-ID
-  const generateInvoiceNumber = () => {
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    
-    // Simple random ID (in production, use a sequential counter)
-    const id = Math.floor(Math.random() * 10000);
-    return `${year}-${month}-${id.toString().padStart(4, '0')}`;
-  };
-
-  const handleGenerateInvoice = () => {
-    if (!data || !companyInfo.name || !companyInfo.address) {
-      alert('Bitte speichern Sie zuerst Ihre Firmeninformationen in den Einstellungen');
-      return;
-    }
-
-    if (appointmentCount === 0) {
-      alert('Keine Termine im ausgewählten Zeitraum gefunden.');
-      return;
-    }
-
-    setIsGenerating(true);
-
-    // Small delay to allow UI to update
-    setTimeout(() => {
-      const invoiceNumber = generateInvoiceNumber();
-      const invoiceDate = new Date().toISOString();
-      
-      // Generate HTML content for the invoice template
-      const htmlContent = `
-        <html>
-          <head>
-            <title>Rechnung ${invoiceNumber} - MatheManager</title>
-            <script src="https://cdn.tailwindcss.com"></script>
-            <style>
-              @media print {
-                .print-container * {
-                  visibility: visible !important;
-                }
-                .no-print {
-                  display: none !important;
-                }
-                body {
-                  margin: 0;
-                  padding: 0;
-                  height: auto !important;
-                  overflow: visible !important;
-                }
-              }
-            </style>
-          </head>
-          <body class="bg-gray-100">
-            <div class="print-container min-h-screen flex items-center justify-center p-4">
-              ${InvoiceTemplate({
-                companyInfo,
-                invoiceNumber,
-                invoiceDate,
-                familyName: selectedFamilyName || 'Familie',
-                familyAddress: '', // Could fetch from data if needed
-                items: invoiceItems.map(item => ({
-                  date: item.date,
-                  studentName: item.studentName,
-                  description: `${item.description} (${item.appointmentType})`,
-                  amount: item.amount.toFixed(2)
-                })),
-                totalPrice,
-                onPrint: () => window.print()
-              })}
-          </body>
-        </html>`;
-
-      // Create a new window with the invoice content for printing
-      const printWindow = window.open('', '_blank');
-      
-      if (printWindow) {
-        printWindow.document.write(htmlContent);
-        printWindow.document.close();
-        
-        // Wait for content to load then print
-        printWindow.onload = () => {
-          setTimeout(() => {
-            printWindow.focus();
-            window.print();
-            printWindow.close();
-          }, 500);
-        };
-      } else {
-        // Fallback if popup blocked
-        const blob = new Blob([htmlContent], { type: 'text/html' });
-        const url = URL.createObjectURL(blob);
-        const iframe = document.createElement('iframe');
-        iframe.style.display = 'none';
-        iframe.src = url;
-        document.body.appendChild(iframe);
-        
-        iframe.onload = () => {
-          setTimeout(() => {
-            window.print();
-            document.body.removeChild(iframe);
-          }, 500);
-        };
+      // Find student name (use family name for families, individual name for students)
+      let studentName = '';
+      if (primaryStudentId) {
+        const student = data.students?.find(s => s.id === primaryStudentId);
+        if (student) {
+          studentName = `${student.firstName} ${student.lastName || ''}`.trim();
+        } else {
+          // Fallback to family name for families
+          const family = data.families?.find(f => f.id === primaryStudentId);
+          if (family) {
+            studentName = family.name;
+          }
+        }
       }
 
-      setIsGenerating(false);
-    }, 100);
+      // Determine description based on appointment type
+      const appointmentType = studentIds.length === 1 ? 'Einzel' : 'Gruppe';
+      const duration = appointment.duration || 60;
+      
+      let unitPrice = 0;
+      if (data.priceEntries) {
+        for (const entry of data.priceEntries) {
+          if (entry.type === appointmentType && 
+              new Date(appointment.date) >= new Date(entry.validFrom)) {
+            const validTo = entry.validTo ? new Date(entry.validTo) : null;
+            if (!validTo || new Date(appointment.date) <= validTo) {
+              unitPrice = entry.amount;
+              break;
+            }
+          }
+        }
+      }
+
+      // Calculate fee using the billing engine
+      const calculatedFee = calculateAppointmentFee(appointment, primaryStudentId, data.priceEntries);
+
+      return {
+        appointmentId: appointment.id,
+        date: appointment.date,
+        studentName,
+        description: `${appointmentType} • ${duration} Min`,
+        unitPrice: Number(unitPrice.toFixed(2)),
+        quantity: 1,
+        totalPrice: Number(calculatedFee.toFixed(2))
+      };
+    });
+  }, [filteredAppointments, data]);
+
+  // Calculate totals
+  const subtotal = useMemo(() => {
+    return invoiceItems.reduce((sum, item) => sum + item.totalPrice, 0);
+  }, [invoiceItems]);
+
+  // Generate invoice number with format: YYYY-MM-001
+  const generateInvoiceNumber = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    return `${year}-${month}-00${Math.floor(Math.random() * 90) + 1}`;
+  };
+
+  // Handle invoice generation with print
+  const handleGenerateInvoice = () => {
+    if (!selectedFamilyId || !data) return;
+
+    const invoiceNumber = generateInvoiceNumber();
+    const now = new Date().toISOString();
+
+    // Get user's invoice settings (letterhead data)
+    const invoiceSettings = data.invoiceSettings || {
+      businessName: '',
+      street: '',
+      zipCode: '',
+      city: '',
+      email: '',
+      phone: ''
+    };
+
+    const issuedBy = {
+      name: invoiceSettings.businessName || 'MatheManager',
+      street: invoiceSettings.street,
+      zipCode: invoiceSettings.zipCode,
+      city: invoiceSettings.city,
+      email: invoiceSettings.email,
+      phone: invoiceSettings.phone,
+      vatId: '' // Steuernummer could be added later
+    };
+
+    const billedTo = data.families?.find(f => f.id === selectedFamilyId) || {
+      name: 'Familie',
+      street: '',
+      city: '',
+      zipCode: ''
+    };
+
+    setInvoiceData({
+      invoiceNumber,
+      items: invoiceItems,
+      total: subtotal,
+      issuedBy,
+      billedTo,
+      invoiceDate: now,
+      dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days later
+      subtotal,
+      taxRate: undefined,
+      taxAmount: undefined
+    });
   };
 
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-slate-900 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-green-600" />
+        <p className="text-gray-500 dark:text-slate-400 animate-pulse">Lade Daten...</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white dark:from-slate-900 dark:to-slate-800">
       {/* Header */}
       <header className="bg-white dark:bg-slate-800 shadow-sm border-b border-gray-200 dark:border-slate-700 sticky top-0 z-10 print:hidden">
-        <div className="max-w-4xl mx-auto px-4 py-4">
+        <div className="max-w-5xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                <FileText className="w-5 h-5 text-green-600" />
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <Building2 className="w-6 h-6 text-green-600" />
                 Rechnungen
               </h1>
-              <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
-                Wähle eine Familie und Zeitraum, um eine Rechnung zu erstellen
+              <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
+                Generiere professionelle Rechnungen für Familien
               </p>
             </div>
 
-            {/* Desktop Navigation */}
-            <nav className="hidden sm:flex items-center gap-2">
-              <a href="/dashboard" className="px-3 py-1.5 text-sm font-medium bg-gray-100 dark:bg-slate-700/50 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors">
-                Dashboard
-              </a>
-              <a href="/billing" className="px-3 py-1.5 text-sm font-medium bg-gray-100 dark:bg-slate-700/50 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors">
-                Abrechnung
-              </a>
+            {/* Generate Invoice Button */}
+            {data && data.families.length > 0 && (
               <button
-                onClick={() => window.location.href = '/settings'}
-                className="px-3 py-1.5 text-sm font-medium bg-gray-100 dark:bg-slate-700/50 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors"
+                onClick={handleGenerateInvoice}
+                disabled={!selectedFamilyId || invoiceItems.length === 0}
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-black text-white font-medium rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Einstellungen
+                <DollarSign size={18} />
+                Rechnung generieren
               </button>
-            </nav>
+            )}
           </div>
 
-          {/* Mobile Navigation */}
-          <nav className="sm:hidden mt-4 overflow-x-auto flex gap-2 pb-1 -mx-4">
-            <a href="/dashboard" className="flex-1 px-3 py-1.5 text-sm font-medium bg-gray-100 dark:bg-slate-700/50 rounded-lg whitespace-nowrap hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors">
-              Dashboard
-            </a>
-            <a href="/billing" className="flex-1 px-3 py-1.5 text-sm font-medium bg-gray-100 dark:bg-slate-700/50 rounded-lg whitespace-nowrap hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors">
-              Abrechnung
-            </a>
-            <button
-              onClick={() => window.location.href = '/invoices'}
-              className="flex-1 px-3 py-1.5 text-sm font-medium bg-green-600 text-white rounded-lg whitespace-nowrap"
-            >
-              Rechnungen
-            </button>
-            <button
-              onClick={onBack}
-              className="flex-1 px-3 py-1.5 text-sm font-medium bg-gray-100 dark:bg-slate-700/50 rounded-lg whitespace-nowrap hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors"
-            >
-              Zurück
-            </button>
-          </nav>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="max-w-4xl mx-auto px-4 py-6 print:hidden">
-        {/* Filters Card */}
-        <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl shadow-sm p-5 space-y-4">
-          {/* Family & Date Range Row */}
-          <div className="grid gap-4 sm:grid-cols-3">
-            {/* Family Selector */}
-            <div>
-              <label htmlFor="familySelect" className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
-                <span className="w-4 h-4 rounded bg-blue-600 text-white flex items-center justify-center text-[8px] font-bold">A</span>
-                Familie
+          {/* Filter Controls */}
+          <div className="mt-6 grid gap-4 sm:grid-cols-3">
+            {/* Family Selection */}
+            <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-slate-700/50 rounded-lg border border-gray-200 dark:border-slate-600">
+              <label htmlFor="family-select" className="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                <User size={16} />
+                Familie auswählen
               </label>
               <select
-                id="familySelect"
+                id="family-select"
                 value={selectedFamilyId}
                 onChange={(e) => setSelectedFamilyId(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
+                disabled={!data || data.families.length === 0}
+                className="flex-1 bg-transparent text-sm focus:outline-none dark:text-white cursor-pointer"
               >
                 <option value="all">Alle Familien</option>
-                {data?.students.map(student => (
-                  <option key={student.id} value={student.id}>
-                    {student.firstName} {student.lastName || ''}
+                {data.families.map((family) => (
+                  <option key={family.id} value={family.id}>
+                    {family.name}
                   </option>
                 ))}
               </select>
             </div>
 
-            {/* Start Date */}
-            <div>
-              <label htmlFor="startDate" className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
-                <Calendar className="w-4 h-4 text-gray-400" />
-                Von
+            {/* Date Range */}
+            <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-slate-700/50 rounded-lg border border-gray-200 dark:border-slate-600">
+              <label htmlFor="date-range" className="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                <Calendar size={16} />
+                Zeitraum
               </label>
-              <input
-                type="date"
-                id="startDate"
-                value={startDateStr}
-                onChange={(e) => setStartDateStr(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
-              />
+              <div className="flex gap-1">
+                <input
+                  id="start-date"
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  disabled={!selectedFamilyId || !data}
+                  className="w-20 text-sm bg-transparent focus:outline-none dark:text-white cursor-pointer"
+                />
+                <span className="text-gray-400">bis</span>
+                <input
+                  id="end-date"
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  disabled={!selectedFamilyId || !data}
+                  min={startDate || undefined}
+                  className="w-20 text-sm bg-transparent focus:outline-none dark:text-white cursor-pointer"
+                />
+              </div>
             </div>
 
-            {/* End Date */}
-            <div>
-              <label htmlFor="endDate" className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
-                <Calendar className="w-4 h-4 text-gray-400" />
-                Bis
-              </label>
-              <input
-                type="date"
-                id="endDate"
-                value={endDateStr}
-                onChange={(e) => setEndDateStr(e.target.value)}
-                min={startDateStr || undefined}
-                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
-              />
-            </div>
-          </div>
-
-          {/* Summary & Generate Button */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-3 border-t border-gray-200 dark:border-slate-600">
-            <div className="text-sm space-y-1">
-              {appointmentCount > 0 ? (
-                <>
-                  <p className="font-medium text-gray-900 dark:text-white">
-                    {appointmentCount} Termin(e) gefunden
-                  </p>
-                  <p className="text-xs text-gray-500 dark:text-slate-400">
-                    Gesamthonorar:
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p className="text-gray-500 dark:text-slate-400 italic">
-                    Wählen Sie eine Familie und Zeitraum, um Termine anzuzeigen.
-                  </p>
-                </>
-              )}
-            </div>
-
-            {/* Generate Button */}
-            {appointmentCount > 0 && (
-              <button
-                onClick={handleGenerateInvoice}
-                disabled={isGenerating}
-                className="flex items-center justify-center gap-2 px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg shadow-sm transition-colors disabled:opacity-30 disabled:cursor-not-allowed w-full sm:w-auto"
-              >
-                {isGenerating ? (
+            {/* Results Summary */}
+            <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-slate-700/50 rounded-lg border border-gray-200 dark:border-slate-600">
+              <span className="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                <DollarSign size={16} />
+                Summe
+              </span>
+              <div className="text-right">
+                {invoiceItems.length > 0 ? (
                   <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Drucken...
+                    <p className={`text-lg font-bold text-gray-900 dark:text-white ${subtotal > 0 ? 'text-green-600' : ''}`}>
+                      €{subtotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-slate-400">
+                      {invoiceItems.length} Position(en)
+                    </p>
                   </>
                 ) : (
                   <>
-                    <Printer size={16} />
-                    Rechnung drucken
+                    <p className="text-lg font-medium text-gray-300 dark:text-slate-600">€ 0,00</p>
+                    <p className="text-xs text-gray-500 dark:text-slate-400">
+                      {selectedFamilyId === 'all' 
+                        ? `${filteredAppointments.length} Termine im Zeitraum` 
+                        : ''}
+                    </p>
                   </>
                 )}
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Preview Section */}
-        {appointmentCount > 0 && invoiceItems.length > 0 && (
-          <div className="mt-6 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl shadow-sm overflow-hidden">
-            <div className="px-5 py-3 bg-gray-50 dark:bg-slate-700/30 border-b border-gray-200 dark:border-slate-600 flex items-center justify-between print:hidden">
-              <h3 className="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-1.5">
-                <FileText size={14} />
-                Rechnungsvorschau
-              </h3>
-              <span className="text-xs text-gray-500 dark:text-slate-400 font-mono bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded">
-                {invoiceItems.length} Positionen
-              </span>
-            </div>
-
-            <div className="max-h-[300px] overflow-y-auto divide-y divide-gray-100 dark:divide-slate-700">
-              {invoiceItems.map((item, index) => (
-                <div key={index} className="flex justify-between items-center px-5 py-3 text-sm hover:bg-gray-50 dark:hover:bg-slate-700/30 print:border-b print:border-black print:last:border-none">
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium text-gray-900 dark:text-white truncate">
-                      {item.studentName}
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-slate-400 truncate">
-                      {new Date(item.date).toLocaleDateString('de-DE', { day: '2-digit', month: 'short' })} • {item.description}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2 ml-4 min-w-[80px] justify-end">
-                    <span className="text-xs text-gray-500 dark:text-slate-400 whitespace-nowrap hidden sm:block">
-                      {item.amount.toFixed(2)} €
-                    </span>
-                  </div>
-                </div>
-              ))}
-
-              {/* Footer Row */}
-              <div className="flex justify-between items-center px-5 py-3 bg-gray-50 dark:bg-slate-700/30 border-t border-gray-200 dark:border-slate-600">
-                <span className="text-sm font-medium text-gray-900 dark:text-white">Gesamtsumme:</span>
-                <span className="text-sm font-bold text-green-600 dark:text-green-500 whitespace-nowrap">
-                  {totalPrice.toFixed(2)} €
-                </span>
               </div>
             </div>
           </div>
-        )}
 
-        {/* Empty State */}
-        {appointmentCount === 0 && invoiceItems.length === 0 && (
-          <div className="text-center py-16">
-            <FileText size={48} className="mx-auto text-gray-300 dark:text-slate-600 mb-4" />
-            <p className="text-sm text-gray-500 dark:text-slate-400">
-              Wählen Sie eine Familie und Zeitraum, um Termine anzuzeigen.
-            </p>
+          {/* Info Message */}
+          {!data.families || data.families.length === 0 ? (
+            <div className="mt-6 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+              <p className="text-sm text-yellow-800 dark:text-yellow-300 flex items-start gap-2">
+                <span className="text-xl">⚠️</span>
+                <span>Keine Familien oder Schüler im System. Bitte erstelle zunächst einige Einträge in den Familien-/Schüler-Bereichen.</span>
+              </p>
+            </div>
+          ) : (
+            !selectedFamilyId && invoiceItems.length === 0 && (
+              <div className="mt-6 p-4 bg-gray-50 dark:bg-slate-700/30 border border-gray-200 dark:border-slate-600 rounded-lg">
+                <p className="text-sm text-gray-500 dark:text-slate-400 flex items-start gap-2">
+                  <span className="text-xl">📅</span>
+                  Wähle eine Familie und einen Zeitraum, um die Rechnungen zu generieren. Alle nicht stornierten Termine werden berücksichtigt.
+                </p>
+              </div>
+            )
+          )}
+        </div>
+      </header>
+
+      {/* Invoice Preview Section */}
+      {invoiceData ? (
+        <main className="max-w-5xl mx-auto px-4 py-6">
+          {/* Invoice Actions Bar */}
+          <div className={`mb-6 p-4 bg-gray-50 dark:bg-slate-700/30 border border-gray-200 dark:border-slate-600 rounded-lg print:hidden ${invoiceData.total > 0 ? 'flex justify-between items-center' : ''}`}>
+            <div>
+              <h3 className="text-sm font-medium text-gray-900 dark:text-white">Rechnungsvorschau:</h3>
+              <p className="text-xs text-gray-500 dark:text-slate-400">Nr. {invoiceData.invoiceNumber} • {new Date(invoiceData.invoiceDate).toLocaleDateString('de-DE')} bis {formatDueDate(invoiceData.dueDate)}</p>
+            </div>
+
+            {/* Print Button */}
+            <button
+              onClick={() => window.print()}
+              disabled={invoiceData.total <= 0 || !window.print}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-black text-white font-medium rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Printer size={18} />
+              Drucken (PDF)
+            </button>
           </div>
-        )}
-      </main>
 
-      {/* Print Styles */}
+          {/* Invoice Template */}
+          <InvoiceTemplate
+            invoice={invoiceData}
+            onPrint={() => window.print()}
+            showDownloadButton={false}
+          />
+        </main>
+      ) : (
+        // Show placeholder if no invoice generated yet
+        !invoiceData && data.families.length > 0 && (
+          <main className="max-w-5xl mx-auto px-4 py-12 text-center">
+            <div className="flex flex-col items-center justify-center h-full min-h-[300px]">
+              <Building2 className="w-24 h-24 text-gray-300 dark:text-slate-600 mb-6" />
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+                Keine Rechnung generiert
+              </h2>
+              <p className="text-gray-500 dark:text-slate-400 max-w-md mx-auto">
+                Wähle eine Familie und einen Zeitraum oben, um eine professionelle Rechnung zu generieren.
+              </p>
+            </div>
+          </main>
+        )
+      )}
+
+      {/* Print-only styles */}
       <style>{`
         @media print {
           body * {
-            visibility: hidden !important;
+            visibility: hidden;
           }
-          .print-container * {
+          .print\\:visible {
             visibility: visible !important;
           }
-          .no-print {
-            display: none !important;
+          .print\\:block {
+            display: block !important;
           }
-          body {
-            margin: 0 !important;
-            padding: 0 !important;
-            height: auto !important;
-            overflow: visible !important;
+          /* Print only the invoice content */
+          main {
+            visibility: visible !important;
+          }
+          InvoiceTemplate {
+            print-display: inline;
           }
         }
       `}</style>
@@ -479,9 +402,11 @@ export default function InvoicesPage({ onBack }: InvoicesPageProps) => {
   );
 }
 
-function getStudentName(studentId?: string): string {
-  if (!studentId) return 'Familie';
-  
-  const [firstName, lastName] = studentId.split('-').slice(-2);
-  return `${firstName} ${lastName || ''}`;
+function formatDueDate(dateString: string): string {
+  const date = new Date(dateString);
+  return date.toLocaleDateString('de-DE', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric'
+  });
 }
