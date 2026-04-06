@@ -47,7 +47,5 @@ export default function DashboardPage() {
         : appointment
     );
 
-    const updatedData = {
-      ...data,
-      
+    const upd
 ... [truncated]
