@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "clean": "rm -rf .next && rm -rf node_modules/.cache"
   },
   "dependencies": {
     "@heroicons/react": "^2.1.6",
