@@ -1,6 +1,8 @@
-/**
+/** 
  * WeekView - Displays appointments for the selected week with auto-suggestions
  */
+
+'use client';
 
 import { useMemo } from 'react';
 import { Calendar as CalendarIcon, Sparkles } from 'lucide-react';
