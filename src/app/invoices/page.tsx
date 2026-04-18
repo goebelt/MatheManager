@@ -1,10 +1,10 @@
-/**
+﻿/**
  * Invoices Page - Generate and print professional invoices for families
  */
 
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Printer, User, Calendar, DollarSign, ArrowRight, Building2 } from 'lucide-react';
 import type { DataContainer, InvoiceItem, Family } from '@/types';
 import { calculateAppointmentFee } from '@/lib/billing';
