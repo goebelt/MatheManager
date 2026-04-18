@@ -4,7 +4,7 @@
 
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { DollarSign, Calendar, User, Filter, ArrowUpRight, Loader2 } from 'lucide-react';
 import type { Appointment, Student, PriceEntry, DataContainer } from '@/types';
 import { calculateAppointmentFee } from '@/lib/billing';
