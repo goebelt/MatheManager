@@ -2,6 +2,8 @@
  * Invoice Template Component - Professional, print-optimized design
  */
 
+'use client';
+
 import { Download, Printer } from 'lucide-react';
 // Flexible invoice type that accepts both full Invoice and the lighter object from invoices page
 interface InvoiceData {

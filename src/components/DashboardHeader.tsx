@@ -2,6 +2,8 @@
  * DashboardHeader - Header with week navigation and current week display
  */
 
+'use client';
+
 import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
 
 interface DashboardHeaderProps {
