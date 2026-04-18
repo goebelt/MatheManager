@@ -2,7 +2,7 @@
  * Price Management Page - Manage price entries for individual and group lessons
  */
 
-"use client";
+'use client';
 
 import { useState, useEffect } from 'react';
 import { Euro, Calendar, Plus, Edit2, Trash2, Search, Check, X, Loader2 } from 'lucide-react';
