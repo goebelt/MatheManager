@@ -7,6 +7,7 @@
 
 import { ArrowLeftRight, Calendar, Euro, Settings } from 'lucide-react'
 import Link from 'next/link'
+import './globals.css'
 
 export default function RootLayout({
   children,
@@ -16,8 +17,6 @@ export default function RootLayout({
   return (
     <html lang="de">
       <head>
-        {/* Tailwind CSS via CDN for development */}
-        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4" />
         {/* Open Graph Meta Tags for Social Media Sharing */}
         <meta property="og:title" content="MatheManager - Nachhilfe-Verwaltung" />
         <meta property="og:description" content="Verwalten Sie Ihre Mathe-Nachhilfe mit Terminplanung, Abrechnung und Rechnungsgenerator" />
