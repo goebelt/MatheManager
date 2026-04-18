@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Billing Page - Overview of earnings with date range filters and price calculations
  */
 
@@ -78,7 +78,7 @@ export default function BillingPage() {
     return filteredAppointments.map(appointment => {
       // Determine appointment type: 'einzel' or 'gruppe'
       const studentIds = appointment.studentIds || [];
-      const appointmentType = studentIds.length === 1 ? 'einzel' : 'gruppe';
+      const appointmentType: 'individual' | 'group' = studentIds.length === 1 ? 'individual' : 'group';
 
       // Find matching price entry
       let priceEntry: PriceEntry | undefined;
