@@ -3,17 +3,51 @@
  */
 
 import { Download, Printer } from 'lucide-react';
-import type { Invoice, InvoiceItem } from '@/types';
+// Flexible invoice type that accepts both full Invoice and the lighter object from invoices page
+interface InvoiceData {
+  invoiceNumber: string;
+  invoiceDate: string;
+  dueDate: string;
+  issuedBy: {
+    name?: string;
+    street?: string;
+    zipCode?: string;
+    city?: string;
+    email?: string;
+    phone?: string;
+    vatId?: string;
+    iban?: string;
+  };
+  billedTo: {
+    name?: string;
+    street?: string;
+    zipCode?: string;
+    city?: string;
+  };
+  items: Array<{
+    appointmentId?: string;
+    date: string;
+    studentName?: string;
+    description: string;
+    unitPrice: number;
+    quantity: number;
+    totalPrice: number;
+  }>;
+  subtotal: number;
+  taxRate?: number;
+  taxAmount?: number;
+  total: number;
+}
 
 interface InvoiceTemplateProps {
-  invoice: Invoice;
+  invoice: InvoiceData;
   onPrint?: () => void;
   showDownloadButton?: boolean;
 }
 
-export function InvoiceTemplate({ 
-  invoice, 
-  onPrint, 
+export function InvoiceTemplate({
+  invoice,
+  onPrint,
 }: InvoiceTemplateProps) {
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('de-DE', {
@@ -121,10 +155,10 @@ export function InvoiceTemplate({
                     {item.quantity}
                   </td>
                   <td className="py-3 px-4 text-right text-sm">
-                    €{Number(item.unitPrice).toFixed(2)}
+                    &euro;{Number(item.unitPrice).toFixed(2)}
                   </td>
                   <td className="py-3 px-4 text-right font-semibold">
-                    €{item.totalPrice.toFixed(2)}
+                    &euro;{item.totalPrice.toFixed(2)}
                   </td>
                 </tr>
               ))
@@ -136,4 +170,62 @@ export function InvoiceTemplate({
       {/* Totals Section */}
       <div className="flex justify-end mt-16">
         <div className="w-[35%]">
+          <div className="flex justify-between py-2 border-b border-dotted border-black">
+            <span className="text-sm font-medium text-gray-600">Zwischensumme (netto)</span>
+            <span className="text-sm font-semibold">&euro;{subtotal.toFixed(2)}</span>
+          </div>
           
+          {invoice.taxRate !== undefined && invoice.taxRate > 0 && (
+            <div className="flex justify-between py-2 border-b border-dotted border-black">
+              <span className="text-sm font-medium text-gray-600">MwSt. ({invoice.taxRate}%)</span>
+              <span className="text-sm font-semibold">&euro;{(invoice.taxAmount || 0).toFixed(2)}</span>
+            </div>
+          )}
+          
+          <div className="flex justify-between py-3 border-t-4 border-black mt-2">
+            <span className="text-xl font-bold">Gesamtbetrag</span>
+            <span className="text-xl font-bold">&euro;{invoice.total.toFixed(2)}</span>
+          </div>
+
+          {/* Payment terms */}
+          <div className="mt-8 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+            <p className="text-xs font-semibold text-gray-700 mb-2">Zahlungsbedingungen:</p>
+            <p className="text-xs text-gray-600">Fällig bis: {formatDate(invoice.dueDate)}</p>
+            {invoice.issuedBy.iban && (
+              <p className="text-xs text-gray-600 mt-1">IBAN: {invoice.issuedBy.iban}</p>
+            )}
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex gap-2 mt-6 print:hidden">
+            {onPrint && (
+              <button
+                onClick={onPrint}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-black text-white font-medium rounded-lg hover:bg-gray-800 transition-colors"
+              >
+                <Printer size={16} />
+                Drucken
+              </button>
+            )}
+            {typeof window !== 'undefined' && (
+              <button
+                onClick={() => window.print()}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                <Printer size={16} />
+                PDF
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Footer note */}
+      <div className="mt-12 pt-6 border-t border-gray-200 text-center">
+        <p className="text-xs text-gray-500">
+          Vielen Dank für die gute Zusammenarbeit!
+        </p>
+      </div>
+    </div>
+  );
+}

@@ -6,11 +6,12 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { Home, Users, FileText, Package } from 'lucide-react';
+import { Home, Users, FileText, Package, Euro } from 'lucide-react';
 
 const NAV_ITEMS = [
   { href: '/', icon: <Home size={20} />, label: 'Startseite' },
   { href: '/families', icon: <Users size={20} />, label: 'Familien & Schüler' },
+  { href: '/prices', icon: <Euro size={20} />, label: 'Preise' },
   { href: '/billing', icon: <FileText size={20} />, label: 'Abrechnung' },
 ];
 
@@ -49,6 +50,7 @@ export function Navigation({ isLoading = false }: NavigationProps) {
           <button
             className="md:hidden p-2 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700"
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            aria-label="Menü öffnen"
           >
             {isMobileMenuOpen ? (
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -72,3 +74,13 @@ export function Navigation({ isLoading = false }: NavigationProps) {
                 onClick={() => setIsMobileMenuOpen(false)}
                 className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${isLoading ? 'opacity-0' : ''}`}
               >
+                {item.icon}
+                {item.label}
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+    </nav>
+  );
+}

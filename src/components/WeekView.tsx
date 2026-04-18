@@ -1,4 +1,4 @@
-/** 
+/**
  * WeekView - Displays appointments for the selected week with auto-suggestions
  */
 
@@ -12,104 +12,190 @@ import { AppointmentCard } from './AppointmentCard';
 interface WeekViewProps {
   students: Student[];
   existingAppointments: Appointment[];
-  onStatusChange?: (appointmentId: string, status: Appointment['status']) => void;
+  priceEntries?: any[];
+  onStatusUpdate?: (appointmentId: string, status: 'attended' | 'canceled_paid' | 'canceled_free') => void;
   onAddStudent?: (appointmentId: string, additionalStudentId: string) => void;
+  currentDate?: Date;
 }
 
-export function WeekView({ 
-  students, 
+export function WeekView({
+  students,
   existingAppointments,
-  onStatusChange,
-  onAddStudent
+  priceEntries = [],
+  onStatusUpdate,
+  onAddStudent,
+  currentDate = new Date(),
 }: WeekViewProps) {
-  // Filter only non-canceled appointments for suggestions
-  const pendingAppointments = useMemo(() =>
-    existingAppointments.filter(
-      a => !a.status.startsWith('canceled')
-    ),
-    [existingAppointments]
-  );
+  // Calculate the week's start (Monday) from currentDate
+  const weekStart = useMemo(() => {
+    const date = new Date(currentDate);
+    const day = date.getDay(); // 0 = Sunday
+    const diff = day === 0 ? -6 : 1 - day; // Adjust so Monday = start
+    date.setDate(date.getDate() + diff);
+    date.setHours(0, 0, 0, 0);
+    return date;
+  }, [currentDate]);
 
-  // Group appointments by date
+  // Build array of 7 days for this week (Mon-Sun)
+  const weekDays = useMemo(() => {
+    const days: Date[] = [];
+    for (let i = 0; i < 7; i++) {
+      const day = new Date(weekStart);
+      day.setDate(weekStart.getDate() + i);
+      days.push(day);
+    }
+    return days;
+  }, [weekStart]);
+
+  // Get ISO date string (YYYY-MM-DD) for a date
+  const toDateString = (date: Date): string => date.toISOString().split('T')[0];
+
+  // Map existing appointments by date string
   const appointmentsByDate = useMemo(() => {
     const grouped: Record<string, Appointment[]> = {};
-
-    pendingAppointments.forEach(appointment => {
-      if (!grouped[appointment.date]) {
-        grouped[appointment.date] = [];
-      }
-      grouped[appointment.date].push(appointment);
-    });
-
+    existingAppointments
+      .filter(a => !a.status.startsWith('canceled'))
+      .forEach(appointment => {
+        const dateStr = toDateString(new Date(appointment.date));
+        if (!grouped[dateStr]) grouped[dateStr] = [];
+        grouped[dateStr].push(appointment);
+      });
     return grouped;
-  }, [pendingAppointments]);
+  }, [existingAppointments]);
 
-  // Get suggested appointments for the week
-  const suggestedAppointments = useMemo(() => {
-    const suggestions: Appointment[] = [];
+  // Figure out the default weekday for each student (what day they normally come)
+  // We look at their existing appointments to find patterns
+  const studentDefaultWeekday = useMemo(() => {
+    const map: Record<string, number> = {}; // studentId -> weekday (1=Mon ... 7=Sun)
+    students.forEach(student => {
+      const studentAppts = existingAppointments.filter(a => a.studentIds.includes(student.id));
+      if (studentAppts.length > 0) {
+        // Find most common weekday from past appointments
+        const weekdayCount: Record<number, number> = {};
+        studentAppts.forEach(appt => {
+          const d = new Date(appt.date);
+          const wd = d.getDay() || 7; // Sunday = 7
+          weekdayCount[wd] = (weekdayCount[wd] || 0) + 1;
+        });
+        let best = 1, bestCount = 0;
+        Object.entries(weekdayCount).forEach(([wd, count]) => {
+          if (count > bestCount) { bestCount = count; best = parseInt(wd); }
+        });
+        map[student.id] = best;
+      } else {
+        // No history: default to Monday for weekly, alternate if biweekly
+        map[student.id] = 1;
+      }
+    });
+    return map;
+  }, [students, existingAppointments]);
 
-    // Track which dates are already covered by existing appointments
-    const coveredDates = new Set(pendingAppointments.map(a => a.date));
+  // Check if a student should have a suggested appointment on a given day
+  // Handles weekly vs biweekly rhythm properly
+  const shouldSuggestForDay = (student: Student, day: Date): boolean => {
+    const todayStr = toDateString(day);
+    const wd = day.getDay() || 7; // 1=Mon ... 7=Sun
+
+    // Check if there's already an appointment on this day
+    const existingOnDay = appointmentsByDate[todayStr] || [];
+    const hasExistingForStudent = existingOnDay.some(a => a.studentIds.includes(student.id));
+    if (hasExistingForStudent) return false;
+
+    // Check if this is the student's usual day
+    const usualDay = studentDefaultWeekday[student.id] || 1;
+    if (wd !== usualDay) return false;
+
+    if (student.rhythm === 'weekly') {
+      // Every week on their day
+      return true;
+    } else if (student.rhythm === 'biweekly') {
+      // Biweekly: only on weeks where weekNumber is even (or odd - depends on when started)
+      // Use the ISO week number of the year to determine parity
+      const startOfYear = new Date(day.getFullYear(), 0, 1);
+      const days = Math.floor((day.getTime() - startOfYear.getTime()) / 86400000);
+      const weekNumber = Math.ceil((days + startOfYear.getDay() + 1) / 7);
+      return weekNumber % 2 === 0;
+    }
+
+    return false;
+  };
+
+  // Generate suggestions for the current week
+  const suggestions = useMemo(() => {
+    const suggested: Array<{
+      id: string;
+      studentIds: string[];
+      date: string;
+      time: string;
+      duration: number;
+      isSuggestion: true;
+    }> = [];
 
     students.forEach(student => {
-      const rhythm = student.rhythm;
-      const duration = student.defaultDuration;
-
-      if (rhythm === 'weekly') {
-        // Weekly: always attend every week
-        suggestions.push({
-          id: `suggest-${student.id}-week`,
-          studentIds: [student.id],
-          date: new Date().toISOString(),
-          time: '09:00',
-          duration,
-        });
-      } else if (rhythm === 'biweekly') {
-        // Biweekly: check calendar week parity (even = attend, odd = skip)
-        const now = new Date();
-        const dayOfWeek = now.getDay();
-
-        // Calculate current week number in the month (1-4)
-        const weekInMonth = Math.floor((now.getDate() + dayOfWeek + 1) / 7);
-
-        // If even week: attend. If odd week: skip
-        if (weekInMonth % 2 === 0) {
-          suggestions.push({
-            id: `suggest-${student.id}-biweekly`,
+      weekDays.forEach(day => {
+        if (shouldSuggestForDay(student, day)) {
+          suggested.push({
+            id: `suggest-${student.id}-${toDateString(day)}`,
             studentIds: [student.id],
-            date: new Date().toISOString(),
-            time: '14:00',
-            duration,
+            date: toDateString(day),
+            time: '09:00',
+            duration: student.defaultDuration || 60,
+            isSuggestion: true,
           });
         }
-      }
+      });
     });
 
-    return suggestions.filter(s => !coveredDates.has(s.date));
-  }, [students, pendingAppointments]);
+    return suggested;
+  }, [students, weekDays, appointmentsByDate, studentDefaultWeekday]);
 
-  // Combine existing and suggested appointments
-  const allAppointments = [...pendingAppointments, ...suggestedAppointments];
+  // Combine existing appointments (non-canceled) and suggestions
+  const allAppointments = useMemo(() => {
+    const result: Array<Appointment & { isSuggestion?: boolean }> = [];
+
+    // Add existing appointments
+    Object.values(appointmentsByDate).forEach(dayAppts => {
+      dayAppts.forEach(appt => result.push({ ...appt, isSuggestion: false }));
+    });
+
+    // Add suggestions (only if no existing appointment for that student on that day)
+    suggestions.forEach(s => result.push(s as any));
+
+    // Sort by date then time
+    result.sort((a, b) => {
+      const dateCompare = a.date.localeCompare(b.date);
+      if (dateCompare !== 0) return dateCompare;
+      return (a.time || '').localeCompare(b.time || '');
+    });
+
+    return result;
+  }, [appointmentsByDate, suggestions]);
+
+  // Group by week day label for display
+  const appointmentsByWeekday = useMemo(() => {
+    const grouped: Record<string, typeof allAppointments> = {};
+    weekDays.forEach(day => {
+      const key = toDateString(day);
+      grouped[key] = allAppointments.filter(a => toDateString(new Date(a.date)) === key);
+    });
+    return grouped;
+  }, [allAppointments, weekDays]);
 
   return (
     <div className="space-y-4">
       {/* Suggestion indicator */}
-      {suggestedAppointments.length > 0 && (
+      {suggestions.length > 0 && (
         <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 flex items-center justify-between">
           <div className="flex items-center gap-2 text-sm text-blue-800 dark:text-blue-300">
             <Sparkles size={16} />
             <span>
-              {suggestedAppointments.length} Termin(e) basierend auf Schüler-Rhythmus:
-              {students.some(s => s.rhythm === 'weekly') && ' '}
-              <strong>{students.filter(s => s.rhythm === 'weekly').length}</strong> wöchentlich
+              {suggestions.length} vorgeschlagene(r) Termin(e) für diese Woche
             </span>
           </div>
-
-          {/* Legend */}
-          <div className="hidden sm:flex gap-3 text-xs text-blue-700 dark:text-blue-400">
+          <div className="flex gap-3 text-xs text-blue-700 dark:text-blue-400">
             <span className="flex items-center gap-1">
               <CalendarIcon size={12} />
-              Mo-So
+              KW {Math.ceil(((currentDate.getTime() - new Date(currentDate.getFullYear(), 0, 1).getTime()) / 86400000 + new Date(currentDate.getFullYear(), 0, 1).getDay() + 1) / 7)}
             </span>
           </div>
         </div>
@@ -125,42 +211,57 @@ export function WeekView({
         ))}
       </div>
 
-      {/* Appointments grid */}
+      {/* Appointments grid - grouped by day */}
       {allAppointments.length === 0 ? (
         <div className="text-center py-16 text-gray-500 dark:text-gray-400">
           <CalendarIcon size={32} className="mx-auto mb-3 opacity-30" />
           <p>Keine Termine für diese Woche</p>
-          {suggestedAppointments.length > 0 && (
+          {suggestions.length > 0 && (
             <p className="text-sm text-blue-600 dark:text-blue-400 mt-1">
-              Aber {suggestedAppointments.length} Vorschläge verfügbar!
+              Aber {suggestions.length} Vorschläge verfügbar!
             </p>
           )}
         </div>
       ) : (
-        allAppointments.map((appointment) => {
-          const studentIds = appointment.studentIds || [];
-          const displayStudents = studentIds.map(id =>
-            students.find(s => s.id === id)
-          ).filter(Boolean);
-
-          if (!displayStudents.length) return null;
-
-          // Find first student for display since they're in array order
-          const primaryStudent = displayStudents[0];
+        weekDays.map((day, dayIndex) => {
+          const dayKey = toDateString(day);
+          const dayAppts = appointmentsByWeekday[dayKey] || [];
+          if (dayAppts.length === 0) return null;
 
           return (
-            <AppointmentCard
-              key={appointment.id}
-              appointment={appointment}
-              student={primaryStudent}
-              onStatusChange={onStatusChange}
-              onAddStudent={onAddStudent}
-            />
+            <div key={dayKey}>
+              {/* Day header */}
+              <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 px-1">
+                {['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'][dayIndex]}&nbsp;
+                {day.getDate()}.{String(day.getMonth() + 1).padStart(2, '0')}
+              </div>
+
+              {dayAppts.map((appointment) => {
+                const studentIds = appointment.studentIds || [];
+                const displayStudents = studentIds
+                  .map(id => students.find(s => s.id === id))
+                  .filter(Boolean);
+
+                if (!displayStudents.length) return null;
+
+                const primaryStudent = displayStudents[0] as Student;
+
+                return (
+                  <AppointmentCard
+                    key={appointment.id}
+                    appointment={appointment as Appointment}
+                    student={primaryStudent}
+                    onStatusChange={onStatusUpdate}
+                    onAddStudent={onAddStudent}
+                  />
+                );
+              })}
+            </div>
           );
         })
       )}
 
-      {/* Mobile day labels (shown below each card on mobile) */}
+      {/* Mobile day labels */}
       {allAppointments.length > 0 && (
         <div className="sm:hidden flex justify-between text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide px-1 py-2">
           {['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].map((day, i) => (

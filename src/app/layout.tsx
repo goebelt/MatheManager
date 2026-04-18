@@ -3,7 +3,7 @@
  * Provides shared header/navigation across all app pages
  */
 
-import { ArrowLeftRight, Calendar } from 'lucide-react'
+import { ArrowLeftRight, Calendar, Euro } from 'lucide-react'
 import Link from 'next/link'
 
 export default function RootLayout({
@@ -16,17 +16,12 @@ export default function RootLayout({
       <head>
         {/* Tailwind CSS via CDN for development */}
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4" />
-        
         {/* Open Graph Meta Tags for Social Media Sharing */}
         <meta property="og:title" content="MatheManager - Nachhilfe-Verwaltung" />
-        <meta 
-          property="og:description" 
-          content="Verwalten Sie Ihre Mathe-Nachhilfe mit Terminplanung, Abrechnung und Rechnungsgenerator" 
-        />
+        <meta property="og:description" content="Verwalten Sie Ihre Mathe-Nachhilfe mit Terminplanung, Abrechnung und Rechnungsgenerator" />
         <meta property="og:type" content="website" />
       </head>
       <body className="min-h-screen bg-gray-50 dark:bg-slate-900">
-        
         {/* Navigation Header - Visible on all pages except landing */}
         {children !== undefined && (
           <>
@@ -45,34 +40,31 @@ export default function RootLayout({
 
                 {/* Navigation Links */}
                 <nav className="flex items-center gap-1 sm:gap-2" role="navigation" aria-label="Hauptnavigation">
-                  <Link
-                    href="/dashboard"
-                    className="px-3 py-2 text-sm font-medium rounded-lg transition-colors bg-gray-100 dark:bg-slate-700/50 text-gray-900 dark:text-white hover:bg-gray-200 dark:hover:bg-slate-600 focus:outline-none focus:ring-2 focus:ring-green-500"
-                  >
+                  <Link href="/dashboard"
+                    className="px-3 py-2 text-sm font-medium rounded-lg transition-colors bg-gray-100 dark:bg-slate-700/50 text-gray-900 dark:text-white hover:bg-gray-200 dark:hover:bg-slate-600 focus:outline-none focus:ring-2 focus:ring-green-500">
                     Dashboard
                   </Link>
 
-                  <Link
-                    href="/billing"
-                    className="px-3 py-2 text-sm font-medium rounded-lg transition-colors bg-gray-100 dark:bg-slate-700/50 text-gray-900 dark:text-white hover:bg-gray-200 dark:hover:bg-slate-600 focus:outline-none focus:ring-2 focus:ring-green-500"
-                  >
+                  <Link href="/billing"
+                    className="px-3 py-2 text-sm font-medium rounded-lg transition-colors bg-gray-100 dark:bg-slate-700/50 text-gray-900 dark:text-white hover:bg-gray-200 dark:hover:bg-slate-600 focus:outline-none focus:ring-2 focus:ring-green-500">
                     Abrechnung
+                  </Link>
+
+                  <Link href="/prices"
+                    className="px-3 py-2 text-sm font-medium rounded-lg transition-colors bg-gray-100 dark:bg-slate-700/50 text-gray-900 dark:text-white hover:bg-gray-200 dark:hover:bg-slate-600 focus:outline-none focus:ring-2 focus:ring-green-500">
+                    Preise
                   </Link>
 
                   <ArrowLeftRight className="w-4 h-4 text-gray-400 hidden sm:block" />
 
-                  <Link
-                    href="/invoices"
-                    className="px-3 py-2 text-sm font-medium rounded-lg transition-colors bg-green-600 text-white hover:bg-green-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                  >
+                  <Link href="/invoices"
+                    className="px-3 py-2 text-sm font-medium rounded-lg transition-colors bg-green-600 text-white hover:bg-green-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500">
                     Rechnungen
                   </Link>
 
-                  <button
-                    onClick={() => window.location.href = '/settings'}
+                  <button onClick={() => window.location.href = '/settings'}
                     className="px-3 py-2 text-sm font-medium rounded-lg transition-colors bg-gray-100 dark:bg-slate-700/50 text-gray-900 dark:text-white hover:bg-gray-200 dark:hover:bg-slate-600 focus:outline-none focus:ring-2 focus:ring-green-500"
-                    aria-label="Einstellungen öffnen"
-                  >
+                    aria-label="Einstellungen öffnen">
                     Einstellungen
                   </button>
                 </nav>
@@ -118,5 +110,4 @@ export default function RootLayout({
 function LandingPageHeader() {
   return null
 }
-
 LandingPageHeader.displayName = 'LandingPageHeader'
