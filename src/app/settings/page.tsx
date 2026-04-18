@@ -32,7 +32,7 @@ export default function SettingsPage() {
     vatId: '',
     taxId: '',
     bankName: '',
-    bankIban: '',
+    iban: '',
     bankBic: '',
     paymentTerms: 14,
     hourlyRate: 0,
@@ -276,8 +276,8 @@ export default function SettingsPage() {
                 </label>
                 <input
                   type="text"
-                  value={settings.bankIban || ''}
-                  onChange={(e) => setSettings({ ...settings, bankIban: e.target.value })}
+                  value={settings.iban || ''}
+                  onChange={(e) => setSettings({ ...settings, iban: e.target.value })}
                   placeholder="DE89 3704 0044 0532 1340 00"
                   disabled={!data}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-60 disabled:cursor-not-allowed"
