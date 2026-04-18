@@ -76,7 +76,7 @@ export default function BillingPage() {
     if (!data) return [];
 
     return filteredAppointments.map(appointment => {
-      // Determine appointment type: 'einzel' or 'gruppe'
+      // Determine appointment type: 'individual' or 'group'
       const studentIds = appointment.studentIds || [];
       const appointmentType: 'individual' | 'group' = studentIds.length === 1 ? 'individual' : 'group';
 
@@ -114,13 +114,13 @@ export default function BillingPage() {
   }, [appointmentsWithFees]);
 
   const individualEarnings = useMemo(() => {
-    return appointmentsWithFees.filter(a => a.priceEntryType === 'einzel').reduce(
+    return appointmentsWithFees.filter(a => a.priceEntryType === 'individual').reduce(
       (sum, app) => sum + (app.calculatedFee || 0), 0
     );
   }, [appointmentsWithFees]);
 
   const groupEarnings = useMemo(() => {
-    return appointmentsWithFees.filter(a => a.priceEntryType === 'gruppe').reduce(
+    return appointmentsWithFees.filter(a => a.priceEntryType === 'group').reduce(
       (sum, app) => sum + (app.calculatedFee || 0), 0
     );
   }, [appointmentsWithFees]);
@@ -255,12 +255,12 @@ export default function BillingPage() {
             />
             <SummaryCard
               label="Einzeltermine"
-              value={appointmentsWithFees.filter(a => a.priceEntryType === 'einzel').length.toString()}
+              value={appointmentsWithFees.filter(a => a.priceEntryType === 'individual').length.toString()}
               icon={<User className="w-5 h-5 text-purple-600" />}
             />
             <SummaryCard
               label="Gruppentermine"
-              value={appointmentsWithFees.filter(a => a.priceEntryType === 'gruppe').length.toString()}
+              value={appointmentsWithFees.filter(a => a.priceEntryType === 'group').length.toString()}
               icon={<DollarSign className="w-5 h-5 text-green-600" />}
             />
             <SummaryCard
@@ -345,7 +345,7 @@ export default function BillingPage() {
                           }).join(', ')}
                         </td>
                         <td className="px-4 py-3">
-                          {appointment.priceEntryType === 'einzel' ? (
+                          {appointment.priceEntryType === 'individual' ? (
                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
                               Einzel
                             </span>
@@ -422,3 +422,4 @@ function SummaryCard({ label, value, icon }: { label: string; value: string | nu
     </div>
   );
 }
+
