@@ -119,3 +119,4 @@ export interface DataContainer {
   invoiceSettings?: InvoiceSettings; // User's letterhead settings
   lastUpdated?: string; // ISO timestamp
 }
+

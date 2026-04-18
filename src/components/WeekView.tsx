@@ -26,6 +26,7 @@ export function WeekView({
   onAddStudent,
   currentDate = new Date(),
 }: WeekViewProps) {
+
   // Calculate the week's start (Monday) from currentDate
   const weekStart = useMemo(() => {
     const date = new Date(currentDate);
@@ -64,13 +65,11 @@ export function WeekView({
   }, [existingAppointments]);
 
   // Figure out the default weekday for each student (what day they normally come)
-  // We look at their existing appointments to find patterns
   const studentDefaultWeekday = useMemo(() => {
     const map: Record<string, number> = {}; // studentId -> weekday (1=Mon ... 7=Sun)
     students.forEach(student => {
       const studentAppts = existingAppointments.filter(a => a.studentIds.includes(student.id));
       if (studentAppts.length > 0) {
-        // Find most common weekday from past appointments
         const weekdayCount: Record<number, number> = {};
         studentAppts.forEach(appt => {
           const d = new Date(appt.date);
@@ -83,7 +82,6 @@ export function WeekView({
         });
         map[student.id] = best;
       } else {
-        // No history: default to Monday for weekly, alternate if biweekly
         map[student.id] = 1;
       }
     });
@@ -91,7 +89,6 @@ export function WeekView({
   }, [students, existingAppointments]);
 
   // Check if a student should have a suggested appointment on a given day
-  // Handles weekly vs biweekly rhythm properly
   const shouldSuggestForDay = (student: Student, day: Date): boolean => {
     const todayStr = toDateString(day);
     const wd = day.getDay() || 7; // 1=Mon ... 7=Sun
@@ -106,31 +103,21 @@ export function WeekView({
     if (wd !== usualDay) return false;
 
     if (student.rhythm === 'weekly') {
-      // Every week on their day
       return true;
     } else if (student.rhythm === 'biweekly') {
-      // Biweekly: only on weeks where weekNumber is even (or odd - depends on when started)
-      // Use the ISO week number of the year to determine parity
       const startOfYear = new Date(day.getFullYear(), 0, 1);
       const days = Math.floor((day.getTime() - startOfYear.getTime()) / 86400000);
       const weekNumber = Math.ceil((days + startOfYear.getDay() + 1) / 7);
       return weekNumber % 2 === 0;
     }
-
     return false;
   };
 
   // Generate suggestions for the current week
   const suggestions = useMemo(() => {
     const suggested: Array<{
-      id: string;
-      studentIds: string[];
-      date: string;
-      time: string;
-      duration: number;
-      isSuggestion: true;
+      id: string; studentIds: string[]; date: string; time: string; duration: number; isSuggestion: true;
     }> = [];
-
     students.forEach(student => {
       weekDays.forEach(day => {
         if (shouldSuggestForDay(student, day)) {
@@ -145,33 +132,25 @@ export function WeekView({
         }
       });
     });
-
     return suggested;
   }, [students, weekDays, appointmentsByDate, studentDefaultWeekday]);
 
-  // Combine existing appointments (non-canceled) and suggestions
+  // Combine existing appointments and suggestions
   const allAppointments = useMemo(() => {
     const result: Array<Appointment & { isSuggestion?: boolean }> = [];
-
-    // Add existing appointments
     Object.values(appointmentsByDate).forEach(dayAppts => {
       dayAppts.forEach(appt => result.push({ ...appt, isSuggestion: false }));
     });
-
-    // Add suggestions (only if no existing appointment for that student on that day)
     suggestions.forEach(s => result.push(s as any));
-
-    // Sort by date then time
     result.sort((a, b) => {
       const dateCompare = a.date.localeCompare(b.date);
       if (dateCompare !== 0) return dateCompare;
       return (a.time || '').localeCompare(b.time || '');
     });
-
     return result;
   }, [appointmentsByDate, suggestions]);
 
-  // Group by week day label for display
+  // Group by week day
   const appointmentsByWeekday = useMemo(() => {
     const grouped: Record<string, typeof allAppointments> = {};
     weekDays.forEach(day => {
@@ -181,27 +160,30 @@ export function WeekView({
     return grouped;
   }, [allAppointments, weekDays]);
 
+  // Week number
+  const currentKW = useMemo(() => {
+    const startOfYear = new Date(currentDate.getFullYear(), 0, 1);
+    const days = Math.floor((currentDate.getTime() - startOfYear.getTime()) / 86400000);
+    return Math.ceil((days + startOfYear.getDay() + 1) / 7);
+  }, [currentDate]);
+
   return (
     <div className="space-y-4">
-      {/* Suggestion indicator */}
+      {/* Suggestion banner */}
       {suggestions.length > 0 && (
         <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 flex items-center justify-between">
           <div className="flex items-center gap-2 text-sm text-blue-800 dark:text-blue-300">
             <Sparkles size={16} />
-            <span>
-              {suggestions.length} vorgeschlagene(r) Termin(e) für diese Woche
-            </span>
+            <span>{suggestions.length} vorgeschlagene(r) Termin(e) fur diese Woche</span>
           </div>
-          <div className="flex gap-3 text-xs text-blue-700 dark:text-blue-400">
-            <span className="flex items-center gap-1">
-              <CalendarIcon size={12} />
-              KW {Math.ceil(((currentDate.getTime() - new Date(currentDate.getFullYear(), 0, 1).getTime()) / 86400000 + new Date(currentDate.getFullYear(), 0, 1).getDay() + 1) / 7)}
-            </span>
-          </div>
+          <span className="text-xs text-blue-700 dark:text-blue-400 flex items-center gap-1">
+            <CalendarIcon size={12} />
+            KW {currentKW}
+          </span>
         </div>
       )}
 
-      {/* Week days display */}
+      {/* Day column headers (desktop) */}
       <div className="hidden sm:flex justify-between text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide px-1">
         {['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].map((day, i) => (
           <div key={day} className="flex flex-col items-center gap-1 min-w-[3rem]">
@@ -211,14 +193,14 @@ export function WeekView({
         ))}
       </div>
 
-      {/* Appointments grid - grouped by day */}
+      {/* Appointments */}
       {allAppointments.length === 0 ? (
         <div className="text-center py-16 text-gray-500 dark:text-gray-400">
           <CalendarIcon size={32} className="mx-auto mb-3 opacity-30" />
-          <p>Keine Termine für diese Woche</p>
+          <p>Keine Termine fur diese Woche</p>
           {suggestions.length > 0 && (
             <p className="text-sm text-blue-600 dark:text-blue-400 mt-1">
-              Aber {suggestions.length} Vorschläge verfügbar!
+              Aber {suggestions.length} Vorschlage verfugbar!
             </p>
           )}
         </div>
@@ -227,7 +209,6 @@ export function WeekView({
           const dayKey = toDateString(day);
           const dayAppts = appointmentsByWeekday[dayKey] || [];
           if (dayAppts.length === 0) return null;
-
           return (
             <div key={dayKey}>
               {/* Day header */}
@@ -235,22 +216,19 @@ export function WeekView({
                 {['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'][dayIndex]}&nbsp;
                 {day.getDate()}.{String(day.getMonth() + 1).padStart(2, '0')}
               </div>
-
               {dayAppts.map((appointment) => {
                 const studentIds = appointment.studentIds || [];
                 const displayStudents = studentIds
                   .map(id => students.find(s => s.id === id))
-                  .filter(Boolean);
-
+                  .filter((s): s is Student => !!s);
                 if (!displayStudents.length) return null;
-
-                const primaryStudent = displayStudents[0] as Student;
-
+                const primaryStudent = displayStudents[0];
                 return (
                   <AppointmentCard
                     key={appointment.id}
                     appointment={appointment as Appointment}
                     student={primaryStudent}
+                    allStudents={students}
                     onStatusChange={onStatusUpdate}
                     onAddStudent={onAddStudent}
                   />
