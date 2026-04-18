@@ -1,8 +1,8 @@
 /**
- * Navigation Component - Enthält interaktive Teile der Navigation (mobiles Menü, Links)
+ * Navigation Component - Contains interactive parts of the navigation (mobile menu, links)
  */
 
-"use client";
+'use client';
 
 import Link from 'next/link';
 import { useState } from 'react';
@@ -10,7 +10,7 @@ import { Home, Users, FileText, Package, Euro } from 'lucide-react';
 
 const NAV_ITEMS = [
   { href: '/', icon: <Home size={20} />, label: 'Startseite' },
-  { href: '/families', icon: <Users size={20} />, label: 'Familien & Schüler' },
+  { href: '/families', icon: <Users size={20} />, label: 'Familien & Schueler' },
   { href: '/prices', icon: <Euro size={20} />, label: 'Preise' },
   { href: '/billing', icon: <FileText size={20} />, label: 'Abrechnung' },
 ];
@@ -50,7 +50,7 @@ export function Navigation({ isLoading = false }: NavigationProps) {
           <button
             className="md:hidden p-2 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700"
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            aria-label="Menü öffnen"
+            aria-label="Menu oeffnen"
           >
             {isMobileMenuOpen ? (
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
