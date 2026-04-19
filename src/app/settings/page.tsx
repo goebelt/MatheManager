@@ -6,7 +6,7 @@
 
 import { useState, useEffect } from 'react';
 import {
-  Save, Building2, Mail, Phone, MapPin, FileText, CreditCard, AlertTriangle
+  Save, Building2, Mail, Phone, MapPin, FileText, CreditCard, AlertTriangle, Download, Upload
 } from 'lucide-react';
 import type { InvoiceSettings } from '@/types';
 
@@ -60,6 +60,72 @@ export default function SettingsPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleExport = () => {
+    try {
+      const stored = localStorage.getItem('mathe_manager_data');
+      if (!stored) {
+        alert('Keine Daten zum Exportieren vorhanden.');
+        return;
+      }
+      
+      const data = JSON.parse(stored);
+      const jsonString = JSON.stringify(data, null, 2);
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      
+      const link = document.createElement('a');
+      link.href = url;
+      const timestamp = new Date().toISOString().split('T')[0];
+      link.download = `mathe-manager-backup-${timestamp}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      alert('Daten erfolgreich exportiert!');
+    } catch (error) {
+      console.error('Error exporting data:', error);
+      alert('Fehler beim Exportieren der Daten.');
+    }
+  };
+
+  const handleImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const content = e.target?.result as string;
+        const importedData = JSON.parse(content);
+        
+        // Validate the imported data structure
+        if (!importedData || typeof importedData !== 'object') {
+          throw new Error('Ungültiges Datenformat');
+        }
+        
+        // Confirm import
+        if (confirm(
+          'Möchtest du die Daten wirklich importieren? Alle vorhandenen Daten werden überschrieben!'
+        )) {
+          localStorage.setItem('mathe_manager_data', JSON.stringify(importedData));
+          setData(importedData);
+          if (importedData.invoiceSettings) {
+            setSettings(prev => ({ ...prev, ...importedData.invoiceSettings }));
+          }
+          alert('Daten erfolgreich importiert!');
+        }
+      } catch (error) {
+        console.error('Error importing data:', error);
+        alert('Fehler beim Importieren der Daten. Bitte überprüfe die Datei.');
+      }
+    };
+    
+    reader.readAsText(file);
+    // Reset file input
+    event.target.value = '';
   };
 
   const handleSave = () => {
@@ -332,6 +398,50 @@ export default function SettingsPage() {
             </div>
           </div>
 
+          {/* Data Management */}
+          <div className="p-6">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2 pb-2 border-b border-gray-100 dark:border-slate-700">
+              <FileText size={18} />
+              Datenverwaltung
+            </h2>
+            <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">
+              Exportiere oder importiere alle Anwendungsdaten im JSON-Format.
+            </p>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <button
+                  onClick={handleExport}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  <Download size={16} />
+                  Daten exportieren
+                </button>
+                <p className="text-xs text-gray-500 dark:text-slate-400 mt-2">
+                  Lädt alle Daten als JSON-Datei herunter.
+                </p>
+              </div>
+              <div>
+                <input
+                  type="file"
+                  id="import-file"
+                  accept=".json"
+                  onChange={handleImport}
+                  className="hidden"
+                />
+                <label
+                  htmlFor="import-file"
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors cursor-pointer"
+                >
+                  <Upload size={16} />
+                  Daten importieren
+                </label>
+                <p className="text-xs text-gray-500 dark:text-slate-400 mt-2">
+                  Lädt eine JSON-Datei hoch und überschreibt alle Daten.
+                </p>
+              </div>
+            </div>
+          </div>
+
           {/* Status Bar */}
           <div className="px-6 py-4 bg-gray-50 dark:bg-slate-800/50 border-t border-gray-100 dark:border-slate-700 flex items-center justify-between">
             <p className={`text-sm ${isValid ? 'text-green-600 dark:text-green-400' : 'text-yellow-600 dark:text-yellow-400'}`}>
@@ -350,6 +460,9 @@ export default function SettingsPage() {
 
         <p className="mt-6 text-center text-xs text-gray-400 dark:text-slate-500">
           Diese Einstellungen werden für den Briefkopf und die Zahlungsangaben auf Rechnungen verwendet.
+        </p>
+        <p className="mt-2 text-center text-xs text-gray-400 dark:text-slate-500">
+          Mit der Datenverwaltung kannst du deine Daten sichern und wiederherstellen.
         </p>
       </main>
     </div>
