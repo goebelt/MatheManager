@@ -202,25 +202,35 @@ export default function InvoicesPage() {
 
     // Generate invoice number in format YYYY/00001
     const currentYear = new Date().getFullYear();
-    const invoiceNumberStart = data.invoiceSettings?.invoiceNumberStart || 1;
-    
-    // Get current invoice number from localStorage
-    const storedInvoiceNumber = localStorage.getItem('mathe_manager_invoice_number');
-    let currentInvoiceNumber: number;
-    
-    if (storedInvoiceNumber) {
-      // Use stored number if available
-      currentInvoiceNumber = parseInt(storedInvoiceNumber, 10);
-    } else {
-      // Use start value from settings if no stored number
-      currentInvoiceNumber = invoiceNumberStart;
-    }
+    const currentInvoiceNumber = data.invoiceSettings?.invoiceNumberStart || 1;
     
     // Format invoice number as YYYY/00001
     const invoiceNumber = `${currentYear}/${currentInvoiceNumber.toString().padStart(5, '0')}`;
     
-    // Increment and save invoice number for next invoice
-    localStorage.setItem('mathe_manager_invoice_number', (currentInvoiceNumber + 1).toString());
+    // Increment and save invoice number in settings
+    const updatedData = {
+      ...data,
+      invoiceSettings: {
+        businessName: data.invoiceSettings?.businessName || '',
+        street: data.invoiceSettings?.street || '',
+        zipCode: data.invoiceSettings?.zipCode || '',
+        city: data.invoiceSettings?.city || '',
+        email: data.invoiceSettings?.email,
+        phone: data.invoiceSettings?.phone,
+        vatId: data.invoiceSettings?.vatId,
+        taxId: data.invoiceSettings?.taxId,
+        bankName: data.invoiceSettings?.bankName,
+        iban: data.invoiceSettings?.iban,
+        bankBic: data.invoiceSettings?.bankBic,
+        paymentTerms: data.invoiceSettings?.paymentTerms || 14,
+        hourlyRate: data.invoiceSettings?.hourlyRate || 0,
+        lessonType: data.invoiceSettings?.lessonType || 'individual',
+        invoiceNumberStart: currentInvoiceNumber + 1
+      },
+      lastUpdated: new Date().toISOString()
+    };
+    localStorage.setItem('mathe_manager_data', JSON.stringify(updatedData));
+    setData(updatedData);
 
     setInvoiceData({
       invoiceNumber: invoiceNumber,
@@ -261,7 +271,7 @@ export default function InvoicesPage() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Header */}
-      <header className="bg-white dark:bg-slate-800 shadow-sm border-b border-gray-200 dark:border-slate-700 sticky top-0 z-10">
+      <header className="bg-white dark:bg-slate-800 shadow-sm border-b border-gray-200 dark:border-slate-700 sticky top-0 z-10 print:hidden">
         <div className="max-w-3xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div>
@@ -276,7 +286,7 @@ export default function InvoicesPage() {
             <button
               onClick={calculateInvoice}
               disabled={invoiceItems.length === 0}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-black text-white font-medium rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed print:hidden"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-black text-white font-medium rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Printer size={16} />
               Rechnungsvorlage erstellen
@@ -286,7 +296,7 @@ export default function InvoicesPage() {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-4xl mx-auto px-4 py-6">
+      <main className="max-w-4xl mx-auto px-4 py-6 print:hidden">
         {/* Filters */}
         <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl shadow-sm p-6 mb-6 print:hidden">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2 pb-2 border-b border-gray-100 dark:border-slate-700">
@@ -373,8 +383,20 @@ export default function InvoicesPage() {
             {filteredAppointments.length} Termin(e) gefunden
           </div>
         </div>
+      </main>
 
-        {/* Invoice Preview */}
+      {/* Invoice Preview - Visible in print */}
+      {invoiceData && (
+        <div className="print:block hidden">
+          <InvoiceTemplate
+            invoice={invoiceData}
+            onPrint={() => window.print()}
+          />
+        </div>
+      )}
+
+      {/* Invoice Preview - Visible on screen */}
+      <main className="max-w-4xl mx-auto px-4 py-6 print:hidden">
         <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl shadow-sm p-6">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2 pb-2 border-b border-gray-100 dark:border-slate-700">
             <FileText size={18} />
