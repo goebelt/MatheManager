@@ -4,7 +4,7 @@
 
 'use client';
 
-import { Download, Printer } from 'lucide-react';
+import { Download, Printer, Check, X } from 'lucide-react';
 // Flexible invoice type that accepts both full Invoice and the lighter object from invoices page
 export interface InvoiceData {
   invoiceNumber: string;
@@ -30,6 +30,9 @@ export interface InvoiceData {
     appointmentId?: string;
     date: string;
     studentName?: string;
+    lessonType?: 'individual' | 'group';
+    status?: 'attended' | 'canceled_paid' | 'canceled_free' | 'planned';
+    hourlyRate?: number;
     description: string;
     unitPrice: number;
     quantity: number;
@@ -122,19 +125,22 @@ export function InvoiceTemplate({
         <table className="w-full border-collapse border-black">
           <thead>
             <tr className="border-b-4 border-black bg-gray-50 print:bg-white">
-              <th className="text-left py-3 px-4 text-xs uppercase font-semibold tracking-wider" style={{ width: '12%' }}>
+              <th className="text-left py-3 px-4 text-xs uppercase font-semibold tracking-wider" style={{ width: '10%' }}>
                 Datum
               </th>
-              <th className="text-left py-3 px-4 text-xs uppercase font-semibold tracking-wider" style={{ width: '50%' }}>
-                Position
+              <th className="text-left py-3 px-4 text-xs uppercase font-semibold tracking-wider" style={{ width: '15%' }}>
+                Schüler
               </th>
-              <th className="text-center py-3 px-4 text-xs uppercase font-semibold tracking-wider" style={{ width: '12%' }}>
-                Menge
+              <th className="text-left py-3 px-4 text-xs uppercase font-semibold tracking-wider" style={{ width: '15%' }}>
+                Typ
               </th>
-              <th className="text-right py-3 px-4 text-xs uppercase font-semibold tracking-wider" style={{ width: '18%' }}>
-                Einzelpreis
+              <th className="text-left py-3 px-4 text-xs uppercase font-semibold tracking-wider" style={{ width: '15%' }}>
+                Status
               </th>
-              <th className="text-right py-3 px-4 text-xs uppercase font-semibold tracking-wider" style={{ width: '8%' }}>
+              <th className="text-right py-3 px-4 text-xs uppercase font-semibold tracking-wider" style={{ width: '15%' }}>
+                Stundensatz
+              </th>
+              <th className="text-right py-3 px-4 text-xs uppercase font-semibold tracking-wider" style={{ width: '10%' }}>
                 Gesamtpreis
               </th>
             </tr>
@@ -142,7 +148,7 @@ export function InvoiceTemplate({
           <tbody>
             {invoice.items.length === 0 ? (
               <tr>
-                <td colSpan={5} className="py-6 px-4 text-center text-gray-400 italic">
+                <td colSpan={6} className="py-6 px-4 text-center text-gray-400 italic">
                   Keine Positionen vorhanden
                 </td>
               </tr>
@@ -152,12 +158,45 @@ export function InvoiceTemplate({
                   <td className="py-3 px-4 text-sm text-gray-600">
                     {formatDate(item.date)}
                   </td>
-                  <td className="py-3 px-4 text-sm font-medium">{item.description}</td>
-                  <td className="py-3 px-4 text-center text-sm">
-                    {item.quantity}
+                  <td className="py-3 px-4 text-sm font-medium">{item.studentName || '-'}</td>
+                  <td className="py-3 px-4 text-sm">
+                    {item.lessonType === 'group' ? (
+                      <span className="inline-flex items-center gap-1">
+                        <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                        Gruppenunterricht
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1">
+                        <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                        Einzelunterricht
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-3 px-4 text-sm">
+                    {item.status === 'attended' ? (
+                      <span className="inline-flex items-center gap-1 text-green-600">
+                        <Check size={14} />
+                        Besucht
+                      </span>
+                    ) : item.status === 'canceled_paid' ? (
+                      <span className="inline-flex items-center gap-1 text-orange-600">
+                        <X size={14} />
+                        Bezahlt ausgefallen
+                      </span>
+                    ) : item.status === 'canceled_free' ? (
+                      <span className="inline-flex items-center gap-1 text-red-600">
+                        <X size={14} />
+                        Kostenlos ausgefallen
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-gray-500">
+                        <span className="w-2 h-2 bg-gray-400 rounded-full"></span>
+                        Geplant
+                      </span>
+                    )}
                   </td>
                   <td className="py-3 px-4 text-right text-sm">
-                    &euro;{Number(item.unitPrice).toFixed(2)}
+                    &euro;{Number(item.hourlyRate || item.unitPrice).toFixed(2)}
                   </td>
                   <td className="py-3 px-4 text-right font-semibold">
                     &euro;{item.totalPrice.toFixed(2)}

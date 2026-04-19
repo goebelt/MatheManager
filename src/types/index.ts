@@ -81,6 +81,9 @@ export interface InvoiceItem {
   appointmentId: string;
   date: string;
   studentName: string;
+  lessonType: 'individual' | 'group';
+  status: 'attended' | 'canceled_paid' | 'canceled_free' | 'planned';
+  hourlyRate: number;
   description: string;
   unitPrice: number;
   quantity: number;
@@ -105,6 +108,7 @@ export interface InvoiceSettings {
   paymentTerms?: number;
   hourlyRate?: number;
   lessonType?: 'individual' | 'group';
+  invoiceNumberStart?: number; // Startwert für Rechnungsnummer (z.B. 1 für 2026/00001)
 }
 
 /**

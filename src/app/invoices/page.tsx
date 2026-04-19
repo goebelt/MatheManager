@@ -5,8 +5,8 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { Printer, User, Calendar, DollarSign, ArrowRight, Building2, FileText } from 'lucide-react';
-import type { DataContainer, InvoiceItem, Family } from '@/types';
+import { Printer, User, Calendar, DollarSign, ArrowRight, Building2, FileText, Check, X } from 'lucide-react';
+import type { DataContainer, InvoiceItem, Family, Student } from '@/types';
 import { calculateAppointmentFee } from '@/lib/billing';
 import { InvoiceTemplate, type InvoiceData } from '@/components/InvoiceTemplate';
 
@@ -16,17 +16,36 @@ export default function InvoicesPage() {
   const [loading, setLoading] = useState(true);
   
   // Filter states
-  const [selectedFamilyId, setSelectedFamilyId] = useState<string>('all');
+  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
+
+  // Student dropdown states
+  const [studentDropdownOpen, setStudentDropdownOpen] = useState(false);
+  const [studentFilter, setStudentFilter] = useState('');
 
   // Load data and price entries
   useEffect(() => {
     loadData();
     const interval = setInterval(loadData, 30000);
     return () => clearInterval(interval);
-      
   }, []);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.student-dropdown-container')) {
+        setStudentDropdownOpen(false);
+        setStudentFilter('');
+      }
+    };
+
+    if (studentDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [studentDropdownOpen]);
 
   const loadData = () => {
     setLoading(true);
@@ -40,6 +59,22 @@ export default function InvoicesPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const getFamilyForStudent = (studentId: string): string => {
+    const student = (data?.students || []).find(s => s.id === studentId);
+    if (!student || !student.familyId) return '';
+    const family = (data?.families || []).find(f => f.id === student.familyId);
+    return family?.name || '';
+  };
+
+  const getFilteredStudents = (): Student[] => {
+    const filter = studentFilter.toLowerCase();
+    return (data?.students || []).filter(student => {
+      const fullName = `${student.firstName} ${student.lastName || ''}`.toLowerCase();
+      const familyName = getFamilyForStudent(student.id).toLowerCase();
+      return fullName.includes(filter) || familyName.includes(filter);
+    });
   };
 
   // Find matching price entry
@@ -70,21 +105,15 @@ export default function InvoicesPage() {
       );
     }
 
-    // Apply family filter (only non-canceled and non-planned appointments)
-    if (selectedFamilyId !== 'all') {
+    // Apply student filter (no filter if no students selected)
+    if (selectedStudentIds.length > 0) {
       result = result.filter(
-        app => 
-          app.studentIds.includes(selectedFamilyId) &&
-          !app.status.startsWith('canceled') &&
-          app.status !== 'planned'
+        app => app.studentIds.some(id => selectedStudentIds.includes(id))
       );
-    } else {
-      // Show all families, but exclude canceled and planned
-      result = result.filter(app => !app.status.startsWith('canceled') && app.status !== 'planned');
     }
 
     return result;
-  }, [data, selectedFamilyId, startDate, endDate]);
+  }, [data, selectedStudentIds, startDate, endDate]);
 
   // Calculate invoice items from filtered appointments
   const invoiceItems = useMemo(() => {
@@ -95,24 +124,54 @@ export default function InvoicesPage() {
 
     filteredAppointments.forEach(appointment => {
       appointment.studentIds.forEach(studentId => {
+        // Only include students that are in the filter (if filter is active)
+        if (selectedStudentIds.length > 0 && !selectedStudentIds.includes(studentId)) {
+          return;
+        }
+
         const key = `${appointment.id}-${studentId}`;
         if (!seen.has(key)) {
           seen.add(key);
           const student = data.students.find(s => s.id === studentId);
           
+          // Determine lesson type
+          const lessonType = appointment.studentIds.length > 1 ? 'group' : 'individual';
+          
           // Calculate fee using billing helper
           let fee = calculateAppointmentFee(appointment, undefined, data.priceEntries || []);
           
-          // For canceled_paid, only charge 50%
-          if (appointment.status === 'canceled_paid') {
-            fee = fee * 0.5;
+          // For canceled_free, charge nothing
+          if (appointment.status === 'canceled_free') {
+            fee = 0;
+          }
+          
+          // Build description
+          let description = '';
+          if (lessonType === 'group') {
+            description = 'Gruppenunterricht';
+          } else {
+            description = 'Einzelunterricht';
+          }
+          
+          // Add status info
+          if (appointment.status === 'attended') {
+            description += ' (besucht)';
+          } else if (appointment.status === 'canceled_paid') {
+            description += ' (ausgefallen, 50%)';
+          } else if (appointment.status === 'canceled_free') {
+            description += ' (ausgefallen, kostenlos)';
+          } else if (appointment.status === 'planned') {
+            description += ' (geplant)';
           }
           
           items.push({
             appointmentId: appointment.id,
             date: appointment.date,
             studentName: student ? `${student.firstName} ${student.lastName || ''}`.trim() : 'Unknown',
-            description: appointment.status === 'canceled_paid' ? 'Einzelunterricht (50%)' : 'Einzelunterricht',
+            lessonType: lessonType,
+            status: appointment.status as 'attended' | 'canceled_paid' | 'canceled_free' | 'planned',
+            hourlyRate: fee,
+            description: description,
             unitPrice: fee,
             quantity: 1,
             totalPrice: fee,
@@ -122,35 +181,41 @@ export default function InvoicesPage() {
     });
 
     return items;
-  }, [filteredAppointments, data]);
+  }, [filteredAppointments, data, selectedStudentIds]);
 
   const calculateInvoice = () => {
     if (!data || invoiceItems.length === 0) return;
 
-    // Find the family for the first student
-    const firstStudentId = filteredAppointments[0].studentIds[0];
-    const student = data.students.find(s => s.id === firstStudentId);
+    // Find the family for the first student in the filtered list
+    const firstStudentId = invoiceItems[0].appointmentId ? 
+      filteredAppointments.find(app => app.id === invoiceItems[0].appointmentId)?.studentIds[0] : null;
+    
+    const student = firstStudentId ? data.students.find(s => s.id === firstStudentId) : null;
     const family = student ? data.families.find(f => f.id === student.familyId) : null;
 
-    // Calculate total fee for all appointments
-    let subtotal = 0;
-    filteredAppointments.forEach(appointment => {
-      let fee = calculateAppointmentFee(appointment, undefined, data.priceEntries || []);
-      
-      // For canceled_paid, only charge 50%
-      if (appointment.status === 'canceled_paid') {
-        fee = fee * 0.5;
-      }
-      
-      subtotal += fee;
-    });
+    // Calculate total fee for all items
+    const subtotal = invoiceItems.reduce((sum, item) => sum + item.totalPrice, 0);
 
     const taxRate = 0.19;
     const taxAmount = subtotal * taxRate;
     const total = subtotal + taxAmount;
 
+    // Generate invoice number in format YYYY/00001
+    const currentYear = new Date().getFullYear();
+    const invoiceNumberStart = data.invoiceSettings?.invoiceNumberStart || 1;
+    
+    // Get current invoice number from localStorage
+    const storedInvoiceNumber = localStorage.getItem('mathe_manager_invoice_number');
+    let currentInvoiceNumber = storedInvoiceNumber ? parseInt(storedInvoiceNumber, 10) : invoiceNumberStart;
+    
+    // Format invoice number as YYYY/00001
+    const invoiceNumber = `${currentYear}/${currentInvoiceNumber.toString().padStart(5, '0')}`;
+    
+    // Increment and save invoice number
+    localStorage.setItem('mathe_manager_invoice_number', (currentInvoiceNumber + 1).toString());
+
     setInvoiceData({
-      invoiceNumber: Math.floor(1000 + Math.random() * 9000).toString(),
+      invoiceNumber: invoiceNumber,
       invoiceDate: new Date().toISOString(),
       dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
       issuedBy: {
@@ -203,7 +268,7 @@ export default function InvoicesPage() {
             <button
               onClick={calculateInvoice}
               disabled={invoiceItems.length === 0}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-black text-white font-medium rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-black text-white font-medium rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed print:hidden"
             >
               <Printer size={16} />
               Rechnungsvorlage erstellen
@@ -215,24 +280,67 @@ export default function InvoicesPage() {
       {/* Main Content */}
       <main className="max-w-4xl mx-auto px-4 py-6">
         {/* Filters */}
-        <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl shadow-sm p-6 mb-6">
+        <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl shadow-sm p-6 mb-6 print:hidden">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2 pb-2 border-b border-gray-100 dark:border-slate-700">
             <FileText size={18} />
             Filter
           </h2>
           <div className="grid gap-4 sm:grid-cols-3">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Familie</label>
-              <select
-                value={selectedFamilyId}
-                onChange={e => setSelectedFamilyId(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
-              >
-                <option value="all">Alle Familien</option>
-                {data?.families?.map(family => (
-                  <option key={family.id} value={family.id}>{family.name}</option>
-                ))}
-              </select>
+            <div className="student-dropdown-container">
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Schüler</label>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setStudentDropdownOpen(!studentDropdownOpen)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-left focus:outline-none focus:ring-2 focus:ring-green-500">
+                  {selectedStudentIds.length === 0 ? (
+                    <span className="text-gray-500">Alle Schüler</span>
+                  ) : (
+                    <span>{selectedStudentIds.length} Schüler ausgewählt</span>
+                  )}
+                </button>
+                {studentDropdownOpen && (
+                  <div className="absolute z-10 w-full mt-1 bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                    <input
+                      type="text"
+                      placeholder="Schüler suchen..."
+                      value={studentFilter}
+                      onChange={e => setStudentFilter(e.target.value)}
+                      className="w-full px-3 py-2 border-b border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none"
+                    />
+                    {getFilteredStudents().map(student => {
+                      const familyName = getFamilyForStudent(student.id);
+                      const isSelected = selectedStudentIds.includes(student.id);
+                      return (
+                        <button
+                          key={student.id}
+                          type="button"
+                          onClick={() => {
+                            if (isSelected) {
+                              setSelectedStudentIds(prev => prev.filter(id => id !== student.id));
+                            } else {
+                              setSelectedStudentIds(prev => [...prev, student.id]);
+                            }
+                          }}
+                          className={`w-full px-3 py-2 text-left flex items-center justify-between hover:bg-gray-100 dark:hover:bg-slate-600 ${
+                            isSelected ? 'bg-green-50 dark:bg-green-900/20' : ''
+                          }`}
+                        >
+                          <span>
+                            {student.firstName} {student.lastName || ''}
+                            {familyName && (
+                              <span className="text-gray-500 dark:text-slate-400 ml-2">({familyName})</span>
+                            )}
+                          </span>
+                          {isSelected && (
+                            <Check size={16} className="text-green-600" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Von</label>

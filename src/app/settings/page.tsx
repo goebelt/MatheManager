@@ -37,6 +37,7 @@ export default function SettingsPage() {
     paymentTerms: 14,
     hourlyRate: 0,
     lessonType: 'individual',
+    invoiceNumberStart: 1,
   });
 
   useEffect(() => {
@@ -298,7 +299,7 @@ export default function SettingsPage() {
               <FileText size={18} />
               Rechnungs-Standardwerte
             </h2>
-            <div className="space-y-4 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
                   Zahlungsziel (Tage)
@@ -311,6 +312,22 @@ export default function SettingsPage() {
                   max={90}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
+                  Startwert Rechnungsnummer
+                </label>
+                <input
+                  type="number"
+                  value={settings.invoiceNumberStart || 1}
+                  onChange={(e) => setSettings({ ...settings, invoiceNumberStart: parseInt(e.target.value) || 1 })}
+                  min={1}
+                  max={99999}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+                <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
+                  Format: JAHR/00001 (z.B. 2026/00001)
+                </p>
               </div>
             </div>
           </div>

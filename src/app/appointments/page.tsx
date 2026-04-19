@@ -7,7 +7,7 @@
 import { useState, useEffect } from 'react';
 import {
   Calendar, Plus, Edit2, Trash2, X, ChevronLeft, ChevronRight,
-  Clock, User, Save, AlertCircle, Sparkles, Check
+  Clock, User, Save, AlertCircle, Sparkles, Check, AlertTriangle, CheckCircle
 } from 'lucide-react';
 import type { Student, Appointment, DataContainer } from '@/types';
 
@@ -85,15 +85,47 @@ export default function AppointmentsPage() {
     selectedStudents.forEach(student => {
       // Use preferred schedule if available, otherwise find usual weekday from existing appointments
       let preferredSchedules = student.preferredSchedule || [];
-      let usualWeekday = 1; // Default to Monday
-      let usualTime = '09:00';
-
+      
       if (preferredSchedules.length > 0) {
-        // Use the first preferred schedule
-        usualWeekday = preferredSchedules[0].dayOfWeek;
-        usualTime = preferredSchedules[0].time;
+        // Use all preferred schedules
+        preferredSchedules.forEach(schedule => {
+          for (let week = 0; week < autoScheduleWeeks; week++) {
+            const appointmentDate = new Date(startDate);
+            appointmentDate.setDate(startDate.getDate() + (week * 7));
+            
+            // Adjust to the preferred weekday
+            const currentDay = appointmentDate.getDay() || 7; // Sunday = 7
+            const dayDiff = schedule.dayOfWeek - currentDay;
+            appointmentDate.setDate(appointmentDate.getDate() + dayDiff);
+
+            // Check if this is the right week for biweekly students
+            if (student.rhythm === 'biweekly') {
+              const weekNumber = getWeekNumberForDate(appointmentDate);
+              if (weekNumber % 2 !== 0) continue; // Skip odd weeks for biweekly
+            }
+
+            // Check if appointment already exists
+            const dateStr = appointmentDate.toISOString().split('T')[0];
+            const existing = (data?.appointments || []).find(
+              a => a.date === dateStr && a.studentIds.includes(student.id)
+            );
+            if (existing) continue;
+
+            newAppointments.push({
+              id: `appointment-${Date.now()}-${week}-${student.id}-${schedule.dayOfWeek}`,
+              studentIds: [student.id],
+              date: dateStr,
+              time: schedule.time,
+              duration: student.defaultDuration,
+              status: 'planned',
+            });
+          }
+        });
       } else {
         // Find the student's usual weekday from existing appointments
+        let usualWeekday = 1; // Default to Monday
+        let usualTime = '09:00';
+        
         const studentAppts = (data?.appointments || []).filter(a => a.studentIds.includes(student.id));
         if (studentAppts.length > 0) {
           const weekdayCount: Record<number, number> = {};
@@ -108,41 +140,39 @@ export default function AppointmentsPage() {
           });
           usualWeekday = best;
         }
-      }
 
-      // Generate appointments for the specified number of weeks
-      for (let week = 0; week < autoScheduleWeeks; week++) {
-        const appointmentDate = new Date(startDate);
-        appointmentDate.setDate(startDate.getDate() + (week * 7));
-        
-        // Adjust to the student's usual weekday
-        const currentDay = appointmentDate.getDay() || 7;
-        const dayDiff = usualWeekday - currentDay;
-        appointmentDate.setDate(appointmentDate.getDate() + dayDiff);
+        // Generate appointments for the specified number of weeks
+        for (let week = 0; week < autoScheduleWeeks; week++) {
+          const appointmentDate = new Date(startDate);
+          appointmentDate.setDate(startDate.getDate() + (week * 7));
+          
+          // Adjust to the student's usual weekday
+          const currentDay = appointmentDate.getDay() || 7;
+          const dayDiff = usualWeekday - currentDay;
+          appointmentDate.setDate(appointmentDate.getDate() + dayDiff);
 
-        // Check if this is the right week for biweekly students
-        if (student.rhythm === 'biweekly') {
-          const startOfYear = new Date(appointmentDate.getFullYear(), 0, 1);
-          const days = Math.floor((appointmentDate.getTime() - startOfYear.getTime()) / 86400000);
-          const weekNumber = Math.ceil((days + startOfYear.getDay() + 1) / 7);
-          if (weekNumber % 2 !== 0) continue; // Skip odd weeks for biweekly
+          // Check if this is the right week for biweekly students
+          if (student.rhythm === 'biweekly') {
+            const weekNumber = getWeekNumberForDate(appointmentDate);
+            if (weekNumber % 2 !== 0) continue; // Skip odd weeks for biweekly
+          }
+
+          // Check if appointment already exists
+          const dateStr = appointmentDate.toISOString().split('T')[0];
+          const existing = (data?.appointments || []).find(
+            a => a.date === dateStr && a.studentIds.includes(student.id)
+          );
+          if (existing) continue;
+
+          newAppointments.push({
+            id: `appointment-${Date.now()}-${week}-${student.id}`,
+            studentIds: [student.id],
+            date: dateStr,
+            time: usualTime,
+            duration: student.defaultDuration,
+            status: 'planned',
+          });
         }
-
-        // Check if appointment already exists
-        const dateStr = appointmentDate.toISOString().split('T')[0];
-        const existing = (data?.appointments || []).find(
-          a => a.date === dateStr && a.studentIds.includes(student.id)
-        );
-        if (existing) continue;
-
-        newAppointments.push({
-          id: `appointment-${Date.now()}-${week}-${student.id}`,
-          studentIds: [student.id],
-          date: dateStr,
-          time: usualTime,
-          duration: student.defaultDuration,
-          status: 'planned',
-        });
       }
     });
 
@@ -328,9 +358,61 @@ export default function AppointmentsPage() {
   };
 
   const getWeekNumber = (date: Date): number => {
-    const startOfYear = new Date(date.getFullYear(), 0, 1);
-    const days = Math.floor((date.getTime() - startOfYear.getTime()) / 86400000);
-    return Math.ceil((days + startOfYear.getDay() + 1) / 7);
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    const dayNum = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+  };
+
+  const getWeekNumberForDate = (date: Date): number => {
+    return getWeekNumber(date);
+  };
+
+  // Calculate conflict status for an appointment
+  const getAppointmentStatus = (appointment: Appointment, allAppointments: Appointment[]): 'ok' | 'conflict' | 'tight' => {
+    if (!appointment.time) return 'ok';
+
+    // Get all appointments on the same day
+    const sameDayAppointments = allAppointments.filter(app => app.date === appointment.date && app.time);
+    
+    // Sort by time
+    sameDayAppointments.sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+    
+    // Find the index of the current appointment
+    const currentIndex = sameDayAppointments.findIndex(app => app.id === appointment.id);
+    
+    // If it's the first appointment, no conflict
+    if (currentIndex <= 0) return 'ok';
+    
+    // Get the previous appointment
+    const previousAppointment = sameDayAppointments[currentIndex - 1];
+    if (!previousAppointment.time) return 'ok';
+    
+    // Calculate end time of previous appointment
+    const prevEndTime = addMinutes(previousAppointment.time, previousAppointment.duration);
+    
+    // Check for conflict
+    if (appointment.time < prevEndTime) {
+      return 'conflict';
+    }
+    
+    // Check for tight schedule (no pause or less than 5 minutes)
+    const prevEndTimePlus5 = addMinutes(prevEndTime, 5);
+    if (appointment.time <= prevEndTimePlus5) {
+      return 'tight';
+    }
+    
+    return 'ok';
+  };
+
+  // Helper function to add minutes to a time string
+  const addMinutes = (time: string, minutes: number): string => {
+    const [hours, mins] = time.split(':').map(Number);
+    const totalMinutes = hours * 60 + mins + minutes;
+    const newHours = Math.floor(totalMinutes / 60) % 24;
+    const newMins = totalMinutes % 60;
+    return `${newHours.toString().padStart(2, '0')}:${newMins.toString().padStart(2, '0')}`;
   };
 
   if (loading) {
@@ -648,6 +730,22 @@ export default function AppointmentsPage() {
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-6">
+              {editingAppointmentId && (
+                <button
+                  onClick={() => {
+                    if (confirm('Möchtest du diesen Termin wirklich löschen?')) {
+                      handleDeleteAppointment(editingAppointmentId);
+                      setShowAddForm(false);
+                      setEditingAppointmentId(null);
+                      resetForm();
+                    }
+                  }}
+                  className="px-4 py-2 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors"
+                >
+                  <Trash2 size={16} className="inline mr-1" />
+                  Löschen
+                </button>
+              )}
               <button
                 onClick={() => {
                   setShowAddForm(false);
@@ -670,7 +768,7 @@ export default function AppointmentsPage() {
           </div>
         )}
 
-        {/* Appointments List */}
+        {/* Appointments List - Calendar View */}
         {filteredAppointments.length === 0 ? (
           <div className="text-center py-16">
             <Calendar className="w-16 h-16 text-gray-300 dark:text-slate-600 mx-auto mb-4" />
@@ -693,81 +791,129 @@ export default function AppointmentsPage() {
             </button>
           </div>
         ) : (
-          <div className="space-y-4">
-            {filteredAppointments.map(appointment => {
-              const students = getStudentsForAppointment(appointment.studentIds);
-              const isEditing = editingAppointmentId === appointment.id;
+          <div className="grid grid-cols-7 gap-4">
+            {(() => {
+              const weekDays = [
+                { name: 'Montag', day: 1 },
+                { name: 'Dienstag', day: 2 },
+                { name: 'Mittwoch', day: 3 },
+                { name: 'Donnerstag', day: 4 },
+                { name: 'Freitag', day: 5 },
+                { name: 'Samstag', day: 6 },
+                { name: 'Sonntag', day: 0 },
+              ];
 
-              return (
-                <div
-                  key={appointment.id}
-                  className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl shadow-sm overflow-hidden"
-                >
-                  <div className="px-4 py-3 bg-gray-50 dark:bg-slate-700/50 border-b border-gray-200 dark:border-slate-700 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center text-green-600">
-                        <Clock size={20} />
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-gray-900 dark:text-white">
-                          {formatDate(appointment.date)} um {appointment.time || '--:--'}
-                        </h3>
-                        <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-slate-400">
-                          <span>{appointment.duration} Min</span>
-                          <span>·</span>
-                          <span className={
-                            appointment.status === 'attended' ? 'text-green-600' :
-                            appointment.status === 'canceled_paid' ? 'text-orange-600' :
-                            appointment.status === 'canceled_free' ? 'text-red-600' :
-                            'text-blue-600'
-                          }>
-                            {appointment.status === 'attended' ? 'Besucht' :
-                             appointment.status === 'canceled_paid' ? 'Abgesagt (bezahlt)' :
-                             appointment.status === 'canceled_free' ? 'Abgesagt (kostenlos)' :
-                             'Geplant'}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handleEditAppointment(appointment)}
-                        className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
-                        title="Bearbeiten"
-                      >
-                        <Edit2 size={18} />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteAppointment(appointment.id)}
-                        className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
-                        title="Löschen"
-                      >
-                        <Trash2 size={18} />
-                      </button>
-                    </div>
-                  </div>
+              return weekDays.map((weekDay) => {
+                const dayAppointments = filteredAppointments.filter(appointment => {
+                  const appointmentDate = new Date(appointment.date);
+                  const dayOfWeek = appointmentDate.getDay();
+                  return dayOfWeek === weekDay.day;
+                });
 
-                  <div className="p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <User size={16} className="text-gray-500" />
-                      <span className="text-sm font-medium text-gray-700 dark:text-slate-300">
-                        {students.length} Schüler:
-                      </span>
+                return (
+                  <div key={weekDay.day} className="space-y-3">
+                    <div className="text-center font-semibold text-gray-700 dark:text-slate-300 pb-2 border-b border-gray-200 dark:border-slate-700">
+                      {weekDay.name}
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      {students.map(student => (
-                        <span
-                          key={student.id}
-                          className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg text-sm"
-                        >
-                          {student.firstName} {student.lastName || ''}
-                        </span>
-                      ))}
-                    </div>
+                    {dayAppointments.length === 0 ? (
+                      <div className="text-center py-8 text-gray-400 dark:text-slate-500 text-sm">
+                        Keine Termine
+                      </div>
+                    ) : (
+                      dayAppointments.map(appointment => {
+                        const students = getStudentsForAppointment(appointment.studentIds);
+                        const isEditing = editingAppointmentId === appointment.id;
+                        const status = getAppointmentStatus(appointment, filteredAppointments);
+
+                        return (
+                          <div
+                            key={appointment.id}
+                            className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl shadow-sm overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
+                            onClick={() => handleEditAppointment(appointment)}
+                          >
+                            <div className="px-3 py-2 bg-gray-50 dark:bg-slate-700/50 border-b border-gray-200 dark:border-slate-700 flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center text-green-600">
+                                  <Clock size={16} />
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <h3 className="font-semibold text-gray-900 dark:text-white text-sm">
+                                    {appointment.time || '--:--'}
+                                  </h3>
+                                  {status === 'conflict' && (
+                                    <span title="Konflikt mit Vorgängertermin">
+                                      <AlertTriangle size={14} className="text-red-500" />
+                                    </span>
+                                  )}
+                                  {status === 'tight' && (
+                                    <span title="Keine Pause zum Vorgängertermin">
+                                      <AlertTriangle size={14} className="text-yellow-500" />
+                                    </span>
+                                  )}
+                                  {status === 'ok' && (
+                                    <span title="Termin passt">
+                                      <CheckCircle size={14} className="text-green-500" />
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-slate-400">
+                                <span>{appointment.duration} Min</span>
+                                <span>·</span>
+                                <span className={
+                                  appointment.status === 'attended' ? 'text-green-600' :
+                                  appointment.status === 'canceled_paid' ? 'text-orange-600' :
+                                  appointment.status === 'canceled_free' ? 'text-red-600' :
+                                  'text-blue-600'
+                                }>
+                                  {appointment.status === 'attended' ? 'Besucht' :
+                                   appointment.status === 'canceled_paid' ? 'Abgesagt (bezahlt)' :
+                                   appointment.status === 'canceled_free' ? 'Abgesagt (kostenlos)' :
+                                   'Geplant'}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {appointment.status === 'planned' && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDeleteAppointment(appointment.id);
+                                    }}
+                                    className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
+                                    title="Löschen"
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="p-3">
+                              <div className="flex items-center gap-2 mb-2">
+                                <User size={14} className="text-gray-500" />
+                                <span className="text-xs font-medium text-gray-700 dark:text-slate-300">
+                                  {students.length} Schüler:
+                                </span>
+                              </div>
+                              <div className="flex flex-wrap gap-1">
+                                {students.map(student => (
+                                  <span
+                                    key={student.id}
+                                    className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded text-xs"
+                                  >
+                                    {student.firstName} {student.lastName || ''}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
                   </div>
-                </div>
-              );
-            })}
+                );
+              });
+            })()}
           </div>
         )}
       </main>

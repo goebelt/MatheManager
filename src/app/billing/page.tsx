@@ -15,7 +15,7 @@ export default function BillingPage() {
   const [loading, setLoading] = useState(true);
   
   // Filter states
-  const [selectedStudentId, setSelectedStudentId] = useState<string>('all');
+  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
   const [timeRange, setTimeRange] = useState<'month' | 'year' | 'custom'>('month');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
@@ -98,26 +98,28 @@ export default function BillingPage() {
       );
     }
 
-    // Apply student filter
-    if (selectedStudentId !== 'all') {
+    // Apply student filter (no filter if no students selected)
+    if (selectedStudentIds.length > 0) {
       result = result.filter(
-        app => app.studentIds.includes(selectedStudentId)
+        app => app.studentIds.some(id => selectedStudentIds.includes(id))
       );
     }
 
     return result;
-  }, [data, selectedStudentId, timeRange, startDate, endDate]);
+  }, [data, selectedStudentIds, timeRange, startDate, endDate]);
 
-  // Calculate fees for each appointment
+  // Calculate fees for each appointment - expand group appointments to one row per student
   const appointmentsWithFees = useMemo(() => {
     if (!data) return [];
 
-    return filteredAppointments.map(appointment => {
+    const rows: any[] = [];
+
+    filteredAppointments.forEach(appointment => {
       // Determine appointment type: 'individual' or 'group'
       const studentIds = appointment.studentIds || [];
       const appointmentType: 'individual' | 'group' = studentIds.length === 1 ? 'individual' : 'group';
 
-      // Find matching price entry
+      // Find matching price entry (group price for group appointments)
       let priceEntry: PriceEntry | undefined;
       for (const entry of data.priceEntries || []) {
         if (entry.type === appointmentType && 
@@ -133,17 +135,33 @@ export default function BillingPage() {
       // Calculate fee based on formula: Amount × (Duration / 60)
       const duration = appointment.duration || 60;
       const amount = priceEntry ? priceEntry.amount : 0;
-      const fee = calculateAppointmentFee(appointment, studentIds[0], data.priceEntries || []);
 
-      return {
-        ...appointment,
-        calculatedFee: fee,
-        originalAmount: amount,
-        priceEntryType: appointmentType,
-        hasPrice: !!priceEntry
-      };
+      // Create one row per student (only for selected students if filter is active)
+      studentIds.forEach(studentId => {
+        // Skip if student filter is active and this student is not selected
+        if (selectedStudentIds.length > 0 && !selectedStudentIds.includes(studentId)) {
+          return;
+        }
+
+        const fee = calculateAppointmentFee(appointment, studentId, data.priceEntries || []);
+        const student = (data?.students || []).find(s => s.id === studentId);
+        const family = student ? (data?.families || []).find(f => f.id === student.familyId) : null;
+
+        rows.push({
+          ...appointment,
+          studentId,
+          student,
+          family,
+          calculatedFee: fee,
+          originalAmount: amount,
+          priceEntryType: appointmentType,
+          hasPrice: !!priceEntry
+        });
+      });
     });
-  }, [filteredAppointments, data]);
+
+    return rows;
+  }, [filteredAppointments, data, selectedStudentIds]);
 
   // Calculate totals
   const totalEarnings = useMemo(() => {
@@ -164,14 +182,6 @@ export default function BillingPage() {
 
   const appointmentCount = filteredAppointments.length;
   const freeFallCount = filteredAppointments.filter(a => a.status === 'canceled_free').length;
-
-  // Get selected student name for display
-  const selectedStudent = useMemo(() => {
-    if (selectedStudentId !== 'all' && data?.students) {
-      return data.students.find(s => s.id === selectedStudentId);
-    }
-    return null;
-  }, [selectedStudentId, data]);
 
   if (loading) {
     return (
@@ -204,18 +214,18 @@ export default function BillingPage() {
             <div className="student-dropdown-container flex items-center gap-2 p-3 bg-gray-50 dark:bg-slate-700/50 rounded-lg border border-gray-200 dark:border-slate-600">
               <User className="w-4 h-4 text-gray-400" />
               <div className="relative flex-1">
-                {/* Selected student display */}
+                {/* Selected students display */}
                 <div
                   onClick={() => setStudentDropdownOpen(!studentDropdownOpen)}
                   className="min-h-[28px] px-2 py-1 cursor-pointer text-sm focus:outline-none dark:text-white"
                 >
-                  {selectedStudentId === 'all' ? (
+                  {selectedStudentIds.length === 0 ? (
                     <span className="text-gray-500 dark:text-slate-400">
                       Alle Schüler
                     </span>
                   ) : (
                     <span className="text-gray-900 dark:text-white">
-                      {data?.students.find(s => s.id === selectedStudentId)?.firstName} {data?.students.find(s => s.id === selectedStudentId)?.lastName || ''}
+                      {selectedStudentIds.length} Schüler ausgewählt
                     </span>
                   )}
                 </div>
@@ -237,29 +247,6 @@ export default function BillingPage() {
 
                     {/* Student list */}
                     <div className="max-h-48 overflow-y-auto">
-                      {/* "All" option */}
-                      <button
-                        onClick={() => {
-                          setSelectedStudentId('all');
-                          setStudentDropdownOpen(false);
-                          setStudentFilter('');
-                        }}
-                        className={`w-full px-3 py-2 text-left hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors ${
-                          selectedStudentId === 'all' ? 'bg-blue-50 dark:bg-blue-900/20' : ''
-                        }`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <div className={`w-5 h-5 rounded border flex items-center justify-center ${
-                            selectedStudentId === 'all' ? 'bg-green-600 border-green-600 text-white' : 'border-gray-300 dark:border-slate-600'
-                          }`}>
-                            {selectedStudentId === 'all' && <Check size={12} />}
-                          </div>
-                          <span className="text-sm font-medium text-gray-900 dark:text-white">
-                            Alle Schüler
-                          </span>
-                        </div>
-                      </button>
-
                       {getFilteredStudents().length === 0 ? (
                         <div className="p-4 text-center text-gray-500 dark:text-slate-400 text-sm">
                           Keine Schüler gefunden
@@ -267,14 +254,16 @@ export default function BillingPage() {
                       ) : (
                         getFilteredStudents().map(student => {
                           const familyName = getFamilyForStudent(student.id);
-                          const isSelected = selectedStudentId === student.id;
+                          const isSelected = selectedStudentIds.includes(student.id);
                           return (
                             <button
                               key={student.id}
                               onClick={() => {
-                                setSelectedStudentId(student.id);
-                                setStudentDropdownOpen(false);
-                                setStudentFilter('');
+                                if (isSelected) {
+                                  setSelectedStudentIds(selectedStudentIds.filter(id => id !== student.id));
+                                } else {
+                                  setSelectedStudentIds([...selectedStudentIds, student.id]);
+                                }
                               }}
                               className={`w-full px-3 py-2 text-left hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors ${
                                 isSelected ? 'bg-blue-50 dark:bg-blue-900/20' : ''
@@ -438,6 +427,9 @@ export default function BillingPage() {
                       Schüler
                     </th>
                     <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">
+                      Familie
+                    </th>
+                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">
                       Typ
                     </th>
                     <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">
@@ -451,13 +443,13 @@ export default function BillingPage() {
                 <tbody className="bg-white dark:bg-slate-800 divide-y divide-gray-200 dark:divide-slate-700">
                   {appointmentsWithFees.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">
+                      <td colSpan={7} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">
                         Keine Termine im ausgewählten Zeitraum gefunden.
                       </td>
                     </tr>
                   ) : (
                     appointmentsWithFees.map((appointment) => (
-                      <tr key={appointment.id} className="hover:bg-gray-50 dark:hover:bg-slate-700/30">
+                      <tr key={`${appointment.id}-${appointment.studentId}`} className="hover:bg-gray-50 dark:hover:bg-slate-700/30">
                         <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                           {new Date(appointment.date).toLocaleDateString('de-DE', {
                             day: '2-digit',
@@ -466,10 +458,10 @@ export default function BillingPage() {
                           })}
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">
-                          {appointment.studentIds.slice(0, 2).map(id => {
-                            const student = data?.students.find(s => s.id === id);
-                            return student ? `${student.firstName} ${student.lastName || ''}` : '';
-                          }).join(', ')}
+                          {appointment.student ? `${appointment.student.firstName} ${appointment.student.lastName || ''}` : 'Unbekannt'}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">
+                          {appointment.family ? appointment.family.name : '-'}
                         </td>
                         <td className="px-4 py-3">
                           {appointment.priceEntryType === 'individual' ? (
