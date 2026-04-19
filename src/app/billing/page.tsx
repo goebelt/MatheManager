@@ -468,6 +468,9 @@ export default function BillingPage() {
                       Dauer
                     </th>
                     <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">
+                      Stundensatz
+                    </th>
+                    <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">
                       Honorar
                     </th>
                   </tr>
@@ -475,7 +478,7 @@ export default function BillingPage() {
                 <tbody className="bg-white dark:bg-slate-800 divide-y divide-gray-200 dark:divide-slate-700">
                   {appointmentsWithFees.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">
+                      <td colSpan={8} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">
                         Keine Termine im ausgewählten Zeitraum gefunden.
                       </td>
                     </tr>
@@ -508,6 +511,13 @@ export default function BillingPage() {
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">
                           {appointment.duration} min
+                        </td>
+                        <td className="px-4 py-3 text-right text-sm text-gray-500 dark:text-slate-400">
+                          {appointment.originalAmount > 0 ? (
+                            <>€{appointment.originalAmount.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</>
+                          ) : (
+                            <span className="text-gray-400">-</span>
+                          )}
                         </td>
                         <td className="px-4 py-3 text-right text-sm font-medium text-gray-900 dark:text-white">
                           {appointment.calculatedFee ? (
