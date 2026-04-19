@@ -16,7 +16,7 @@ export default function BillingPage() {
   
   // Filter states
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
-  const [timeRange, setTimeRange] = useState<'month' | 'year' | 'custom'>('month');
+  const [timeRange, setTimeRange] = useState<'month' | 'year' | 'custom' | 'all'>('month');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
 
@@ -82,20 +82,37 @@ export default function BillingPage() {
     if (!data) return [];
 
     let result = data.appointments || [];
+    const now = new Date();
+    now.setHours(23, 59, 59, 999); // End of today
 
     // Apply date range filter
     if (timeRange === 'month') {
-      const now = new Date();
       const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
-      result = result.filter(app => new Date(app.date) >= firstDay);
+      result = result.filter(app => {
+        const appDate = new Date(app.date);
+        return appDate >= firstDay && appDate <= now;
+      });
     } else if (timeRange === 'year') {
-      const now = new Date();
       const startOfYear = new Date(now.getFullYear(), 0, 1);
-      result = result.filter(app => new Date(app.date) >= startOfYear);
+      result = result.filter(app => {
+        const appDate = new Date(app.date);
+        return appDate >= startOfYear && appDate <= now;
+      });
     } else if (timeRange === 'custom' && startDate && endDate) {
-      result = result.filter(
-        app => app.date >= startDate + 'T00:00:00Z' && app.date <= endDate + 'T23:59:59Z'
-      );
+      result = result.filter(app => {
+        const appDate = new Date(app.date);
+        const start = new Date(startDate);
+        start.setHours(0, 0, 0, 0);
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        return appDate >= start && appDate <= end;
+      });
+    } else if (timeRange === 'all') {
+      // Show all appointments, but only up to today
+      result = result.filter(app => {
+        const appDate = new Date(app.date);
+        return appDate <= now;
+      });
     }
 
     // Apply student filter (no filter if no students selected)
@@ -302,15 +319,19 @@ export default function BillingPage() {
               <select
                 value={timeRange}
                 onChange={(e) => {
-                  const range = e.target.value;
+                  const range = e.target.value as 'month' | 'year' | 'custom' | 'all';
                   if (range === 'month') {
                     setTimeRange('month');
                     setStartDate('');
-                    setEndDate('');
+                    setEndDate(new Date().toISOString().split('T')[0]);
                   } else if (range === 'year') {
                     setTimeRange('year');
                     setStartDate('');
-                    setEndDate('');
+                    setEndDate(new Date().toISOString().split('T')[0]);
+                  } else if (range === 'all') {
+                    setTimeRange('all');
+                    setStartDate('');
+                    setEndDate(new Date().toISOString().split('T')[0]);
                   } else {
                     setTimeRange('custom');
                   }
@@ -318,7 +339,8 @@ export default function BillingPage() {
                 className="flex-1 bg-transparent text-sm focus:outline-none dark:text-white"
               >
                 <option value="month">Diesen Monat</option>
-                <option value="year">Letztes Jahr</option>
+                <option value="year">Dieses Jahr</option>
+                <option value="all">Alle (bis heute)</option>
                 <option value="custom">Freier Zeitraum</option>
               </select>
 
@@ -330,7 +352,6 @@ export default function BillingPage() {
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
                     className="w-20 text-sm bg-transparent focus:outline-none dark:text-white"
-                    disabled={!startDate}
                   />
                   <span className="text-gray-400">bis</span>
                   <input
@@ -338,9 +359,20 @@ export default function BillingPage() {
                     value={endDate}
                     onChange={(e) => setEndDate(e.target.value)}
                     className="w-20 text-sm bg-transparent focus:outline-none dark:text-white"
-                    disabled={!endDate}
                     min={startDate || undefined}
                   />
+                  {(startDate || endDate) && (
+                    <button
+                      onClick={() => {
+                        setStartDate('');
+                        setEndDate(new Date().toISOString().split('T')[0]);
+                      }}
+                      className="p-1 hover:bg-gray-200 dark:hover:bg-slate-600 rounded"
+                      title="Filter zurücksetzen"
+                    >
+                      <X size={14} className="text-gray-500" />
+                    </button>
+                  )}
                 </>
               )}
             </div>
@@ -510,7 +542,10 @@ export default function BillingPage() {
               <div className="bg-gray-50 dark:bg-slate-700/30 px-4 py-4 sm:px-6">
                 <div className="flex flex-col sm:flex-row justify-between items-center gap-2">
                   <p className="text-sm text-gray-500 dark:text-slate-400">
-                    Gesamtsumme für {timeRange}
+                    {timeRange === 'month' ? 'Gesamtsumme für diesen Monat' :
+                     timeRange === 'year' ? 'Gesamtsumme für dieses Jahr' :
+                     timeRange === 'all' ? 'Gesamtsumme (alle Termine bis heute)' :
+                     'Gesamtsumme für den gewählten Zeitraum'}
                   </p>
                   <p className="text-lg font-bold text-green-600 dark:text-green-500 flex items-center gap-2">
                     <ArrowUpRight className="w-5 h-5" />
