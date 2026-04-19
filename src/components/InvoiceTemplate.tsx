@@ -66,13 +66,31 @@ export function InvoiceTemplate({
   const subtotal = invoice.items.reduce((sum, item) => sum + item.totalPrice, 0);
 
   return (
-    <div className="min-h-screen bg-white p-8 print:p-0 print:min-h-0">
+    <div className="min-h-screen bg-white p-0 print:p-0 print:min-h-0">
+      <style>{`
+        @media print {
+          @page {
+            margin: 0;
+            padding: 0;
+          }
+          body {
+            margin: 0;
+            padding: 0;
+          }
+          .print-break-avoid {
+            page-break-inside: avoid;
+          }
+          .print-break-after {
+            page-break-after: always;
+          }
+        }
+      `}</style>
       {/* Print Header - Always visible */}
-      <header className="mb-12 border-b-4 border-black pb-6">
+      <header className="mb-8 border-b-4 border-black pb-6 print-break-avoid">
         <div className="flex justify-between items-start mb-6">
           {/* Issuer (Your Business) */}
-          <div>
-            <h1 className="text-4xl font-bold uppercase tracking-wider text-center mb-3">
+          <div className="flex-1">
+            <h1 className="text-3xl font-bold uppercase tracking-wider mb-2">
               {invoice.issuedBy.name || 'MatheManager'}
             </h1>
             
@@ -95,7 +113,7 @@ export function InvoiceTemplate({
 
           {/* Invoice Details */}
           <div className="text-right">
-            <h2 className="text-4xl font-bold uppercase tracking-wider text-center mb-3">
+            <h2 className="text-3xl font-bold uppercase tracking-wider mb-2">
               RECHNUNG
             </h2>
             <p className="text-lg font-semibold">{formatDate(invoice.invoiceDate)}</p>
@@ -104,8 +122,8 @@ export function InvoiceTemplate({
         </div>
 
         {/* Billed To */}
-        <div className="mt-8 pt-6 border-t-2 border-dashed border-black">
-          <p className="text-sm uppercase font-bold mb-1 text-center">Rechnung an:</p>
+        <div className="mt-6 pt-4 border-t-2 border-dashed border-black">
+          <p className="text-sm uppercase font-bold mb-1">Rechnung an:</p>
           {invoice.billedTo.name && (
             <>
               <p className="text-xl font-bold">{invoice.billedTo.name}</p>
@@ -121,26 +139,26 @@ export function InvoiceTemplate({
       </header>
 
       {/* Invoice Items Table */}
-      <div className="mb-12">
+      <div className="mb-8 print-break-avoid">
         <table className="w-full border-collapse border-black">
           <thead>
             <tr className="border-b-4 border-black bg-gray-50 print:bg-white">
-              <th className="text-left py-3 px-4 text-xs uppercase font-semibold tracking-wider" style={{ width: '10%' }}>
+              <th className="text-left py-2 px-3 text-xs uppercase font-semibold tracking-wider" style={{ width: '10%' }}>
                 Datum
               </th>
-              <th className="text-left py-3 px-4 text-xs uppercase font-semibold tracking-wider" style={{ width: '15%' }}>
+              <th className="text-left py-2 px-3 text-xs uppercase font-semibold tracking-wider" style={{ width: '15%' }}>
                 Schüler
               </th>
-              <th className="text-left py-3 px-4 text-xs uppercase font-semibold tracking-wider" style={{ width: '15%' }}>
+              <th className="text-left py-2 px-3 text-xs uppercase font-semibold tracking-wider" style={{ width: '15%' }}>
                 Typ
               </th>
-              <th className="text-left py-3 px-4 text-xs uppercase font-semibold tracking-wider" style={{ width: '15%' }}>
+              <th className="text-left py-2 px-3 text-xs uppercase font-semibold tracking-wider" style={{ width: '15%' }}>
                 Status
               </th>
-              <th className="text-right py-3 px-4 text-xs uppercase font-semibold tracking-wider" style={{ width: '15%' }}>
+              <th className="text-right py-2 px-3 text-xs uppercase font-semibold tracking-wider" style={{ width: '15%' }}>
                 Stundensatz
               </th>
-              <th className="text-right py-3 px-4 text-xs uppercase font-semibold tracking-wider" style={{ width: '10%' }}>
+              <th className="text-right py-2 px-3 text-xs uppercase font-semibold tracking-wider" style={{ width: '10%' }}>
                 Gesamtpreis
               </th>
             </tr>
@@ -154,12 +172,12 @@ export function InvoiceTemplate({
               </tr>
             ) : (
               invoice.items.map((item, index) => (
-                <tr key={index} className="border-b border-dotted border-black hover:bg-blue-50 transition-colors">
-                  <td className="py-3 px-4 text-sm text-gray-600">
+                <tr key={index} className="border-b border-dotted border-black hover:bg-blue-50 transition-colors print-break-avoid">
+                  <td className="py-2 px-3 text-sm text-gray-600">
                     {formatDate(item.date)}
                   </td>
-                  <td className="py-3 px-4 text-sm font-medium">{item.studentName || '-'}</td>
-                  <td className="py-3 px-4 text-sm">
+                  <td className="py-2 px-3 text-sm font-medium">{item.studentName || '-'}</td>
+                  <td className="py-2 px-3 text-sm">
                     {item.lessonType === 'group' ? (
                       <span className="inline-flex items-center gap-1">
                         <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
@@ -172,7 +190,7 @@ export function InvoiceTemplate({
                       </span>
                     )}
                   </td>
-                  <td className="py-3 px-4 text-sm">
+                  <td className="py-2 px-3 text-sm">
                     {item.status === 'attended' ? (
                       <span className="inline-flex items-center gap-1 text-green-600">
                         <Check size={14} />
@@ -195,10 +213,10 @@ export function InvoiceTemplate({
                       </span>
                     )}
                   </td>
-                  <td className="py-3 px-4 text-right text-sm">
+                  <td className="py-2 px-3 text-right text-sm">
                     &euro;{Number(item.hourlyRate || item.unitPrice).toFixed(2)}
                   </td>
-                  <td className="py-3 px-4 text-right font-semibold">
+                  <td className="py-2 px-3 text-right font-semibold">
                     &euro;{item.totalPrice.toFixed(2)}
                   </td>
                 </tr>
@@ -209,7 +227,7 @@ export function InvoiceTemplate({
       </div>
 
       {/* Totals Section */}
-      <div className="flex justify-end mt-16">
+      <div className="flex justify-end mt-8 print-break-avoid">
         <div className="w-[35%]">
           <div className="flex justify-between py-2 border-b border-dotted border-black">
             <span className="text-sm font-medium text-gray-600">Zwischensumme (netto)</span>
@@ -229,7 +247,7 @@ export function InvoiceTemplate({
           </div>
 
           {/* Payment terms */}
-          <div className="mt-8 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+          <div className="mt-6 p-4 bg-gray-50 border border-gray-200 rounded-lg print-break-avoid">
             <p className="text-xs font-semibold text-gray-700 mb-2">Zahlungsbedingungen:</p>
             <p className="text-xs text-gray-600">Fällig bis: {formatDate(invoice.dueDate)}</p>
             {invoice.issuedBy.iban && (
@@ -262,7 +280,7 @@ export function InvoiceTemplate({
       </div>
 
       {/* Footer note */}
-      <div className="mt-12 pt-6 border-t border-gray-200 text-center">
+      <div className="mt-8 pt-4 border-t border-gray-200 text-center">
         <p className="text-xs text-gray-500">
           Vielen Dank für die gute Zusammenarbeit!
         </p>

@@ -206,12 +206,20 @@ export default function InvoicesPage() {
     
     // Get current invoice number from localStorage
     const storedInvoiceNumber = localStorage.getItem('mathe_manager_invoice_number');
-    let currentInvoiceNumber = storedInvoiceNumber ? parseInt(storedInvoiceNumber, 10) : invoiceNumberStart;
+    let currentInvoiceNumber: number;
+    
+    if (storedInvoiceNumber) {
+      // Use stored number if available
+      currentInvoiceNumber = parseInt(storedInvoiceNumber, 10);
+    } else {
+      // Use start value from settings if no stored number
+      currentInvoiceNumber = invoiceNumberStart;
+    }
     
     // Format invoice number as YYYY/00001
     const invoiceNumber = `${currentYear}/${currentInvoiceNumber.toString().padStart(5, '0')}`;
     
-    // Increment and save invoice number
+    // Increment and save invoice number for next invoice
     localStorage.setItem('mathe_manager_invoice_number', (currentInvoiceNumber + 1).toString());
 
     setInvoiceData({
