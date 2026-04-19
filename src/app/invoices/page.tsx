@@ -397,7 +397,7 @@ export default function InvoicesPage() {
 
       {/* Invoice Preview - Visible on screen */}
       <main className="max-w-4xl mx-auto px-4 py-6 print:hidden">
-        <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl shadow-sm p-6">
+        <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl shadow-sm p-6 print:hidden">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2 pb-2 border-b border-gray-100 dark:border-slate-700">
             <FileText size={18} />
             Rechnungsvorschau
@@ -416,6 +416,15 @@ export default function InvoicesPage() {
             </div>
           )}
         </div>
+
+        {/* Print-only invoice view */}
+        {invoiceData && (
+          <div className="print:block hidden">
+            <InvoiceTemplate
+              invoice={invoiceData}
+              onPrint={() => window.print()}
+            />
+          </div>)}
       </main>
     </div>
   );
