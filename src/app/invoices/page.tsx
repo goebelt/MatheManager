@@ -6,7 +6,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { Printer, User, Calendar, DollarSign, ArrowRight, Building2, FileText, Check, X } from 'lucide-react';
-import type { DataContainer, InvoiceItem, Family, Student } from '@/types';
+import type { DataContainer, InvoiceItem, Family, Student, PriceEntry } from '@/types';
 import { calculateAppointmentFee } from '@/lib/billing';
 import { InvoiceTemplate, type InvoiceData } from '@/components/InvoiceTemplate';
 
@@ -134,11 +134,46 @@ export default function InvoicesPage() {
           seen.add(key);
           const student = data.students.find(s => s.id === studentId);
           
-          // Determine lesson type
+          // Find matching price entry for this specific student:
+          // - Type must match (individual vs group)
+          // - Appointment date must be between validFrom and validTo (if present)
+          // - Priority: Student-specific price first, then default price
+          let priceEntry: PriceEntry | undefined;
           const lessonType = appointment.studentIds.length > 1 ? 'group' : 'individual';
           
+          // First, try to find a student-specific price entry
+          for (const entry of data.priceEntries || []) {
+            if (entry.type === lessonType && 
+                new Date(appointment.date) >= new Date(entry.validFrom) &&
+                entry.studentIds && entry.studentIds.includes(studentId)) {
+              const validTo = entry.validTo ? new Date(entry.validTo) : null;
+              if (!validTo || new Date(appointment.date) <= validTo) {
+                priceEntry = entry;
+                break;
+              }
+            }
+          }
+          
+          // If no student-specific price found, try to find a default price
+          if (!priceEntry) {
+            for (const entry of data.priceEntries || []) {
+              if (entry.type === lessonType && 
+                  new Date(appointment.date) >= new Date(entry.validFrom) &&
+                  (!entry.studentIds || entry.studentIds.length === 0)) {
+                const validTo = entry.validTo ? new Date(entry.validTo) : null;
+                if (!validTo || new Date(appointment.date) <= validTo) {
+                  priceEntry = entry;
+                  break;
+                }
+              }
+            }
+          }
+          
+          // Get hourly rate (amount per 60 minutes)
+          const hourlyRate = priceEntry ? priceEntry.amount : 0;
+          
           // Calculate fee using billing helper
-          let fee = calculateAppointmentFee(appointment, undefined, data.priceEntries || []);
+          let fee = calculateAppointmentFee(appointment, studentId, data.priceEntries || []);
           
           // For canceled_free, charge nothing
           if (appointment.status === 'canceled_free') {
@@ -170,7 +205,7 @@ export default function InvoicesPage() {
             studentName: student ? `${student.firstName} ${student.lastName || ''}`.trim() : 'Unknown',
             lessonType: lessonType,
             status: appointment.status as 'attended' | 'canceled_paid' | 'canceled_free' | 'planned',
-            hourlyRate: fee,
+            hourlyRate: hourlyRate,
             description: description,
             unitPrice: fee,
             quantity: 1,

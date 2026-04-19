@@ -136,29 +136,50 @@ export default function BillingPage() {
       const studentIds = appointment.studentIds || [];
       const appointmentType: 'individual' | 'group' = studentIds.length === 1 ? 'individual' : 'group';
 
-      // Find matching price entry (group price for group appointments)
-      let priceEntry: PriceEntry | undefined;
-      for (const entry of data.priceEntries || []) {
-        if (entry.type === appointmentType && 
-            new Date(appointment.date) >= new Date(entry.validFrom)) {
-          const validTo = entry.validTo ? new Date(entry.validTo) : null;
-          if (!validTo || new Date(appointment.date) <= validTo) {
-            priceEntry = entry;
-            break;
-          }
-        }
-      }
-
-      // Calculate fee based on formula: Amount × (Duration / 60)
-      const duration = appointment.duration || 60;
-      const amount = priceEntry ? priceEntry.amount : 0;
-
       // Create one row per student (only for selected students if filter is active)
       studentIds.forEach(studentId => {
         // Skip if student filter is active and this student is not selected
         if (selectedStudentIds.length > 0 && !selectedStudentIds.includes(studentId)) {
           return;
         }
+
+        // Find matching price entry for this specific student:
+        // - Type must match (individual vs group)
+        // - Appointment date must be between validFrom and validTo (if present)
+        // - Priority: Student-specific price first, then default price
+        let priceEntry: PriceEntry | undefined;
+        
+        // First, try to find a student-specific price entry
+        for (const entry of data.priceEntries || []) {
+          if (entry.type === appointmentType && 
+              new Date(appointment.date) >= new Date(entry.validFrom) &&
+              entry.studentIds && entry.studentIds.includes(studentId)) {
+            const validTo = entry.validTo ? new Date(entry.validTo) : null;
+            if (!validTo || new Date(appointment.date) <= validTo) {
+              priceEntry = entry;
+              break;
+            }
+          }
+        }
+        
+        // If no student-specific price found, try to find a default price
+        if (!priceEntry) {
+          for (const entry of data.priceEntries || []) {
+            if (entry.type === appointmentType && 
+                new Date(appointment.date) >= new Date(entry.validFrom) &&
+                (!entry.studentIds || entry.studentIds.length === 0)) {
+              const validTo = entry.validTo ? new Date(entry.validTo) : null;
+              if (!validTo || new Date(appointment.date) <= validTo) {
+                priceEntry = entry;
+                break;
+              }
+            }
+          }
+        }
+
+        // Calculate fee based on formula: Amount × (Duration / 60)
+        const duration = appointment.duration || 60;
+        const amount = priceEntry ? priceEntry.amount : 0;
 
         const fee = calculateAppointmentFee(appointment, studentId, data.priceEntries || []);
         const student = (data?.students || []).find(s => s.id === studentId);

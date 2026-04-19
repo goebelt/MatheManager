@@ -32,17 +32,39 @@ export function calculateAppointmentFee(
     // Find matching price entry:
     // - Type must match (individual vs group)
     // - Appointment date must be between validFrom and validTo (if present)
+    // - Priority: Student-specific price first, then default price
     let matchedEntry: PriceEntry | undefined;
     
-    for (const entry of priceEntries || []) {
-      if (entry.type === appointmentType && 
-          new Date(appointment.date) >= new Date(entry.validFrom)) {
-        const validTo = entry.validTo ? new Date(entry.validTo) : null;
-        
-        // Check if date is within valid range (or no end date defined)
-        if (!validTo || new Date(appointment.date) <= validTo) {
-          matchedEntry = entry;
-          break;
+    // First, try to find a student-specific price entry
+    if (studentId) {
+      for (const entry of priceEntries || []) {
+        if (entry.type === appointmentType && 
+            new Date(appointment.date) >= new Date(entry.validFrom) &&
+            entry.studentIds && entry.studentIds.includes(studentId)) {
+          const validTo = entry.validTo ? new Date(entry.validTo) : null;
+          
+          // Check if date is within valid range (or no end date defined)
+          if (!validTo || new Date(appointment.date) <= validTo) {
+            matchedEntry = entry;
+            break;
+          }
+        }
+      }
+    }
+    
+    // If no student-specific price found, try to find a default price
+    if (!matchedEntry) {
+      for (const entry of priceEntries || []) {
+        if (entry.type === appointmentType && 
+            new Date(appointment.date) >= new Date(entry.validFrom) &&
+            (!entry.studentIds || entry.studentIds.length === 0)) {
+          const validTo = entry.validTo ? new Date(entry.validTo) : null;
+          
+          // Check if date is within valid range (or no end date defined)
+          if (!validTo || new Date(appointment.date) <= validTo) {
+            matchedEntry = entry;
+            break;
+          }
         }
       }
     }
