@@ -180,6 +180,12 @@ export default function InvoicesPage() {
             fee = 0;
           }
           
+          // Get payment status
+          const paymentStatus = (data?.paymentStatuses || []).find(
+            s => s.appointmentId === appointment.id && s.studentId === studentId
+          );
+          const isPaid = paymentStatus?.isPaid || false;
+          
           // Build description
           let description = '';
           if (lessonType === 'group') {
@@ -210,6 +216,7 @@ export default function InvoicesPage() {
             unitPrice: fee,
             quantity: 1,
             totalPrice: fee,
+            isPaid: isPaid,
           });
         }
       });
@@ -231,7 +238,7 @@ export default function InvoicesPage() {
     // Calculate total fee for all items
     const subtotal = invoiceItems.reduce((sum, item) => sum + item.totalPrice, 0);
 
-    const taxRate = 0.19;
+    const taxRate = 0; // Umsatzsteuerbefreit
     const taxAmount = subtotal * taxRate;
     const total = subtotal + taxAmount;
 

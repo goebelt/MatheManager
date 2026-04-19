@@ -99,6 +99,7 @@ export interface InvoiceItem {
   unitPrice: number;
   quantity: number;
   totalPrice: number;
+  isPaid?: boolean; // Bezahlstatus
 }
 
 /**

@@ -37,6 +37,7 @@ export interface InvoiceData {
     unitPrice: number;
     quantity: number;
     totalPrice: number;
+    isPaid?: boolean;
   }>;
   subtotal: number;
   taxRate?: number;
@@ -146,30 +147,33 @@ export function InvoiceTemplate({
         <table className="w-full border-collapse border-black">
           <thead>
             <tr className="border-b-4 border-black bg-gray-50 print:bg-white">
-              <th className="text-left py-1 px-1.5 text-xs uppercase font-semibold tracking-wider" style={{ width: '12%' }}>
+              <th className="text-left py-1 px-1.5 text-xs uppercase font-semibold tracking-wider" style={{ width: '11%' }}>
                 Datum
               </th>
-              <th className="text-left py-1 px-1.5 text-xs uppercase font-semibold tracking-wider" style={{ width: '18%' }}>
+              <th className="text-left py-1 px-1.5 text-xs uppercase font-semibold tracking-wider" style={{ width: '17%' }}>
                 Schüler
               </th>
-              <th className="text-left py-1 px-1.5 text-xs uppercase font-semibold tracking-wider" style={{ width: '18%' }}>
+              <th className="text-left py-1 px-1.5 text-xs uppercase font-semibold tracking-wider" style={{ width: '17%' }}>
                 Typ
               </th>
-              <th className="text-left py-1 px-1.5 text-xs uppercase font-semibold tracking-wider" style={{ width: '18%' }}>
+              <th className="text-left py-1 px-1.5 text-xs uppercase font-semibold tracking-wider" style={{ width: '17%' }}>
                 Status
               </th>
-              <th className="text-right py-1 px-1.5 text-xs uppercase font-semibold tracking-wider" style={{ width: '18%' }}>
+              <th className="text-right py-1 px-1.5 text-xs uppercase font-semibold tracking-wider" style={{ width: '17%' }}>
                 Stundensatz
               </th>
-              <th className="text-right py-1 px-1.5 text-xs uppercase font-semibold tracking-wider" style={{ width: '16%' }}>
+              <th className="text-right py-1 px-1.5 text-xs uppercase font-semibold tracking-wider" style={{ width: '15%' }}>
                 Gesamtpreis
+              </th>
+              <th className="text-center py-1 px-1.5 text-xs uppercase font-semibold tracking-wider" style={{ width: '6%' }}>
+                Bezahlt
               </th>
             </tr>
           </thead>
           <tbody>
             {invoice.items.length === 0 ? (
               <tr>
-                <td colSpan={6} className="py-3 px-2 text-center text-gray-400 italic">
+                <td colSpan={7} className="py-3 px-2 text-center text-gray-400 italic">
                   Keine Positionen vorhanden
                 </td>
               </tr>
@@ -222,6 +226,19 @@ export function InvoiceTemplate({
                   <td className="py-1 px-1.5 text-right font-semibold text-xs">
                     &euro;{item.totalPrice.toFixed(2)}
                   </td>
+                  <td className="py-1 px-1.5 text-center text-xs">
+                    {item.isPaid ? (
+                      <span className="inline-flex items-center gap-1 text-green-600">
+                        <Check size={10} />
+                        Ja
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-gray-500">
+                        <X size={10} />
+                        Nein
+                      </span>
+                    )}
+                  </td>
                 </tr>
               ))
             )}
@@ -237,7 +254,7 @@ export function InvoiceTemplate({
             <span className="text-xs font-semibold">&euro;{subtotal.toFixed(2)}</span>
           </div>
           
-          {invoice.taxRate !== undefined && invoice.taxRate > 0 && (
+          {invoice.taxRate !== undefined && (
             <div className="flex justify-between py-1 border-b border-dotted border-black">
               <span className="text-xs font-medium text-gray-600">MwSt. ({invoice.taxRate}%)</span>
               <span className="text-xs font-semibold">&euro;{(invoice.taxAmount || 0).toFixed(2)}</span>
