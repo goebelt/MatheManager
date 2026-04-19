@@ -23,3 +23,30 @@ yarn-error.log*
 
 # Cache
 .cache/
+.vercel
+
+# Dependencies
+node_modules/
+buildchain/node_modules/
+
+# Fix scripts (temporary)
+fix-*.js
+fix-*.ts
+fix-*.py
+fix-*.ps1
+fix-*.php
+fix-*.bat
+add-*.js
+remove-*.js
+check-*.js
+scan-*.ps1
+update-*.js
+undo-*.js
+rebuild.bat
+build-test.bat
+commit-push.ps1
+
+# Type definitions
+next-env.d.ts
+src/next-env.d.ts
+src/global.d.ts

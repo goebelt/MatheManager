@@ -12,6 +12,7 @@ interface AppointmentCardProps {
   appointment: Appointment;
   student: Student;
   allStudents?: Student[];
+  priceEntries?: any[];
   onStatusChange?: (appointmentId: string, status: Appointment['status']) => void;
   onAddStudent?: (appointmentId: string, additionalStudentId: string) => void;
 }
@@ -63,6 +64,7 @@ export function AppointmentCard({
 
   const isAttended = appointment.status === 'attended';
   const duration = getDuration();
+  const priceCount = appointment.studentIds.length;
 
   return (
     <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
@@ -102,9 +104,14 @@ export function AppointmentCard({
       {/* Student Names */}
       <div className="mb-4">
         <p className="font-semibold text-gray-900 dark:text-white">
-          {displayStudents.map(s => s.firstName + (s.lastName ? ` ${s.lastName}` : '')).join(', ')}
+          {displayStudents.map(s => s.firstName + (s.lastName ? ' ' + s.lastName : '')).join(', ')}
           {hasAdditionalStudents ? ` +${appointment.studentIds.length - 2} mehr` : ''}
         </p>
+        {priceCount > 1 && (
+          <div className="mt-1 text-sm text-gray-500 dark:text-slate-400">
+            {priceCount} Schüler × {duration} Min
+          </div>
+        )}
       </div>
 
       {/* Status Controls */}

@@ -23,6 +23,7 @@ export default function FamiliesPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [editingFamilyId, setEditingFamilyId] = useState<string | null>(null);
+  const [addingStudentToFamilyId, setAddingStudentToFamilyId] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [pagination, setPagination] = useState<PaginationState>({
     familyPage: 1,
@@ -67,9 +68,9 @@ export default function FamiliesPage() {
   // --- Family CRUD ---
 
   const handleAddFamily = () => {
-    if (!formName.trim() || !data) return;
+    if (!formName.trim()) return;
 
-    const existing = data.families.find(
+    const existing = (data?.families || []).find(
       f => f.name.toLowerCase() === formName.trim().toLowerCase()
     );
     if (existing) {
@@ -85,11 +86,15 @@ export default function FamiliesPage() {
       phone: formPhone.trim(),
     };
 
-    const updatedData: DataContainer = {
-      ...data,
-      families: [...(data.families || []), newFamily],
+    const updatedData: DataContainer = data || {
+      families: [],
+      students: [],
+      priceEntries: [],
+      appointments: [],
       lastUpdated: new Date().toISOString(),
     };
+    updatedData.families = [...(updatedData.families || []), newFamily];
+    updatedData.lastUpdated = new Date().toISOString();
 
     saveData(updatedData);
     resetForm();
@@ -98,29 +103,41 @@ export default function FamiliesPage() {
   };
 
   const handleUpdateFamily = (familyId: string) => {
-    if (!formName.trim() || !data) return;
+    if (!formName.trim()) return;
 
-    const updatedFamilies = (data.families || []).map(f =>
+    const updatedFamilies = ((data?.families || []) || []).map(f =>
       f.id === familyId
         ? { ...f, name: formName.trim(), address: formAddress.trim(), email: formEmail.trim(), phone: formPhone.trim() }
         : f
     );
 
-    saveData({ ...data, families: updatedFamilies, lastUpdated: new Date().toISOString() });
+    const updatedData: DataContainer = data || {
+      families: [],
+      students: [],
+      priceEntries: [],
+      appointments: [],
+      lastUpdated: new Date().toISOString(),
+    };
+    updatedData.families = updatedFamilies;
+    updatedData.lastUpdated = new Date().toISOString();
+    saveData(updatedData);
     setEditingFamilyId(null);
     resetForm();
   };
 
   const handleDeleteFamily = (familyId: string, name: string) => {
     if (!confirm(`Möchten Sie die Familie "${name}" und alle zugehörigen Schüler wirklich löschen?`)) return;
-    if (!data) return;
 
-    const updatedData: DataContainer = {
-      ...data,
-      families: (data.families || []).filter(f => f.id !== familyId),
-      students: (data.students || []).filter(s => s.familyId !== familyId),
+    const updatedData: DataContainer = data || {
+      families: [],
+      students: [],
+      priceEntries: [],
+      appointments: [],
       lastUpdated: new Date().toISOString(),
     };
+    updatedData.families = (updatedData.families || []).filter(f => f.id !== familyId);
+    updatedData.students = (updatedData.students || []).filter(s => s.familyId !== familyId);
+    updatedData.lastUpdated = new Date().toISOString();
 
     saveData(updatedData);
     if (editingFamilyId === familyId) {
@@ -140,7 +157,7 @@ export default function FamiliesPage() {
   // --- Student CRUD ---
 
   const handleAddStudent = (familyId: string) => {
-    if (!studentFirstName.trim() || !data) return;
+    if (!studentFirstName.trim()) return;
 
     const newStudent: Student = {
       id: `student-${Date.now()}`,
@@ -152,11 +169,15 @@ export default function FamiliesPage() {
       rhythm: studentRhythm,
     };
 
-    const updatedData: DataContainer = {
-      ...data,
-      students: [...(data.students || []), newStudent],
+    const updatedData: DataContainer = data || {
+      families: [],
+      students: [],
+      priceEntries: [],
+      appointments: [],
       lastUpdated: new Date().toISOString(),
     };
+    updatedData.students = [...(updatedData.students || []), newStudent];
+    updatedData.lastUpdated = new Date().toISOString();
 
     saveData(updatedData);
     setStudentFirstName('');
@@ -166,28 +187,40 @@ export default function FamiliesPage() {
   };
 
   const handleUpdateStudent = (studentId: string) => {
-    if (!studentFirstName.trim() || !data) return;
+    if (!studentFirstName.trim()) return;
 
-    const updatedStudents = (data.students || []).map(s =>
+    const updatedStudents = ((data?.students || []) || []).map(s =>
       s.id === studentId
         ? { ...s, firstName: studentFirstName.trim(), lastName: studentLastName.trim() || undefined, defaultDuration: studentDuration, rhythm: studentRhythm }
         : s
     );
 
-    saveData({ ...data, students: updatedStudents, lastUpdated: new Date().toISOString() });
+    const updatedData: DataContainer = data || {
+      families: [],
+      students: [],
+      priceEntries: [],
+      appointments: [],
+      lastUpdated: new Date().toISOString(),
+    };
+    updatedData.students = updatedStudents;
+    updatedData.lastUpdated = new Date().toISOString();
+    saveData(updatedData);
     setEditingFamilyId(null);
     resetForm();
   };
 
   const handleDeleteStudent = (studentId: string, name: string) => {
     if (!confirm(`Schüler "${name}" wirklich löschen? Zugehörige Termine bleiben erhalten.`)) return;
-    if (!data) return;
 
-    const updatedData: DataContainer = {
-      ...data,
-      students: (data.students || []).filter(s => s.id !== studentId),
+    const updatedData: DataContainer = data || {
+      families: [],
+      students: [],
+      priceEntries: [],
+      appointments: [],
       lastUpdated: new Date().toISOString(),
     };
+    updatedData.students = (updatedData.students || []).filter(s => s.id !== studentId);
+    updatedData.lastUpdated = new Date().toISOString();
 
     saveData(updatedData);
   };
@@ -241,6 +274,7 @@ export default function FamiliesPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
+      
       {/* Header */}
       <header className="bg-white dark:bg-slate-800 shadow-sm border-b border-gray-200 dark:border-slate-700 sticky top-0 z-10">
         <div className="max-w-5xl mx-auto px-4 py-4">
@@ -320,7 +354,7 @@ export default function FamiliesPage() {
                   type="text"
                   value={formName}
                   onChange={e => setFormName(e.target.value)}
-                  placeholder="z.B. Mueller"
+                  placeholder="z.B. Müller"
                   className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
                 />
               </div>
@@ -386,7 +420,7 @@ export default function FamiliesPage() {
                     type="text"
                     value={studentLastName}
                     onChange={e => setStudentLastName(e.target.value)}
-                    placeholder="Mueller"
+                    placeholder="Müller"
                     className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
                   />
                 </div>
@@ -492,7 +526,7 @@ export default function FamiliesPage() {
                       <button
                         onClick={() => handleDeleteFamily(family.id, family.name)}
                         className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
-                        title="Loeschen"
+                        title="Löschen"
                       >
                         <Trash2 size={18} />
                       </button>
@@ -571,7 +605,7 @@ export default function FamiliesPage() {
                               /* Student Edit Form */
                               <div className="space-y-3">
                                 <h4 className="text-sm font-semibold text-gray-800 dark:text-slate-200">
-                                  Schueler bearbeiten
+                                  Schüler bearbeiten
                                 </h4>
                                 <div className="grid gap-3 sm:grid-cols-4">
                                   <div>
@@ -610,11 +644,12 @@ export default function FamiliesPage() {
                                       onChange={e => setStudentRhythm(e.target.value as 'weekly' | 'biweekly')}
                                       className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                                     >
-                                      <option value="weekly">Woechentlich</option>
-                                      <option value="biweekly">Zweiwochentlich</option>
+                                      <option value="weekly">Wöchentlich</option>
+                                      <option value="biweekly">Zweiwöchentlich</option>
                                     </select>
                                   </div>
                                 </div>
+
                                 <div className="flex gap-2">
                                   <button
                                     onClick={() => handleUpdateStudent(student.id)}
@@ -664,7 +699,7 @@ export default function FamiliesPage() {
                                   <button
                                     onClick={() => handleDeleteStudent(student.id, `${student.firstName} ${student.lastName || ''}`)}
                                     className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
-                                    title="Loeschen"
+                                    title="Löschen"
                                   >
                                     <Trash2 size={16} />
                                   </button>
@@ -683,21 +718,21 @@ export default function FamiliesPage() {
                       <button
                         onClick={() => {
                           resetForm();
-                          setEditingFamilyId(family.id);
+                          setAddingStudentToFamilyId(family.id);
                         }}
                         className="inline-flex items-center gap-1 text-sm text-green-600 dark:text-green-400 hover:text-green-700 font-medium"
                       >
                         <Plus size={16} />
-                        Schueler hinzufuegen
+                        Schüler hinzufügen
                       </button>
                     </div>
                   )}
 
                   {/* Add Student Form (shown inline when editingFamilyId is set but not a family) */}
-                  {editingFamilyId === family.id && !isEditingThis && (
+                  {addingStudentToFamilyId === family.id && (
                     <div className="p-4 border-t border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800/50">
                       <h4 className="text-sm font-semibold text-gray-800 dark:text-slate-200 mb-3">
-                        Neuen Schueler hinzufuegen
+                        Neuen Schüler hinzufügen
                       </h4>
                       <div className="grid gap-3 sm:grid-cols-4">
                         <div>
@@ -727,8 +762,8 @@ export default function FamiliesPage() {
                             onChange={e => setStudentDuration(parseInt(e.target.value))}
                             className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                           >
-                            <option value={60}>60 Minuten</option>
-                            <option value={90}>90 Minuten</option>
+                            <option value={60}>60 Min</option>
+                            <option value={90}>90 Min</option>
                           </select>
                         </div>
                         <div>
@@ -738,8 +773,8 @@ export default function FamiliesPage() {
                             onChange={e => setStudentRhythm(e.target.value as 'weekly' | 'biweekly')}
                             className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                           >
-                            <option value="weekly">Woechentlich</option>
-                            <option value="biweekly">Zweiwochentlich</option>
+                            <option value="weekly">Wöchentlich</option>
+                            <option value="biweekly">Zweiwöchentlich</option>
                           </select>
                         </div>
                       </div>
@@ -749,10 +784,10 @@ export default function FamiliesPage() {
                           disabled={!studentFirstName.trim()}
                           className="px-3 py-1.5 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          Schueler hinzufuegen
+                          Schüler hinzufügen
                         </button>
                         <button
-                          onClick={() => { setEditingFamilyId(null); resetForm(); }}
+                          onClick={() => { setAddingStudentToFamilyId(null); resetForm(); }}
                           className="px-3 py-1.5 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 text-sm font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700"
                         >
                           Abbrechen

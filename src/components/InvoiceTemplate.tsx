@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Invoice Template Component - Professional, print-optimized design
  */
 
@@ -6,7 +6,7 @@
 
 import { Download, Printer } from 'lucide-react';
 // Flexible invoice type that accepts both full Invoice and the lighter object from invoices page
-interface InvoiceData {
+export interface InvoiceData {
   invoiceNumber: string;
   invoiceDate: string;
   dueDate: string;

@@ -9,6 +9,7 @@ import type { Student, Appointment, DataContainer } from '@/types';
 import { DashboardHeader } from '@/components/DashboardHeader';
 import { WeekView } from '@/components/WeekView';
 
+
 export default function DashboardPage() {
   const [data, setData] = useState<DataContainer | null>(null);
   const [loading, setLoading] = useState(true);
@@ -22,6 +23,7 @@ export default function DashboardPage() {
     }, 30000);
 
     return () => clearInterval(interval);
+      
   }, [currentDate]);
 
   const loadData = () => {
@@ -38,7 +40,7 @@ export default function DashboardPage() {
     }
   };
 
-  const handleStatusUpdate = (appointmentId: string, newStatus: 'attended' | 'canceled_paid' | 'canceled_free') => {
+  const handleStatusUpdate = (appointmentId: string, newStatus: 'attended' | 'canceled_paid' | 'canceled_free' | 'planned') => {
     if (!data) return;
 
     const updatedAppointments = data.appointments.map(appointment =>
@@ -104,7 +106,7 @@ export default function DashboardPage() {
       {/* Main Content */}
       <main className="max-w-4xl mx-auto p-4 sm:p-6">
         <WeekView
-          existingexistingAppointments={data.appointments || []}
+          existingAppointments={data.appointments || []}
           students={data.students}
           priceEntries={data.priceEntries || []}
           onStatusUpdate={handleStatusUpdate}

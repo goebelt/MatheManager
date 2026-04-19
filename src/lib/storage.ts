@@ -17,6 +17,7 @@ function isBrowser(): boolean {
 /**
  * Get or initialize the data from localStorage
  */
+import type { DataContainer } from '@/types';
 export function loadData(): DataContainer | null {
   if (!isBrowser()) return null;
 

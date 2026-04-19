@@ -22,7 +22,12 @@ export function calculateAppointmentFee(
   try {
     // Determine appointment type based on number of students
     const studentIds = appointment.studentIds || [];
-    const appointmentType = studentIds.length === 1 ? 'einzel' : 'gruppe';
+    const appointmentType: 'individual' | 'group' = studentIds.length === 1 ? 'individual' : 'group';
+
+    // Planned appointments have no fee
+    if (appointment.status === 'planned') {
+      return 0;
+    }
 
     // Find matching price entry:
     // - Type must match (individual vs group)
@@ -47,7 +52,14 @@ export function calculateAppointmentFee(
     const duration = appointment.duration || 60;
 
     // Calculate: Fee = Amount × (Duration / 60)
-    return Math.round(amount * (duration / 60) * 100) / 100;
+    let fee = Math.round(amount * (duration / 60) * 100) / 100;
+    
+    // For canceled_paid, only charge 50%
+    if (appointment.status === 'canceled_paid') {
+      fee = fee * 0.5;
+    }
+    
+    return fee;
   } catch (error) {
     console.warn(`[Billing] Error calculating fee for appointment ${appointment.id}:`, error);
     // Return 0 on error - safe default
@@ -66,9 +78,11 @@ export function calculateTotalEarnings(
   appointments: Appointment[],
   priceEntries?: PriceEntry[]
 ): number {
-  return appointments.reduce((total, appointment) => {
-    return total + calculateAppointmentFee(appointment, undefined, priceEntries);
-  }, 0);
+  return appointments
+    .filter(appointment => appointment.status !== 'planned')
+    .reduce((total, appointment) => {
+      return total + calculateAppointmentFee(appointment, undefined, priceEntries);
+    }, 0);
 }
 
 /**
@@ -82,17 +96,19 @@ export function getEarningsBreakdown(
   appointments: Appointment[],
   priceEntries?: PriceEntry[]
 ): { individual: number; group: number } {
-  return appointments.reduce((breakdown, appointment) => {
-    const fee = calculateAppointmentFee(appointment, undefined, priceEntries);
-    
-    if (appointment.studentIds?.length === 1) {
-      breakdown.individual += fee;
-    } else {
-      breakdown.group += fee;
-    }
-    
-    return breakdown;
-  }, { individual: 0, group: 0 });
+  return appointments
+    .filter(appointment => appointment.status !== 'planned')
+    .reduce((breakdown, appointment) => {
+      const fee = calculateAppointmentFee(appointment, undefined, priceEntries);
+      
+      if (appointment.studentIds?.length === 1) {
+        breakdown.individual += fee;
+      } else {
+        breakdown.group += fee;
+      }
+      
+      return breakdown;
+    }, { individual: 0, group: 0 });
 }
 
 export function calculateTotalPrice(

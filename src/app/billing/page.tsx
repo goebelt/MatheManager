@@ -9,6 +9,7 @@ import { DollarSign, Calendar, User, Filter, ArrowUpRight, Loader2 } from 'lucid
 import type { Appointment, Student, PriceEntry, DataContainer } from '@/types';
 import { calculateAppointmentFee } from '@/lib/billing';
 
+
 export default function BillingPage() {
   const [data, setData] = useState<DataContainer | null>(null);
   const [loading, setLoading] = useState(true);
@@ -24,6 +25,7 @@ export default function BillingPage() {
     loadData();
     const interval = setInterval(loadData, 30000);
     return () => clearInterval(interval);
+      
   }, []);
 
   const loadData = () => {
@@ -324,7 +326,7 @@ export default function BillingPage() {
                 <tbody className="bg-white dark:bg-slate-800 divide-y divide-gray-200 dark:divide-slate-700">
                   {appointmentsWithFees.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">
+                      <td colSpan={6} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">
                         Keine Termine im ausgewählten Zeitraum gefunden.
                       </td>
                     </tr>
@@ -408,7 +410,8 @@ export default function BillingPage() {
 }
 
 function SummaryCard({ label, value, icon }: { label: string; value: string | number; icon: React.ReactNode }) {
-  return (
+
+        return (
     <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl p-4 shadow-sm">
       <div className="flex items-start justify-between">
         <div>

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Data Models for Math Tutor Management App
  */
 
@@ -18,6 +18,12 @@ export interface Student {
   notes?: string;
   defaultDuration: number; // 60 oder 90 Minuten
   rhythm: 'weekly' | 'biweekly';
+  preferredSchedule?: PreferredSchedule[]; // Bevorzugte Wochentage und Zeiten
+}
+
+export interface PreferredSchedule {
+  dayOfWeek: number; // 0 = Sonntag, 1 = Montag, ..., 6 = Samstag
+  time: string; // Format: "HH:MM" z.B. "14:00"
 }
 
 export interface PriceEntry {
@@ -33,8 +39,10 @@ export interface Appointment {
   id: string;
   studentIds: string[];
   date: string; // ISO Date
+  time?: string;
   duration: number; // in Minuten (60 oder 90)
-  status: 'attended' | 'canceled_paid' | 'canceled_free';
+  status: 'attended' | 'canceled_paid' | 'canceled_free' | 'planned';
+  isSuggestion?: boolean;
 }
 
 /**
@@ -55,9 +63,14 @@ export interface DataContainer {
   families: Family[];
   students: Student[];
   priceEntries: PriceEntry[];
+  prices?: PriceEntry[];
   appointments: Appointment[];
+  invoiceSettings?: InvoiceSettings; // User's letterhead settings
   lastUpdated?: string; // ISO timestamp
 }
+
+// Aliases for backwards compatibility
+export type PriceList = PriceEntry[];
 
 /**
  * Invoice item for line items on an invoice
@@ -84,6 +97,12 @@ export interface InvoiceSettings {
   phone?: string;
   vatId?: string; // Steuernummer / USt-IdNr.
   iban?: string;
+  taxId?: string;
+  bankName?: string;
+  bankBic?: string;
+  paymentTerms?: number;
+  hourlyRate?: number;
+  lessonType?: 'individual' | 'group';
 }
 
 /**
@@ -107,16 +126,3 @@ export interface Invoice {
   taxAmount?: number;
   total: number;
 }
-
-/**
- * Database-like data container with metadata
- */
-export interface DataContainer {
-  families: Family[];
-  students: Student[];
-  priceEntries: PriceEntry[];
-  appointments: Appointment[];
-  invoiceSettings?: InvoiceSettings; // User's letterhead settings
-  lastUpdated?: string; // ISO timestamp
-}
-
