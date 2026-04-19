@@ -451,15 +451,6 @@ export default function InvoicesPage() {
             </div>
           )}
         </div>
-
-        {/* Print-only invoice view */}
-        {invoiceData && (
-          <div className="print:block hidden">
-            <InvoiceTemplate
-              invoice={invoiceData}
-              onPrint={() => window.print()}
-            />
-          </div>)}
       </main>
     </div>
   );
