@@ -48,6 +48,16 @@ export interface Appointment {
 }
 
 /**
+ * Payment status for a specific student in an appointment
+ */
+export interface PaymentStatus {
+  appointmentId: string;
+  studentId: string;
+  isPaid: boolean;
+  paidDate?: string; // ISO Date when payment was recorded
+}
+
+/**
  * Snapshot for price calculation over time periods
  */
 export interface PricePeriod {
@@ -67,6 +77,7 @@ export interface DataContainer {
   priceEntries: PriceEntry[];
   prices?: PriceEntry[];
   appointments: Appointment[];
+  paymentStatuses?: PaymentStatus[]; // Bezahlstatus pro Schüler pro Termin
   invoiceSettings?: InvoiceSettings; // User's letterhead settings
   lastUpdated?: string; // ISO timestamp
 }

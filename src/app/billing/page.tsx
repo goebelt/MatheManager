@@ -6,7 +6,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { DollarSign, Calendar, User, Filter, ArrowUpRight, Loader2, X, Check } from 'lucide-react';
-import type { Appointment, Student, PriceEntry, DataContainer } from '@/types';
+import type { Appointment, Student, PriceEntry, DataContainer, PaymentStatus } from '@/types';
 import { calculateAppointmentFee } from '@/lib/billing';
 
 
@@ -75,6 +75,55 @@ export default function BillingPage() {
       const familyName = getFamilyForStudent(student.id).toLowerCase();
       return fullName.includes(filter) || familyName.includes(filter);
     });
+  };
+
+  // Get payment status for a specific student in an appointment
+  const getPaymentStatus = (appointmentId: string, studentId: string): boolean => {
+    const status = (data?.paymentStatuses || []).find(
+      s => s.appointmentId === appointmentId && s.studentId === studentId
+    );
+    return status?.isPaid || false;
+  };
+
+  // Toggle payment status for a specific student in an appointment
+  const togglePaymentStatus = (appointmentId: string, studentId: string) => {
+    if (!data) return;
+
+    const currentStatus = getPaymentStatus(appointmentId, studentId);
+    const newStatus = !currentStatus;
+
+    // Update payment statuses
+    const updatedPaymentStatuses = [...(data.paymentStatuses || [])];
+    const existingIndex = updatedPaymentStatuses.findIndex(
+      s => s.appointmentId === appointmentId && s.studentId === studentId
+    );
+
+    if (existingIndex >= 0) {
+      // Update existing status
+      updatedPaymentStatuses[existingIndex] = {
+        ...updatedPaymentStatuses[existingIndex],
+        isPaid: newStatus,
+        paidDate: newStatus ? new Date().toISOString() : undefined,
+      };
+    } else {
+      // Add new status
+      updatedPaymentStatuses.push({
+        appointmentId,
+        studentId,
+        isPaid: newStatus,
+        paidDate: newStatus ? new Date().toISOString() : undefined,
+      });
+    }
+
+    // Update data
+    const updatedData = {
+      ...data,
+      paymentStatuses: updatedPaymentStatuses,
+      lastUpdated: new Date().toISOString(),
+    };
+
+    setData(updatedData);
+    localStorage.setItem('mathe_manager_data', JSON.stringify(updatedData));
   };
 
   // Filter appointments based on selected filters
@@ -184,6 +233,7 @@ export default function BillingPage() {
         const fee = calculateAppointmentFee(appointment, studentId, data.priceEntries || []);
         const student = (data?.students || []).find(s => s.id === studentId);
         const family = student ? (data?.families || []).find(f => f.id === student.familyId) : null;
+        const isPaid = getPaymentStatus(appointment.id, studentId);
 
         rows.push({
           ...appointment,
@@ -193,7 +243,8 @@ export default function BillingPage() {
           calculatedFee: fee,
           originalAmount: amount,
           priceEntryType: appointmentType,
-          hasPrice: !!priceEntry
+          hasPrice: !!priceEntry,
+          isPaid,
         });
       });
     });
@@ -494,6 +545,9 @@ export default function BillingPage() {
                     <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">
                       Honorar
                     </th>
+                    <th scope="col" className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">
+                      Bezahlstatus
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white dark:bg-slate-800 divide-y divide-gray-200 dark:divide-slate-700">
@@ -560,6 +614,28 @@ export default function BillingPage() {
                               )}
                             </>
                           )}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <button
+                            onClick={() => togglePaymentStatus(appointment.id, appointment.studentId)}
+                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                              appointment.isPaid
+                                ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-900/50'
+                                : 'bg-gray-100 text-gray-800 dark:bg-slate-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'
+                            }`}
+                          >
+                            {appointment.isPaid ? (
+                              <>
+                                <Check size={12} />
+                                Bezahlt
+                              </>
+                            ) : (
+                              <>
+                                <X size={12} />
+                                Offen
+                              </>
+                            )}
+                          </button>
                         </td>
                       </tr>
                     ))
