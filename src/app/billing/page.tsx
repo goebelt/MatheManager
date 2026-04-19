@@ -5,7 +5,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { DollarSign, Calendar, User, Filter, ArrowUpRight, Loader2 } from 'lucide-react';
+import { DollarSign, Calendar, User, Filter, ArrowUpRight, Loader2, X, Check } from 'lucide-react';
 import type { Appointment, Student, PriceEntry, DataContainer } from '@/types';
 import { calculateAppointmentFee } from '@/lib/billing';
 
@@ -20,13 +20,32 @@ export default function BillingPage() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
 
+  // Student dropdown states
+  const [studentDropdownOpen, setStudentDropdownOpen] = useState(false);
+  const [studentFilter, setStudentFilter] = useState('');
+
   // Load data
   useEffect(() => {
     loadData();
     const interval = setInterval(loadData, 30000);
     return () => clearInterval(interval);
-      
   }, []);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.student-dropdown-container')) {
+        setStudentDropdownOpen(false);
+        setStudentFilter('');
+      }
+    };
+
+    if (studentDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [studentDropdownOpen]);
 
   const loadData = () => {
     setLoading(true);
@@ -40,6 +59,22 @@ export default function BillingPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const getFamilyForStudent = (studentId: string): string => {
+    const student = (data?.students || []).find(s => s.id === studentId);
+    if (!student || !student.familyId) return '';
+    const family = (data?.families || []).find(f => f.id === student.familyId);
+    return family?.name || '';
+  };
+
+  const getFilteredStudents = (): Student[] => {
+    const filter = studentFilter.toLowerCase();
+    return (data?.students || []).filter(student => {
+      const fullName = `${student.firstName} ${student.lastName || ''}`.toLowerCase();
+      const familyName = getFamilyForStudent(student.id).toLowerCase();
+      return fullName.includes(filter) || familyName.includes(filter);
+    });
   };
 
   // Filter appointments based on selected filters
@@ -166,20 +201,110 @@ export default function BillingPage() {
           {/* Filter Controls */}
           <div className="mt-6 grid gap-4 sm:grid-cols-3">
             {/* Student Filter */}
-            <div className="flex items-center gap-2 p-3 bg-gray-50 dark:bg-slate-700/50 rounded-lg border border-gray-200 dark:border-slate-600">
+            <div className="student-dropdown-container flex items-center gap-2 p-3 bg-gray-50 dark:bg-slate-700/50 rounded-lg border border-gray-200 dark:border-slate-600">
               <User className="w-4 h-4 text-gray-400" />
-              <select
-                value={selectedStudentId}
-                onChange={(e) => setSelectedStudentId(e.target.value)}
-                className="flex-1 bg-transparent text-sm focus:outline-none dark:text-white"
-              >
-                <option value="all">Alle Schüler</option>
-                {data?.students.map(student => (
-                  <option key={student.id} value={student.id}>
-                    {student.firstName} {student.lastName || ''}
-                  </option>
-                ))}
-              </select>
+              <div className="relative flex-1">
+                {/* Selected student display */}
+                <div
+                  onClick={() => setStudentDropdownOpen(!studentDropdownOpen)}
+                  className="min-h-[28px] px-2 py-1 cursor-pointer text-sm focus:outline-none dark:text-white"
+                >
+                  {selectedStudentId === 'all' ? (
+                    <span className="text-gray-500 dark:text-slate-400">
+                      Alle Schüler
+                    </span>
+                  ) : (
+                    <span className="text-gray-900 dark:text-white">
+                      {data?.students.find(s => s.id === selectedStudentId)?.firstName} {data?.students.find(s => s.id === selectedStudentId)?.lastName || ''}
+                    </span>
+                  )}
+                </div>
+
+                {/* Dropdown with filter */}
+                {studentDropdownOpen && (
+                  <div className="absolute z-10 w-full mt-1 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg shadow-lg max-h-60 overflow-hidden">
+                    {/* Filter input */}
+                    <div className="p-2 border-b border-gray-200 dark:border-slate-700">
+                      <input
+                        type="text"
+                        placeholder="Nach Schüler oder Familie filtern..."
+                        value={studentFilter}
+                        onChange={e => setStudentFilter(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                        autoFocus
+                      />
+                    </div>
+
+                    {/* Student list */}
+                    <div className="max-h-48 overflow-y-auto">
+                      {/* "All" option */}
+                      <button
+                        onClick={() => {
+                          setSelectedStudentId('all');
+                          setStudentDropdownOpen(false);
+                          setStudentFilter('');
+                        }}
+                        className={`w-full px-3 py-2 text-left hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors ${
+                          selectedStudentId === 'all' ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className={`w-5 h-5 rounded border flex items-center justify-center ${
+                            selectedStudentId === 'all' ? 'bg-green-600 border-green-600 text-white' : 'border-gray-300 dark:border-slate-600'
+                          }`}>
+                            {selectedStudentId === 'all' && <Check size={12} />}
+                          </div>
+                          <span className="text-sm font-medium text-gray-900 dark:text-white">
+                            Alle Schüler
+                          </span>
+                        </div>
+                      </button>
+
+                      {getFilteredStudents().length === 0 ? (
+                        <div className="p-4 text-center text-gray-500 dark:text-slate-400 text-sm">
+                          Keine Schüler gefunden
+                        </div>
+                      ) : (
+                        getFilteredStudents().map(student => {
+                          const familyName = getFamilyForStudent(student.id);
+                          const isSelected = selectedStudentId === student.id;
+                          return (
+                            <button
+                              key={student.id}
+                              onClick={() => {
+                                setSelectedStudentId(student.id);
+                                setStudentDropdownOpen(false);
+                                setStudentFilter('');
+                              }}
+                              className={`w-full px-3 py-2 text-left hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors ${
+                                isSelected ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+                              }`}
+                            >
+                              <div className="flex items-center gap-2">
+                                <div className={`w-5 h-5 rounded border flex items-center justify-center ${
+                                  isSelected ? 'bg-green-600 border-green-600 text-white' : 'border-gray-300 dark:border-slate-600'
+                                }`}>
+                                  {isSelected && <Check size={12} />}
+                                </div>
+                                <div className="flex flex-col">
+                                  <span className="text-sm font-medium text-gray-900 dark:text-white">
+                                    {student.firstName} {student.lastName || ''}
+                                  </span>
+                                  {familyName && (
+                                    <span className="text-xs text-gray-500 dark:text-slate-400">
+                                      {familyName}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Time Range Filter */}

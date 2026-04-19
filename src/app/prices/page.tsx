@@ -5,8 +5,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Euro, Calendar, Plus, Edit2, Trash2, Search, Check, X, Loader2 } from 'lucide-react';
-import type { PriceEntry, DataContainer } from '@/types';
+import { Euro, Calendar, Plus, Edit2, Trash2, Search, Check, User, X, Loader2 } from 'lucide-react';
+import type { PriceEntry, DataContainer, Student } from '@/types';
 import { DURATION_OPTIONS, PRICE_TYPES } from '@/lib/constants';
 
 export default function PricesPage() {
@@ -17,15 +17,37 @@ export default function PricesPage() {
   const [showAddForm, setShowAddForm] = useState(false);
 
   // Form state
-  const [formStudentId, setFormStudentId] = useState('');
+  const [formName, setFormName] = useState('');
+  const [formStudentIds, setFormStudentIds] = useState<string[]>([]);
   const [formType, setFormType] = useState<'individual' | 'group'>('individual');
   const [formAmount, setFormAmount] = useState('');
   const [formValidFrom, setFormValidFrom] = useState('');
   const [formValidTo, setFormValidTo] = useState('');
+  const [formIsDefault, setFormIsDefault] = useState(false);
+
+  // Student dropdown states
+  const [studentDropdownOpen, setStudentDropdownOpen] = useState(false);
+  const [studentFilter, setStudentFilter] = useState('');
 
   useEffect(() => {
     loadData();
   }, []);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.student-dropdown-container')) {
+        setStudentDropdownOpen(false);
+        setStudentFilter('');
+      }
+    };
+
+    if (studentDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [studentDropdownOpen]);
 
   const loadData = () => {
     setLoading(true);
@@ -46,19 +68,46 @@ export default function PricesPage() {
     setData(newData);
   };
 
+  const getFamilyForStudent = (studentId: string): string => {
+    const student = (data?.students || []).find(s => s.id === studentId);
+    if (!student || !student.familyId) return '';
+    const family = (data?.families || []).find(f => f.id === student.familyId);
+    return family?.name || '';
+  };
+
+  const getFilteredStudents = (): Student[] => {
+    const filter = studentFilter.toLowerCase();
+    return (data?.students || []).filter(student => {
+      const fullName = `${student.firstName} ${student.lastName || ''}`.toLowerCase();
+      const familyName = getFamilyForStudent(student.id).toLowerCase();
+      return fullName.includes(filter) || familyName.includes(filter);
+    });
+  };
+
   const handleAdd = () => {
-    if (!formStudentId || !formAmount || !formValidFrom) {
-      alert('Bitte alle Pflichtfelder ausfüllen');
-      return;
+    if (formIsDefault) {
+      // Standardpreis: keine Schüler erforderlich
+      if (!formAmount || !formValidFrom) {
+        alert('Bitte Preis und Gültigkeitszeitraum angeben');
+        return;
+      }
+    } else {
+      // Spezifischer Preis: mindestens ein Schüler erforderlich
+      if (formStudentIds.length === 0 || !formAmount || !formValidFrom) {
+        alert('Bitte mindestens einen Schüler, Preis und Gültigkeitszeitraum angeben');
+        return;
+      }
     }
 
     const newEntry: PriceEntry = {
       id: `price-${Date.now()}`,
-      studentId: formStudentId,
+      name: formName || undefined,
+      studentIds: formIsDefault ? [] : formStudentIds,
       type: formType,
       amount: parseFloat(formAmount),
       validFrom: formValidFrom,
       validTo: formValidTo || undefined,
+      isDefault: formIsDefault,
     };
 
     const updatedData: DataContainer = data || {
@@ -78,14 +127,32 @@ export default function PricesPage() {
   };
 
   const handleUpdate = () => {
-    if (!formStudentId || !formAmount || !formValidFrom || !editingId) {
-      alert('Bitte alle Pflichtfelder ausfüllen');
-      return;
+    if (formIsDefault) {
+      // Standardpreis: keine Schüler erforderlich
+      if (!formAmount || !formValidFrom || !editingId) {
+        alert('Bitte Preis und Gültigkeitszeitraum angeben');
+        return;
+      }
+    } else {
+      // Spezifischer Preis: mindestens ein Schüler erforderlich
+      if (formStudentIds.length === 0 || !formAmount || !formValidFrom || !editingId) {
+        alert('Bitte mindestens einen Schüler, Preis und Gültigkeitszeitraum angeben');
+        return;
+      }
     }
 
     const updatedEntries = (data?.priceEntries || []).map(entry =>
       entry.id === editingId
-        ? { ...entry, studentId: formStudentId, type: formType, amount: parseFloat(formAmount), validFrom: formValidFrom, validTo: formValidTo || undefined }
+        ? { 
+            ...entry, 
+            name: formName || undefined,
+            studentIds: formIsDefault ? [] : formStudentIds,
+            type: formType, 
+            amount: parseFloat(formAmount), 
+            validFrom: formValidFrom, 
+            validTo: formValidTo || undefined,
+            isDefault: formIsDefault,
+          }
         : entry
     );
 
@@ -125,27 +192,36 @@ export default function PricesPage() {
   };
 
   const handleEdit = (entry: PriceEntry) => {
-    setFormStudentId(entry.studentId);
+    setFormName(entry.name || '');
+    setFormStudentIds(entry.studentIds || []);
     setFormType(entry.type);
     setFormAmount(entry.amount.toString());
     setFormValidFrom(entry.validFrom);
     setFormValidTo(entry.validTo || '');
+    setFormIsDefault(entry.isDefault || false);
     setEditingId(entry.id);
     setShowAddForm(false);
   };
 
   const resetForm = () => {
-    setFormStudentId('');
+    setFormName('');
+    setFormStudentIds([]);
     setFormType('individual');
     setFormAmount('');
     setFormValidFrom('');
     setFormValidTo('');
+    setFormIsDefault(false);
   };
 
   const filteredEntries = (data?.priceEntries || []).filter(entry => {
-    const student = (data?.students || []).find(s => s.id === entry.studentId);
-    const studentName = student ? `${student.firstName} ${student.lastName || ''}`.toLowerCase() : '';
-    return studentName.includes(searchTerm.toLowerCase());
+    if (entry.isDefault) {
+      // Standardpreise immer anzeigen
+      return true;
+    }
+    // Spezifische Preise: nach Schülern filtern
+    const students = (data?.students || []).filter(s => entry.studentIds?.includes(s.id));
+    const studentNames = students.map(s => `${s.firstName} ${s.lastName || ''}`).join(' ').toLowerCase();
+    return studentNames.includes(searchTerm.toLowerCase()) || (entry.name || '').toLowerCase().includes(searchTerm.toLowerCase());
   });
 
   if (loading) {
@@ -212,22 +288,112 @@ export default function PricesPage() {
               {editingId ? 'Preisregelung bearbeiten' : 'Neue Preisregelung anlegen'}
             </h2>
             <div className="grid gap-4 sm:grid-cols-2">
-              <div>
+              <div className="sm:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                  Name (optional)
+                </label>
+                <input
+                  type="text"
+                  value={formName}
+                  onChange={e => setFormName(e.target.value)}
+                  placeholder="z.B. Standardpreis 2024"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+              <div className="sm:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
                   Schüler *
                 </label>
-                <select
-                  value={formStudentId}
-                  onChange={e => setFormStudentId(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
-                >
-                  <option value="">Schüler auswählen...</option>
-                  {(data?.students || []).map(student => (
-                    <option key={student.id} value={student.id}>
-                      {student.firstName} {student.lastName || ''}
-                    </option>
-                  ))}
-                </select>
+                <div className="student-dropdown-container flex items-center gap-2 p-3 bg-gray-50 dark:bg-slate-700/50 rounded-lg border border-gray-200 dark:border-slate-600">
+                  <User className="w-4 h-4 text-gray-400" />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-sm font-medium text-gray-700 dark:text-slate-300">Schüler zuordnen</span>
+                      {formIsDefault && (
+                        <span className="text-xs px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full">
+                          Standardpreis
+                        </span>
+                      )}
+                    </div>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder={formIsDefault ? 'Standardpreis (keine Schüler)'
+                          : formStudentIds.length === 0
+                          ? 'Schüler auswählen...'
+                          : `${formStudentIds.length} Schüler ausgewählt`}
+                        onClick={() => setStudentDropdownOpen(!studentDropdownOpen)}
+                        readOnly={formIsDefault}
+                        className={`w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500 ${
+                          formIsDefault ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
+                        }`}
+                      />
+
+                      {studentDropdownOpen && !formIsDefault && (
+                        <div className="absolute z-10 w-full mt-1 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg shadow-lg max-h-60 overflow-hidden">
+                          {/* Filter input */}
+                          <div className="p-2 border-b border-gray-200 dark:border-slate-700">
+                            <input
+                              type="text"
+                              placeholder="Nach Schüler oder Familie filtern..."
+                              value={studentFilter}
+                              onChange={e => setStudentFilter(e.target.value)}
+                              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                              autoFocus
+                            />
+                          </div>
+
+                          {/* Student list */}
+                          <div className="max-h-48 overflow-y-auto">
+                            {getFilteredStudents().length === 0 ? (
+                              <div className="p-4 text-center text-gray-500 dark:text-slate-400 text-sm">
+                                Keine Schüler gefunden
+                              </div>
+                            ) : (
+                              getFilteredStudents().map(student => {
+                                const familyName = getFamilyForStudent(student.id);
+                                const isSelected = formStudentIds.includes(student.id);
+                                return (
+                                  <button
+                                    key={student.id}
+                                    onClick={() => {
+                                      if (isSelected) {
+                                        setFormStudentIds(formStudentIds.filter(id => id !== student.id));
+                                      } else {
+                                        setFormStudentIds([...formStudentIds, student.id]);
+                                      }
+                                    }}
+                                    className={`w-full px-3 py-2 text-left hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors ${
+                                      isSelected ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <div className={`w-5 h-5 rounded border flex items-center justify-center ${
+                                        isSelected ? 'bg-green-600 border-green-600 text-white' : 'border-gray-300 dark:border-slate-600'
+                                      }`}>
+                                        {isSelected && <Check size={12} />}
+                                      </div>
+                                      <div className="flex flex-col">
+                                        <span className="text-sm font-medium text-gray-900 dark:text-white">
+                                          {student.firstName} {student.lastName || ''}
+                                        </span>
+                                        {familyName && (
+                                          <span className="text-xs text-gray-500 dark:text-slate-400">
+                                            {familyName}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </button>
+                                );
+                              })
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
@@ -278,6 +444,18 @@ export default function PricesPage() {
                   className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
                 />
               </div>
+              <div className="sm:col-span-2 flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="isDefault"
+                  checked={formIsDefault}
+                  onChange={e => setFormIsDefault(e.target.checked)}
+                  className="w-4 h-4 text-green-600 rounded focus:ring-green-500"
+                />
+                <label htmlFor="isDefault" className="text-sm text-gray-700 dark:text-slate-300 cursor-pointer">
+                  Diesen Preis als Standardpreis für alle Schüler ohne eigenen Eintrag verwenden
+                </label>
+              </div>
             </div>
             <div className="flex justify-end gap-2 mt-6">
               <button
@@ -292,7 +470,7 @@ export default function PricesPage() {
               </button>
               <button
                 onClick={editingId ? handleUpdate : handleAdd}
-                disabled={!formStudentId || !formAmount || !formValidFrom}
+                disabled={!formAmount || !formValidFrom}
                 className="px-4 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {editingId ? 'Aktualisieren' : 'Speichern'}
@@ -326,7 +504,9 @@ export default function PricesPage() {
         ) : (
           <div className="space-y-4">
             {filteredEntries.map(entry => {
-              const student = (data?.students || []).find(s => s.id === entry.studentId);
+              const student = entry.studentIds && entry.studentIds.length > 0
+                ? (data?.students || []).find(s => s.id === entry.studentIds[0])
+                : null;
               const isEditing = editingId === entry.id;
 
               return (
@@ -341,16 +521,33 @@ export default function PricesPage() {
                       </div>
                       <div>
                         <h3 className="font-semibold text-gray-900 dark:text-white">
-                          {student ? `${student.firstName} ${student.lastName || ''}` : 'Unbekannt'}
+                          {entry.isDefault ? (
+                            <span className="flex items-center gap-2">
+                              <span className="text-xs px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full">
+                                Standardpreis
+                              </span>
+                              {entry.name || ''}
+                            </span>
+                          ) : student ? (
+                            `${student.firstName} ${student.lastName || ''}`
+                          ) : (
+                            'Unbekannt'
+                          )}
                         </h3>
                         <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-slate-400">
-                          <span className={
-                            entry.type === 'individual' ? 'text-blue-600' : 'text-purple-600'
-                          }>
-                            {entry.type === 'individual' ? 'Einzel' : 'Gruppe'}
+                          <span className={`px-2 py-1 rounded-full text-xs ${
+                            entry.type === 'individual' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
+                          }`}>
+                            {entry.type === 'individual' ? 'Einzelstunde' : 'Gruppenstunde'}
                           </span>
                           <span>·</span>
                           <span>€{entry.amount.toFixed(2)}/h</span>
+                          {entry.name && !entry.isDefault && (
+                            <>
+                              <span>·</span>
+                              <span>{entry.name}</span>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>

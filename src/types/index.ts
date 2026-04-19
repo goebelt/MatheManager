@@ -28,11 +28,13 @@ export interface PreferredSchedule {
 
 export interface PriceEntry {
   id: string;
-  studentId: string;
+  name?: string; // Name der Preisregelung
+  studentIds: string[]; // Mehrere Schüler können zugeordnet werden (leeres Array = Standardpreis)
   type: 'individual' | 'group';
   amount: number;
   validFrom: string; // ISO Date
   validTo?: string | null; // ISO Date, null = ongoing
+  isDefault?: boolean; // Standardpreis für alle ohne eigenen Preiseintrag
 }
 
 export interface Appointment {
