@@ -137,15 +137,17 @@ export default function BillingPage() {
     // Apply date range filter
     if (timeRange === 'month') {
       const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+      const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
       result = result.filter(app => {
         const appDate = new Date(app.date);
-        return appDate >= firstDay && appDate <= now;
+        return appDate >= firstDay && appDate <= lastDay;
       });
     } else if (timeRange === 'year') {
       const startOfYear = new Date(now.getFullYear(), 0, 1);
+      const endOfYear = new Date(now.getFullYear(), 11, 31);
       result = result.filter(app => {
         const appDate = new Date(app.date);
-        return appDate >= startOfYear && appDate <= now;
+        return appDate >= startOfYear && appDate <= endOfYear;
       });
     } else if (timeRange === 'custom' && startDate && endDate) {
       result = result.filter(app => {
@@ -157,11 +159,8 @@ export default function BillingPage() {
         return appDate >= start && appDate <= end;
       });
     } else if (timeRange === 'all') {
-      // Show all appointments, but only up to today
-      result = result.filter(app => {
-        const appDate = new Date(app.date);
-        return appDate <= now;
-      });
+      // Show all appointments
+      result = result;
     }
 
     // Apply student filter (no filter if no students selected)
