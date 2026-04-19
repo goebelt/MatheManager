@@ -513,6 +513,24 @@ export default function AppointmentsPage() {
                   Schüler auswählen *
                 </label>
                 <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {/* Select All Checkbox */}
+                  <label className="flex items-center gap-2 p-2 border border-gray-200 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 cursor-pointer bg-gray-50 dark:bg-slate-700/30">
+                    <input
+                      type="checkbox"
+                      checked={autoScheduleStudentIds.length === (data?.students || []).length && (data?.students || []).length > 0}
+                      onChange={e => {
+                        if (e.target.checked) {
+                          setAutoScheduleStudentIds((data?.students || []).map(s => s.id));
+                        } else {
+                          setAutoScheduleStudentIds([]);
+                        }
+                      }}
+                      className="w-4 h-4 text-green-600 rounded focus:ring-green-500"
+                    />
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">
+                      Alle auswählen
+                    </span>
+                  </label>
                   {(data?.students || []).map(student => (
                     <label key={student.id} className="flex items-center gap-2 p-2 border border-gray-200 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 cursor-pointer">
                       <input
