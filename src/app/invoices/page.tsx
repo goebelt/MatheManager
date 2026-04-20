@@ -77,32 +77,25 @@ export default function InvoicesPage() {
     });
   };
 
-  // Find matching price entry
-  const findPriceEntry = (appointment: any, priceEntries: any[]): any => {
-    if (!priceEntries || priceEntries.length === 0) return null;
-    for (const entry of priceEntries) {
-      if (entry.type === 'individual' &&
-          new Date(appointment.date) >= new Date(entry.validFrom)) {
-        const validTo = entry.validTo ? new Date(entry.validTo) : null;
-        if (!validTo || new Date(appointment.date) <= validTo) {
-          return entry;
-        }
-      }
-    }
-    return null;
-  };
-
   // Filter appointments based on selected filters and calculate invoice items
   const filteredAppointments = useMemo(() => {
     if (!data) return [];
 
     let result = data.appointments || [];
 
+    // Exclude planned appointments from invoices
+    result = result.filter(app => app.status !== 'planned');
+
     // Apply date range filter
     if (startDate && endDate) {
-      result = result.filter(
-        app => app.date >= startDate + 'T00:00:00Z' && app.date <= endDate + 'T23:59:59Z'
-      );
+      result = result.filter(app => {
+        const appDate = new Date(app.date);
+        const start = new Date(startDate);
+        start.setHours(0, 0, 0, 0);
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        return appDate >= start && appDate <= end;
+      });
     }
 
     // Apply student filter (no filter if no students selected)
@@ -111,6 +104,9 @@ export default function InvoicesPage() {
         app => app.studentIds.some(id => selectedStudentIds.includes(id))
       );
     }
+
+    // Sort by date ascending
+    result.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     return result;
   }, [data, selectedStudentIds, startDate, endDate]);
@@ -135,7 +131,6 @@ export default function InvoicesPage() {
           const student = data.students.find(s => s.id === studentId);
           
           // Find matching price entry for this specific student:
-          // - Type must match (individual vs group)
           // - Appointment date must be between validFrom and validTo (if present)
           // - Priority: Student-specific price first, then default price
           let priceEntry: PriceEntry | undefined;
@@ -143,8 +138,7 @@ export default function InvoicesPage() {
           
           // First, try to find a student-specific price entry
           for (const entry of data.priceEntries || []) {
-            if (entry.type === lessonType && 
-                new Date(appointment.date) >= new Date(entry.validFrom) &&
+            if (new Date(appointment.date) >= new Date(entry.validFrom) &&
                 entry.studentIds && entry.studentIds.includes(studentId)) {
               const validTo = entry.validTo ? new Date(entry.validTo) : null;
               if (!validTo || new Date(appointment.date) <= validTo) {
@@ -157,8 +151,7 @@ export default function InvoicesPage() {
           // If no student-specific price found, try to find a default price
           if (!priceEntry) {
             for (const entry of data.priceEntries || []) {
-              if (entry.type === lessonType && 
-                  new Date(appointment.date) >= new Date(entry.validFrom) &&
+              if (new Date(appointment.date) >= new Date(entry.validFrom) &&
                   (!entry.studentIds || entry.studentIds.length === 0)) {
                 const validTo = entry.validTo ? new Date(entry.validTo) : null;
                 if (!validTo || new Date(appointment.date) <= validTo) {
@@ -168,9 +161,6 @@ export default function InvoicesPage() {
               }
             }
           }
-          
-          // Get hourly rate (amount per 60 minutes)
-          const hourlyRate = priceEntry ? priceEntry.amount : 0;
           
           // Calculate fee using billing helper
           let fee = calculateAppointmentFee(appointment, studentId, data.priceEntries || []);
@@ -203,6 +193,16 @@ export default function InvoicesPage() {
             description += ' (ausgefallen, kostenlos)';
           } else if (appointment.status === 'planned') {
             description += ' (geplant)';
+          }
+          
+          // Get the hourly rate for display purposes (price per 60 minutes)
+          let hourlyRate = 0;
+          if (priceEntry) {
+            if (lessonType === 'individual') {
+              hourlyRate = appointment.duration === 90 ? (priceEntry.individual90 || 0) / 1.5 : (priceEntry.individual60 || 0);
+            } else {
+              hourlyRate = appointment.duration === 90 ? (priceEntry.group90 || 0) / 1.5 : (priceEntry.group60 || 0);
+            }
           }
           
           items.push({

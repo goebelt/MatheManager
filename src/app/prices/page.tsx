@@ -7,7 +7,6 @@
 import { useState, useEffect } from 'react';
 import { Euro, Calendar, Plus, Edit2, Trash2, Search, Check, User, X, Loader2 } from 'lucide-react';
 import type { PriceEntry, DataContainer, Student } from '@/types';
-import { DURATION_OPTIONS, PRICE_TYPES } from '@/lib/constants';
 
 export default function PricesPage() {
   const [data, setData] = useState<DataContainer | null>(null);
@@ -19,8 +18,10 @@ export default function PricesPage() {
   // Form state
   const [formName, setFormName] = useState('');
   const [formStudentIds, setFormStudentIds] = useState<string[]>([]);
-  const [formType, setFormType] = useState<'individual' | 'group'>('individual');
-  const [formAmount, setFormAmount] = useState('');
+  const [formIndividual60, setFormIndividual60] = useState('');
+  const [formIndividual90, setFormIndividual90] = useState('');
+  const [formGroup60, setFormGroup60] = useState('');
+  const [formGroup90, setFormGroup90] = useState('');
   const [formValidFrom, setFormValidFrom] = useState('');
   const [formValidTo, setFormValidTo] = useState('');
   const [formIsDefault, setFormIsDefault] = useState(false);
@@ -87,14 +88,14 @@ export default function PricesPage() {
   const handleAdd = () => {
     if (formIsDefault) {
       // Standardpreis: keine Schüler erforderlich
-      if (!formAmount || !formValidFrom) {
-        alert('Bitte Preis und Gültigkeitszeitraum angeben');
+      if (!formIndividual60 || !formIndividual90 || !formGroup60 || !formGroup90 || !formValidFrom) {
+        alert('Bitte alle Preise und Gültigkeitszeitraum angeben');
         return;
       }
     } else {
       // Spezifischer Preis: mindestens ein Schüler erforderlich
-      if (formStudentIds.length === 0 || !formAmount || !formValidFrom) {
-        alert('Bitte mindestens einen Schüler, Preis und Gültigkeitszeitraum angeben');
+      if (formStudentIds.length === 0 || !formIndividual60 || !formIndividual90 || !formGroup60 || !formGroup90 || !formValidFrom) {
+        alert('Bitte mindestens einen Schüler, alle Preise und Gültigkeitszeitraum angeben');
         return;
       }
     }
@@ -103,8 +104,10 @@ export default function PricesPage() {
       id: `price-${Date.now()}`,
       name: formName || undefined,
       studentIds: formIsDefault ? [] : formStudentIds,
-      type: formType,
-      amount: parseFloat(formAmount),
+      individual60: parseFloat(formIndividual60),
+      individual90: parseFloat(formIndividual90),
+      group60: parseFloat(formGroup60),
+      group90: parseFloat(formGroup90),
       validFrom: formValidFrom,
       validTo: formValidTo || undefined,
       isDefault: formIsDefault,
@@ -129,14 +132,14 @@ export default function PricesPage() {
   const handleUpdate = () => {
     if (formIsDefault) {
       // Standardpreis: keine Schüler erforderlich
-      if (!formAmount || !formValidFrom || !editingId) {
-        alert('Bitte Preis und Gültigkeitszeitraum angeben');
+      if (!formIndividual60 || !formIndividual90 || !formGroup60 || !formGroup90 || !formValidFrom || !editingId) {
+        alert('Bitte alle Preise und Gültigkeitszeitraum angeben');
         return;
       }
     } else {
       // Spezifischer Preis: mindestens ein Schüler erforderlich
-      if (formStudentIds.length === 0 || !formAmount || !formValidFrom || !editingId) {
-        alert('Bitte mindestens einen Schüler, Preis und Gültigkeitszeitraum angeben');
+      if (formStudentIds.length === 0 || !formIndividual60 || !formIndividual90 || !formGroup60 || !formGroup90 || !formValidFrom || !editingId) {
+        alert('Bitte mindestens einen Schüler, alle Preise und Gültigkeitszeitraum angeben');
         return;
       }
     }
@@ -147,8 +150,10 @@ export default function PricesPage() {
             ...entry, 
             name: formName || undefined,
             studentIds: formIsDefault ? [] : formStudentIds,
-            type: formType, 
-            amount: parseFloat(formAmount), 
+            individual60: parseFloat(formIndividual60),
+            individual90: parseFloat(formIndividual90),
+            group60: parseFloat(formGroup60),
+            group90: parseFloat(formGroup90),
             validFrom: formValidFrom, 
             validTo: formValidTo || undefined,
             isDefault: formIsDefault,
@@ -194,8 +199,10 @@ export default function PricesPage() {
   const handleEdit = (entry: PriceEntry) => {
     setFormName(entry.name || '');
     setFormStudentIds(entry.studentIds || []);
-    setFormType(entry.type);
-    setFormAmount(entry.amount.toString());
+    setFormIndividual60(entry.individual60?.toString() || '');
+    setFormIndividual90(entry.individual90?.toString() || '');
+    setFormGroup60(entry.group60?.toString() || '');
+    setFormGroup90(entry.group90?.toString() || '');
     setFormValidFrom(entry.validFrom);
     setFormValidTo(entry.validTo || '');
     setFormIsDefault(entry.isDefault || false);
@@ -206,8 +213,10 @@ export default function PricesPage() {
   const resetForm = () => {
     setFormName('');
     setFormStudentIds([]);
-    setFormType('individual');
-    setFormAmount('');
+    setFormIndividual60('');
+    setFormIndividual90('');
+    setFormGroup60('');
+    setFormGroup90('');
     setFormValidFrom('');
     setFormValidTo('');
     setFormIsDefault(false);
@@ -248,7 +257,7 @@ export default function PricesPage() {
                 Preisverwaltung
               </h1>
               <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
-                Verwalte Preise für Einzel- und Gruppenstunden
+                Verwalte feste Preise für Einzel- und Gruppenstunden (60 und 90 Minuten)
               </p>
             </div>
             <button
@@ -285,7 +294,7 @@ export default function PricesPage() {
         {(showAddForm || editingId) && (
           <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl shadow-sm p-6 mb-6">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              {editingId ? 'Preisregelung bearbeiten' : 'Neue Preisregelung anlegen'}
+              {editingId ? 'Preisregelung bearbeiten' : 'Feste Preise für 4 Kombinationen anlegen'}
             </h2>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="sm:col-span-2">
@@ -395,32 +404,80 @@ export default function PricesPage() {
                   </div>
                 </div>
               </div>
-              <div>
+              <div className="sm:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                  Typ *
+                  Preise *
                 </label>
-                <select
-                  value={formType}
-                  onChange={e => setFormType(e.target.value as 'individual' | 'group')}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
-                >
-                  <option value="individual">Einzelstunde</option>
-                  <option value="group">Gruppenstunde</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                  Preis pro Stunde (€) *
-                </label>
-                <input
-                  type="number"
-                  value={formAmount}
-                  onChange={e => setFormAmount(e.target.value)}
-                  placeholder="z.B. 35"
-                  min="0"
-                  step="0.01"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">
+                      60 Min. Einzelunterricht
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        value={formIndividual60}
+                        onChange={e => setFormIndividual60(e.target.value)}
+                        placeholder="z.B. 35"
+                        min="0"
+                        step="0.01"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">€</span>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">
+                      90 Min. Einzelunterricht
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        value={formIndividual90}
+                        onChange={e => setFormIndividual90(e.target.value)}
+                        placeholder="z.B. 50"
+                        min="0"
+                        step="0.01"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">€</span>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">
+                      60 Min. Gruppenunterricht
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        value={formGroup60}
+                        onChange={e => setFormGroup60(e.target.value)}
+                        placeholder="z.B. 25"
+                        min="0"
+                        step="0.01"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">€</span>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">
+                      90 Min. Gruppenunterricht
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        value={formGroup90}
+                        onChange={e => setFormGroup90(e.target.value)}
+                        placeholder="z.B. 35"
+                        min="0"
+                        step="0.01"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">€</span>
+                    </div>
+                  </div>
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
@@ -470,7 +527,7 @@ export default function PricesPage() {
               </button>
               <button
                 onClick={editingId ? handleUpdate : handleAdd}
-                disabled={!formAmount || !formValidFrom}
+                disabled={!formIndividual60 || !formIndividual90 || !formGroup60 || !formGroup90 || !formValidFrom}
                 className="px-4 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {editingId ? 'Aktualisieren' : 'Speichern'}
@@ -487,7 +544,7 @@ export default function PricesPage() {
               Noch keine Preisregelungen
             </h2>
             <p className="text-gray-500 dark:text-slate-400 mb-6">
-              Erstelle deine erste Preisregelung um loszulegen.
+              Erstelle deine erste Preisregelung mit festen Preisen für die 4 Kombinationen.
             </p>
             <button
               onClick={() => {
@@ -535,13 +592,21 @@ export default function PricesPage() {
                           )}
                         </h3>
                         <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-slate-400">
-                          <span className={`px-2 py-1 rounded-full text-xs ${
-                            entry.type === 'individual' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
-                          }`}>
-                            {entry.type === 'individual' ? 'Einzelstunde' : 'Gruppenstunde'}
+                          <span className="px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-700">
+                            60' Einzel: €{entry.individual60?.toFixed(2) || '0.00'}
                           </span>
                           <span>·</span>
-                          <span>€{entry.amount.toFixed(2)}/h</span>
+                          <span className="px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-700">
+                            90' Einzel: €{entry.individual90?.toFixed(2) || '0.00'}
+                          </span>
+                          <span>·</span>
+                          <span className="px-2 py-1 rounded-full text-xs bg-purple-100 text-purple-700">
+                            60' Gruppe: €{entry.group60?.toFixed(2) || '0.00'}
+                          </span>
+                          <span>·</span>
+                          <span className="px-2 py-1 rounded-full text-xs bg-purple-100 text-purple-700">
+                            90' Gruppe: €{entry.group90?.toFixed(2) || '0.00'}
+                          </span>
                           {entry.name && !entry.isDefault && (
                             <>
                               <span>·</span>

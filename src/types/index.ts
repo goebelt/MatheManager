@@ -30,8 +30,11 @@ export interface PriceEntry {
   id: string;
   name?: string; // Name der Preisregelung
   studentIds: string[]; // Mehrere Schüler können zugeordnet werden (leeres Array = Standardpreis)
-  type: 'individual' | 'group';
-  amount: number;
+  // Feste Preise für die 4 Kombinationen
+  individual60: number; // Preis für 60 Minuten Einzelunterricht
+  individual90: number; // Preis für 90 Minuten Einzelunterricht
+  group60: number; // Preis für 60 Minuten Gruppenunterricht
+  group90: number; // Preis für 90 Minuten Gruppenunterricht
   validFrom: string; // ISO Date
   validTo?: string | null; // ISO Date, null = ongoing
   isDefault?: boolean; // Standardpreis für alle ohne eigenen Preiseintrag

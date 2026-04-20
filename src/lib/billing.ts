@@ -23,14 +23,14 @@ export function calculateAppointmentFee(
     // Determine appointment type based on number of students
     const studentIds = appointment.studentIds || [];
     const appointmentType: 'individual' | 'group' = studentIds.length === 1 ? 'individual' : 'group';
+    const duration = appointment.duration || 60;
 
-    // Planned appointments have no fee
-    if (appointment.status === 'planned') {
+    // Planned and canceled_free appointments have no fee
+    if (appointment.status === 'planned' || appointment.status === 'canceled_free') {
       return 0;
     }
 
     // Find matching price entry:
-    // - Type must match (individual vs group)
     // - Appointment date must be between validFrom and validTo (if present)
     // - Priority: Student-specific price first, then default price
     let matchedEntry: PriceEntry | undefined;
@@ -38,8 +38,7 @@ export function calculateAppointmentFee(
     // First, try to find a student-specific price entry
     if (studentId) {
       for (const entry of priceEntries || []) {
-        if (entry.type === appointmentType && 
-            new Date(appointment.date) >= new Date(entry.validFrom) &&
+        if (new Date(appointment.date) >= new Date(entry.validFrom) &&
             entry.studentIds && entry.studentIds.includes(studentId)) {
           const validTo = entry.validTo ? new Date(entry.validTo) : null;
           
@@ -55,8 +54,7 @@ export function calculateAppointmentFee(
     // If no student-specific price found, try to find a default price
     if (!matchedEntry) {
       for (const entry of priceEntries || []) {
-        if (entry.type === appointmentType && 
-            new Date(appointment.date) >= new Date(entry.validFrom) &&
+        if (new Date(appointment.date) >= new Date(entry.validFrom) &&
             (!entry.studentIds || entry.studentIds.length === 0)) {
           const validTo = entry.validTo ? new Date(entry.validTo) : null;
           
@@ -69,19 +67,30 @@ export function calculateAppointmentFee(
       }
     }
 
-    // Get price from matched entry, default to 0
-    const amount = matchedEntry ? matchedEntry.amount : 0;
-    const duration = appointment.duration || 60;
-
-    // Calculate: Fee = Amount × (Duration / 60)
-    let fee = Math.round(amount * (duration / 60) * 100) / 100;
+    // Get price from matched entry based on type and duration
+    let fee = 0;
+    if (matchedEntry) {
+      if (appointmentType === 'individual') {
+        if (duration === 60) {
+          fee = matchedEntry.individual60 || 0;
+        } else if (duration === 90) {
+          fee = matchedEntry.individual90 || 0;
+        }
+      } else {
+        if (duration === 60) {
+          fee = matchedEntry.group60 || 0;
+        } else if (duration === 90) {
+          fee = matchedEntry.group90 || 0;
+        }
+      }
+    }
     
     // For canceled_paid, only charge 50%
     if (appointment.status === 'canceled_paid') {
       fee = fee * 0.5;
     }
     
-    return fee;
+    return Math.round(fee * 100) / 100;
   } catch (error) {
     console.warn(`[Billing] Error calculating fee for appointment ${appointment.id}:`, error);
     // Return 0 on error - safe default

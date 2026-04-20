@@ -106,9 +106,8 @@ export default function AppointmentsPage() {
             }
 
             // Check if appointment already exists
-            // Create date in local timezone to avoid UTC offset issues
-            const localDate = new Date(appointmentDate.getFullYear(), appointmentDate.getMonth(), appointmentDate.getDate());
-            const dateStr = localDate.toISOString().split('T')[0];
+            // Create date string in local timezone (YYYY-MM-DD format)
+            const dateStr = `${appointmentDate.getFullYear()}-${String(appointmentDate.getMonth() + 1).padStart(2, '0')}-${String(appointmentDate.getDate()).padStart(2, '0')}`;
             const existing = (data?.appointments || []).find(
               a => a.date === dateStr && a.studentIds.includes(student.id)
             );
@@ -161,9 +160,8 @@ export default function AppointmentsPage() {
           }
 
           // Check if appointment already exists
-          // Create date in local timezone to avoid UTC offset issues
-          const localDate = new Date(appointmentDate.getFullYear(), appointmentDate.getMonth(), appointmentDate.getDate());
-          const dateStr = localDate.toISOString().split('T')[0];
+          // Create date string in local timezone (YYYY-MM-DD format)
+          const dateStr = `${appointmentDate.getFullYear()}-${String(appointmentDate.getMonth() + 1).padStart(2, '0')}-${String(appointmentDate.getDate()).padStart(2, '0')}`;
           const existing = (data?.appointments || []).find(
             a => a.date === dateStr && a.studentIds.includes(student.id)
           );
@@ -278,6 +276,9 @@ export default function AppointmentsPage() {
     if (editingAppointmentId === appointmentId) {
       setEditingAppointmentId(null);
     }
+    
+    // Reload data to ensure UI updates
+    loadData();
   };
 
   const handleEditAppointment = (appointment: Appointment) => {
@@ -355,6 +356,10 @@ export default function AppointmentsPage() {
       date.setDate(date.getDate() + 7);
       return date;
     });
+  };
+
+  const handleCurrentWeek = () => {
+    setCurrentDate(new Date());
   };
 
   const formatDate = (dateStr: string): string => {
@@ -479,6 +484,7 @@ export default function AppointmentsPage() {
             <button
               onClick={handlePreviousWeek}
               className="p-2 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700"
+              title="Vorherige Woche"
             >
               <ChevronLeft size={20} />
             </button>
@@ -489,10 +495,18 @@ export default function AppointmentsPage() {
               <p className="text-sm text-gray-500 dark:text-slate-400">
                 {weekStart.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })} - {weekEnd.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}
               </p>
+              <button
+                onClick={handleCurrentWeek}
+                className="mt-2 px-3 py-1.5 text-sm font-medium text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
+                title="Zur aktuellen Woche springen"
+              >
+                Aktuelle Woche
+              </button>
             </div>
             <button
               onClick={handleNextWeek}
               className="p-2 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700"
+              title="Nächste Woche"
             >
               <ChevronRight size={20} />
             </button>
@@ -868,83 +882,85 @@ export default function AppointmentsPage() {
                             }`}
                             onClick={() => handleEditAppointment(appointment)}
                           >
-                            <div className={`px-3 py-2 border-b flex items-center justify-between ${
+                            <div className={`px-4 py-3 border-b ${
                               appointment.status.startsWith('canceled') ? 'bg-gray-50 dark:bg-slate-700/50 border-gray-200 dark:border-slate-700' :
                               'bg-gray-50 dark:bg-slate-700/50 border-gray-200 dark:border-slate-700'
                             }`}>
-                              <div className="flex items-center gap-2">
-                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                                  appointment.status.startsWith('canceled') ? 'bg-gray-200 dark:bg-slate-600 text-gray-500' :
-                                  'bg-green-100 dark:bg-green-900/30 text-green-600'
-                                }`}>
-                                  <Clock size={16} />
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                                    appointment.status === 'planned' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600' :
+                                    appointment.status.startsWith('canceled') ? 'bg-gray-200 dark:bg-slate-600 text-gray-500' :
+                                    'bg-green-100 dark:bg-green-900/30 text-green-600'
+                                  }`}>
+                                    <Clock size={18} />
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <h3 className={`font-semibold text-base ${
+                                      appointment.status.startsWith('canceled') ? 'text-gray-500 dark:text-gray-400' :
+                                      'text-gray-900 dark:text-white'
+                                    }`}>
+                                      {appointment.time || '--:--'}
+                                    </h3>
+                                  </div>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                  <h3 className={`font-semibold text-sm ${
-                                    appointment.status.startsWith('canceled') ? 'text-gray-500 dark:text-gray-400' :
-                                    'text-gray-900 dark:text-white'
-                                  }`}>
-                                    {appointment.time || '--:--'}
-                                  </h3>
-                                  {!appointment.status.startsWith('canceled') && (
-                                    <>
-                                      {status === 'conflict' && (
-                                        <span title="Konflikt mit Vorgängertermin">
-                                          <AlertTriangle size={14} className="text-red-500" />
-                                        </span>
-                                      )}
-                                      {status === 'tight' && (
-                                        <span title="Keine Pause zum Vorgängertermin">
-                                          <AlertTriangle size={14} className="text-yellow-500" />
-                                        </span>
-                                      )}
-                                      {status === 'ok' && (
-                                        <span title="Termin passt">
-                                          <CheckCircle size={14} className="text-green-500" />
-                                        </span>
-                                      )}
-                                    </>
+                                  {appointment.status === 'planned' && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDeleteAppointment(appointment.id);
+                                      }}
+                                      className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
+                                      title="Löschen"
+                                    >
+                                      <Trash2 size={18} />
+                                    </button>
                                   )}
                                 </div>
                               </div>
-                              <div className={`flex items-center gap-1 text-xs ${
+                              <div className={`flex items-center gap-1 text-sm mt-2 ${
                                 appointment.status.startsWith('canceled') ? 'text-gray-400 dark:text-gray-500' :
                                 'text-gray-500 dark:text-slate-400'
                               }`}>
-                                <span>{appointment.duration} Min</span>
-                                <span>·</span>
-                                <span className={
-                                  appointment.status === 'attended' ? 'text-green-600' :
-                                  appointment.status === 'canceled_paid' ? 'text-orange-600' :
-                                  appointment.status === 'canceled_free' ? 'text-red-600' :
-                                  'text-blue-600'
-                                }>
-                                  {appointment.status === 'attended' ? 'Besucht' :
-                                   appointment.status === 'canceled_paid' ? 'Abgesagt (bezahlt)' :
-                                   appointment.status === 'canceled_free' ? 'Abgesagt (kostenlos)' :
-                                   'Geplant'}
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                {appointment.status === 'planned' && (
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleDeleteAppointment(appointment.id);
-                                    }}
-                                    className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
-                                    title="Löschen"
-                                  >
-                                    <Trash2 size={16} />
-                                  </button>
+                                {!appointment.status.startsWith('canceled') && (
+                                  <>
+                                    {status === 'conflict' && (
+                                      <span title="Konflikt mit Vorgängertermin">
+                                        <AlertTriangle size={16} className="text-red-500" />
+                                      </span>
+                                    )}
+                                    {status === 'tight' && (
+                                      <span title="Keine Pause zum Vorgängertermin">
+                                        <AlertTriangle size={16} className="text-yellow-500" />
+                                      </span>
+                                    )}
+                                    {status === 'ok' && (
+                                      <span title="Termin passt">
+                                        <CheckCircle size={16} className="text-green-500" />
+                                      </span>
+                                    )}
+                                  </>
                                 )}
+                                <span>{appointment.duration} Min</span>
+                              </div>
+                              <div className={`text-sm mt-1 ${
+                                appointment.status === 'attended' ? 'text-green-600' :
+                                appointment.status === 'canceled_paid' ? 'text-orange-600' :
+                                appointment.status === 'canceled_free' ? 'text-red-600' :
+                                'text-blue-600'
+                              }`}>
+                                {appointment.status === 'attended' ? 'Besucht' :
+                                 appointment.status === 'canceled_paid' ? 'Abgesagt (bezahlt)' :
+                                 appointment.status === 'canceled_free' ? 'Abgesagt (kostenlos)' :
+                                 'Geplant'}
                               </div>
                             </div>
 
-                            <div className={`p-3 ${appointment.status.startsWith('canceled') ? 'opacity-60' : ''}`}>
+                            <div className={`p-4 ${appointment.status.startsWith('canceled') ? 'opacity-60' : ''}`}>
                               <div className="flex items-center gap-2 mb-2">
-                                <User size={14} className={`text-gray-500 ${appointment.status.startsWith('canceled') ? 'text-gray-400' : ''}`} />
-                                <span className={`text-xs font-medium ${
+                                <User size={16} className={`text-gray-500 ${appointment.status.startsWith('canceled') ? 'text-gray-400' : ''}`} />
+                                <span className={`text-sm font-medium ${
                                   appointment.status.startsWith('canceled') ? 'text-gray-400 dark:text-gray-500' :
                                   'text-gray-700 dark:text-slate-300'
                                 }`}>
@@ -955,7 +971,7 @@ export default function AppointmentsPage() {
                                 {students.map(student => (
                                   <span
                                     key={student.id}
-                                    className={`px-2 py-0.5 rounded text-xs ${
+                                    className={`px-2 py-1 rounded text-sm ${
                                       appointment.status.startsWith('canceled') 
                                         ? 'bg-gray-100 dark:bg-slate-600 text-gray-400 dark:text-gray-500' 
                                         : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'

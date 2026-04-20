@@ -159,9 +159,6 @@ export function InvoiceTemplate({
               <th className="text-left py-1 px-1.5 text-xs uppercase font-semibold tracking-wider" style={{ width: '17%' }}>
                 Status
               </th>
-              <th className="text-right py-1 px-1.5 text-xs uppercase font-semibold tracking-wider" style={{ width: '17%' }}>
-                Stundensatz
-              </th>
               <th className="text-right py-1 px-1.5 text-xs uppercase font-semibold tracking-wider" style={{ width: '15%' }}>
                 Gesamtpreis
               </th>
@@ -173,7 +170,7 @@ export function InvoiceTemplate({
           <tbody>
             {invoice.items.length === 0 ? (
               <tr>
-                <td colSpan={7} className="py-3 px-2 text-center text-gray-400 italic">
+                <td colSpan={6} className="py-3 px-2 text-center text-gray-400 italic">
                   Keine Positionen vorhanden
                 </td>
               </tr>
@@ -219,9 +216,6 @@ export function InvoiceTemplate({
                         Geplant
                       </span>
                     )}
-                  </td>
-                  <td className="py-1 px-1.5 text-right text-xs">
-                    &euro;{Number(item.hourlyRate || item.unitPrice).toFixed(2)}
                   </td>
                   <td className="py-1 px-1.5 text-right font-semibold text-xs">
                     &euro;{item.totalPrice.toFixed(2)}

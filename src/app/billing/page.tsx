@@ -134,6 +134,9 @@ export default function BillingPage() {
     const now = new Date();
     now.setHours(23, 59, 59, 999); // End of today
 
+    // Exclude planned appointments from billing
+    result = result.filter(app => app.status !== 'planned');
+
     // Apply date range filter
     if (timeRange === 'month') {
       const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -170,6 +173,9 @@ export default function BillingPage() {
       );
     }
 
+    // Sort by date ascending
+    result.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
     return result;
   }, [data, selectedStudentIds, timeRange, startDate, endDate]);
 
@@ -192,15 +198,13 @@ export default function BillingPage() {
         }
 
         // Find matching price entry for this specific student:
-        // - Type must match (individual vs group)
         // - Appointment date must be between validFrom and validTo (if present)
         // - Priority: Student-specific price first, then default price
         let priceEntry: PriceEntry | undefined;
         
         // First, try to find a student-specific price entry
         for (const entry of data.priceEntries || []) {
-          if (entry.type === appointmentType && 
-              new Date(appointment.date) >= new Date(entry.validFrom) &&
+          if (new Date(appointment.date) >= new Date(entry.validFrom) &&
               entry.studentIds && entry.studentIds.includes(studentId)) {
             const validTo = entry.validTo ? new Date(entry.validTo) : null;
             if (!validTo || new Date(appointment.date) <= validTo) {
@@ -213,8 +217,7 @@ export default function BillingPage() {
         // If no student-specific price found, try to find a default price
         if (!priceEntry) {
           for (const entry of data.priceEntries || []) {
-            if (entry.type === appointmentType && 
-                new Date(appointment.date) >= new Date(entry.validFrom) &&
+            if (new Date(appointment.date) >= new Date(entry.validFrom) &&
                 (!entry.studentIds || entry.studentIds.length === 0)) {
               const validTo = entry.validTo ? new Date(entry.validTo) : null;
               if (!validTo || new Date(appointment.date) <= validTo) {
@@ -225,10 +228,7 @@ export default function BillingPage() {
           }
         }
 
-        // Calculate fee based on formula: Amount × (Duration / 60)
-        const duration = appointment.duration || 60;
-        const amount = priceEntry ? priceEntry.amount : 0;
-
+        // Calculate fee using billing helper
         const fee = calculateAppointmentFee(appointment, studentId, data.priceEntries || []);
         const student = (data?.students || []).find(s => s.id === studentId);
         const family = student ? (data?.families || []).find(f => f.id === student.familyId) : null;
@@ -240,7 +240,6 @@ export default function BillingPage() {
           student,
           family,
           calculatedFee: fee,
-          originalAmount: amount,
           priceEntryType: appointmentType,
           hasPrice: !!priceEntry,
           isPaid,
@@ -538,8 +537,8 @@ export default function BillingPage() {
                     <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">
                       Dauer
                     </th>
-                    <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">
-                      Stundensatz
+                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">
+                      Status
                     </th>
                     <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">
                       Honorar
@@ -586,11 +585,23 @@ export default function BillingPage() {
                         <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">
                           {appointment.duration} min
                         </td>
-                        <td className="px-4 py-3 text-right text-sm text-gray-500 dark:text-slate-400">
-                          {appointment.originalAmount > 0 ? (
-                            <>€{appointment.originalAmount.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</>
+                        <td className="px-4 py-3">
+                          {appointment.status === 'attended' ? (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
+                              Besucht
+                            </span>
+                          ) : appointment.status === 'canceled_paid' ? (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300">
+                              Bezahlt ausgefallen
+                            </span>
+                          ) : appointment.status === 'canceled_free' ? (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300">
+                              Kostenlos ausgefallen
+                            </span>
                           ) : (
-                            <span className="text-gray-400">-</span>
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-slate-700 dark:text-slate-300">
+                              Geplant
+                            </span>
                           )}
                         </td>
                         <td className="px-4 py-3 text-right text-sm font-medium text-gray-900 dark:text-white">
