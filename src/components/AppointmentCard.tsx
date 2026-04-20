@@ -82,7 +82,7 @@ export function AppointmentCard({
   };
 
   // Get conflict indicator
-  const getConflictIndicator = (): JSX.Element | null => {
+  const getConflictIndicator = (): React.ReactElement | null => {
     if (isCanceled) return null;
     if (conflictStatus === 'conflict') {
       return (
