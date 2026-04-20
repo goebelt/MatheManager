@@ -79,7 +79,8 @@ export default function AppointmentsPage() {
 
     const selectedStudents = (data?.students || []).filter(s => autoScheduleStudentIds.includes(s.id));
     const newAppointments: Appointment[] = [];
-    const startDate = new Date(currentDate);
+    // Create start date in local timezone to avoid UTC offset issues
+    const startDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate());
     startDate.setHours(0, 0, 0, 0);
 
     selectedStudents.forEach(student => {
