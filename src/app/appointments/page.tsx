@@ -126,7 +126,7 @@ export default function AppointmentsPage() {
         });
       } else {
         // Find the student's usual weekday from existing appointments
-        let usualWeekday = 1; // Default to Monday
+        let usualWeekday = 1; // Default to Monday (ISO-8601)
         let usualTime = '09:00';
         
         const studentAppts = (data?.appointments || []).filter(a => a.studentIds.includes(student.id));
@@ -134,7 +134,7 @@ export default function AppointmentsPage() {
           const weekdayCount: Record<number, number> = {};
           studentAppts.forEach(appt => {
             const d = new Date(appt.date);
-            const wd = d.getDay() || 7; // Sunday = 7
+            const wd = d.getDay() || 7; // Sunday = 7 (ISO-8601)
             weekdayCount[wd] = (weekdayCount[wd] || 0) + 1;
           });
           let best = 1, bestCount = 0;
@@ -150,7 +150,7 @@ export default function AppointmentsPage() {
           appointmentDate.setDate(startDate.getDate() + (week * 7));
           
           // Adjust to the student's usual weekday
-          const currentDay = appointmentDate.getDay() || 7;
+          const currentDay = appointmentDate.getDay() || 7; // Sunday = 7 (ISO-8601)
           const dayDiff = usualWeekday - currentDay;
           appointmentDate.setDate(appointmentDate.getDate() + dayDiff);
 

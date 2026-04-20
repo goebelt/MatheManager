@@ -22,7 +22,7 @@ export interface Student {
 }
 
 export interface PreferredSchedule {
-  dayOfWeek: number; // 0 = Sonntag, 1 = Montag, ..., 6 = Samstag
+  dayOfWeek: number; // 1 = Montag, 2 = Dienstag, ..., 7 = Sonntag (ISO-8601)
   time: string; // Format: "HH:MM" z.B. "14:00"
 }
 

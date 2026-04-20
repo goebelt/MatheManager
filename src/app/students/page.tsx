@@ -12,13 +12,13 @@ import type { Student, Family, DataContainer, PreferredSchedule } from '@/types'
 import { DURATION_OPTIONS, RHYTHM_OPTIONS } from '@/lib/constants';
 
 const DAYS_OF_WEEK = [
-  { value: 0, label: 'Sonntag' },
   { value: 1, label: 'Montag' },
   { value: 2, label: 'Dienstag' },
   { value: 3, label: 'Mittwoch' },
   { value: 4, label: 'Donnerstag' },
   { value: 5, label: 'Freitag' },
   { value: 6, label: 'Samstag' },
+  { value: 7, label: 'Sonntag' },
 ];
 
 export default function StudentsPage() {
