@@ -105,7 +105,9 @@ export default function AppointmentsPage() {
             }
 
             // Check if appointment already exists
-            const dateStr = appointmentDate.toISOString().split('T')[0];
+            // Create date in local timezone to avoid UTC offset issues
+            const localDate = new Date(appointmentDate.getFullYear(), appointmentDate.getMonth(), appointmentDate.getDate());
+            const dateStr = localDate.toISOString().split('T')[0];
             const existing = (data?.appointments || []).find(
               a => a.date === dateStr && a.studentIds.includes(student.id)
             );
@@ -158,7 +160,9 @@ export default function AppointmentsPage() {
           }
 
           // Check if appointment already exists
-          const dateStr = appointmentDate.toISOString().split('T')[0];
+          // Create date in local timezone to avoid UTC offset issues
+          const localDate = new Date(appointmentDate.getFullYear(), appointmentDate.getMonth(), appointmentDate.getDate());
+          const dateStr = localDate.toISOString().split('T')[0];
           const existing = (data?.appointments || []).find(
             a => a.date === dateStr && a.studentIds.includes(student.id)
           );
