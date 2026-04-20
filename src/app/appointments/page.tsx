@@ -371,10 +371,19 @@ export default function AppointmentsPage() {
 
   // Calculate conflict status for an appointment
   const getAppointmentStatus = (appointment: Appointment, allAppointments: Appointment[]): 'ok' | 'conflict' | 'tight' => {
+    // Skip conflict detection for canceled appointments
+    if (appointment.status.startsWith('canceled')) {
+      return 'ok';
+    }
+
     if (!appointment.time) return 'ok';
 
-    // Get all appointments on the same day
-    const sameDayAppointments = allAppointments.filter(app => app.date === appointment.date && app.time);
+    // Get all non-canceled appointments on the same day
+    const sameDayAppointments = allAppointments.filter(app => 
+      app.date === appointment.date && 
+      app.time &&
+      !app.status.startsWith('canceled')
+    );
     
     // Sort by time
     sameDayAppointments.sort((a, b) => (a.time || '').localeCompare(b.time || ''));
@@ -846,36 +855,57 @@ export default function AppointmentsPage() {
                         return (
                           <div
                             key={appointment.id}
-                            className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl shadow-sm overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
+                            className={`bg-white dark:bg-slate-800 border rounded-xl shadow-sm overflow-hidden cursor-pointer hover:shadow-md transition-shadow ${
+                              appointment.status.startsWith('canceled') ? 'border-gray-300 dark:border-slate-600 opacity-60' :
+                              status === 'conflict' ? 'border-red-500 dark:border-red-500' :
+                              status === 'tight' ? 'border-yellow-500 dark:border-yellow-500' :
+                              'border-gray-200 dark:border-slate-700'
+                            }`}
                             onClick={() => handleEditAppointment(appointment)}
                           >
-                            <div className="px-3 py-2 bg-gray-50 dark:bg-slate-700/50 border-b border-gray-200 dark:border-slate-700 flex items-center justify-between">
+                            <div className={`px-3 py-2 border-b flex items-center justify-between ${
+                              appointment.status.startsWith('canceled') ? 'bg-gray-50 dark:bg-slate-700/50 border-gray-200 dark:border-slate-700' :
+                              'bg-gray-50 dark:bg-slate-700/50 border-gray-200 dark:border-slate-700'
+                            }`}>
                               <div className="flex items-center gap-2">
-                                <div className="w-8 h-8 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center text-green-600">
+                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                                  appointment.status.startsWith('canceled') ? 'bg-gray-200 dark:bg-slate-600 text-gray-500' :
+                                  'bg-green-100 dark:bg-green-900/30 text-green-600'
+                                }`}>
                                   <Clock size={16} />
                                 </div>
                                 <div className="flex items-center gap-2">
-                                  <h3 className="font-semibold text-gray-900 dark:text-white text-sm">
+                                  <h3 className={`font-semibold text-sm ${
+                                    appointment.status.startsWith('canceled') ? 'text-gray-500 dark:text-gray-400' :
+                                    'text-gray-900 dark:text-white'
+                                  }`}>
                                     {appointment.time || '--:--'}
                                   </h3>
-                                  {status === 'conflict' && (
-                                    <span title="Konflikt mit Vorgängertermin">
-                                      <AlertTriangle size={14} className="text-red-500" />
-                                    </span>
-                                  )}
-                                  {status === 'tight' && (
-                                    <span title="Keine Pause zum Vorgängertermin">
-                                      <AlertTriangle size={14} className="text-yellow-500" />
-                                    </span>
-                                  )}
-                                  {status === 'ok' && (
-                                    <span title="Termin passt">
-                                      <CheckCircle size={14} className="text-green-500" />
-                                    </span>
+                                  {!appointment.status.startsWith('canceled') && (
+                                    <>
+                                      {status === 'conflict' && (
+                                        <span title="Konflikt mit Vorgängertermin">
+                                          <AlertTriangle size={14} className="text-red-500" />
+                                        </span>
+                                      )}
+                                      {status === 'tight' && (
+                                        <span title="Keine Pause zum Vorgängertermin">
+                                          <AlertTriangle size={14} className="text-yellow-500" />
+                                        </span>
+                                      )}
+                                      {status === 'ok' && (
+                                        <span title="Termin passt">
+                                          <CheckCircle size={14} className="text-green-500" />
+                                        </span>
+                                      )}
+                                    </>
                                   )}
                                 </div>
                               </div>
-                              <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-slate-400">
+                              <div className={`flex items-center gap-1 text-xs ${
+                                appointment.status.startsWith('canceled') ? 'text-gray-400 dark:text-gray-500' :
+                                'text-gray-500 dark:text-slate-400'
+                              }`}>
                                 <span>{appointment.duration} Min</span>
                                 <span>·</span>
                                 <span className={
@@ -906,10 +936,13 @@ export default function AppointmentsPage() {
                               </div>
                             </div>
 
-                            <div className="p-3">
+                            <div className={`p-3 ${appointment.status.startsWith('canceled') ? 'opacity-60' : ''}`}>
                               <div className="flex items-center gap-2 mb-2">
-                                <User size={14} className="text-gray-500" />
-                                <span className="text-xs font-medium text-gray-700 dark:text-slate-300">
+                                <User size={14} className={`text-gray-500 ${appointment.status.startsWith('canceled') ? 'text-gray-400' : ''}`} />
+                                <span className={`text-xs font-medium ${
+                                  appointment.status.startsWith('canceled') ? 'text-gray-400 dark:text-gray-500' :
+                                  'text-gray-700 dark:text-slate-300'
+                                }`}>
                                   {students.length} Schüler:
                                 </span>
                               </div>
@@ -917,7 +950,11 @@ export default function AppointmentsPage() {
                                 {students.map(student => (
                                   <span
                                     key={student.id}
-                                    className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded text-xs"
+                                    className={`px-2 py-0.5 rounded text-xs ${
+                                      appointment.status.startsWith('canceled') 
+                                        ? 'bg-gray-100 dark:bg-slate-600 text-gray-400 dark:text-gray-500' 
+                                        : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                                    }`}
                                   >
                                     {student.firstName} {student.lastName || ''}
                                   </span>
