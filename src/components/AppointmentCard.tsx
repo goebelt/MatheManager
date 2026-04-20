@@ -5,7 +5,7 @@
 'use client';
 
 import { useState } from 'react';
-import { CheckCircle, XCircle, AlertCircle, Users, User } from 'lucide-react';
+import { CheckCircle, XCircle, AlertCircle, Users, User, AlertTriangle } from 'lucide-react';
 import type { Appointment, Student } from '@/types';
 
 interface AppointmentCardProps {
@@ -15,6 +15,7 @@ interface AppointmentCardProps {
   priceEntries?: any[];
   onStatusChange?: (appointmentId: string, status: Appointment['status']) => void;
   onAddStudent?: (appointmentId: string, additionalStudentId: string) => void;
+  conflictStatus?: 'conflict' | 'tight' | 'ok' | null;
 }
 
 export function AppointmentCard({
@@ -23,6 +24,7 @@ export function AppointmentCard({
   allStudents = [],
   onStatusChange,
   onAddStudent,
+  conflictStatus,
 }: AppointmentCardProps) {
   const isGroupAppointment = appointment.studentIds.length > 1;
 
@@ -36,6 +38,9 @@ export function AppointmentCard({
   const hasAdditionalStudents = appointment.studentIds.length > 2;
 
   const showStatusControls = !!onStatusChange;
+
+  // Check if appointment is canceled
+  const isCanceled = appointment.status.startsWith('canceled');
 
   const getDuration = (): number => {
     if (appointment.duration) return appointment.duration;
@@ -62,16 +67,52 @@ export function AppointmentCard({
     }
   };
 
+  // Determine border color based on conflict status and cancellation
+  const getBorderColor = (): string => {
+    if (isCanceled) {
+      return 'border-gray-300 dark:border-slate-600 opacity-60';
+    }
+    if (conflictStatus === 'conflict') {
+      return 'border-red-500 dark:border-red-500';
+    }
+    if (conflictStatus === 'tight') {
+      return 'border-yellow-500 dark:border-yellow-500';
+    }
+    return 'border-gray-200 dark:border-slate-700';
+  };
+
+  // Get conflict indicator
+  const getConflictIndicator = (): JSX.Element | null => {
+    if (isCanceled) return null;
+    if (conflictStatus === 'conflict') {
+      return (
+        <div className="flex items-center gap-1 text-red-600 dark:text-red-400 text-xs font-medium">
+          <AlertTriangle size={14} />
+          <span>Konflikt</span>
+        </div>
+      );
+    }
+    if (conflictStatus === 'tight') {
+      return (
+        <div className="flex items-center gap-1 text-yellow-600 dark:text-yellow-400 text-xs font-medium">
+          <AlertTriangle size={14} />
+          <span>Knapp</span>
+        </div>
+      );
+    }
+    return null;
+  };
+
   const isAttended = appointment.status === 'attended';
   const duration = getDuration();
   const priceCount = appointment.studentIds.length;
 
   return (
-    <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
+    <div className={`bg-white dark:bg-slate-800 border rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow ${getBorderColor()}`}>
       {/* Header: Time, Date, Type */}
       <div className="flex justify-between items-start mb-3">
         <div>
-          <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+          <div className={`text-xs font-semibold uppercase tracking-wider ${isCanceled ? 'text-gray-400 dark:text-gray-500' : 'text-gray-500 dark:text-gray-400'}`}>
             {new Date(appointment.date).toLocaleTimeString('de-DE', {
               hour: '2-digit',
               minute: '2-digit',
@@ -81,7 +122,7 @@ export function AppointmentCard({
             isGroupAppointment
               ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300'
               : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
-          }`}>
+          } ${isCanceled ? 'opacity-60' : ''}`}>
             {isGroupAppointment ? (
               <>
                 <Users size={12} />
@@ -96,14 +137,17 @@ export function AppointmentCard({
           </div>
         </div>
 
+        {/* Conflict Indicator */}
+        {getConflictIndicator()}
+
         <span className={`px-2 py-1 rounded-lg text-xs font-medium ${getStatusStyle(appointment.status)}`}>
           {getStatusLabel(appointment.status)}
         </span>
       </div>
 
       {/* Student Names */}
-      <div className="mb-4">
-        <p className="font-semibold text-gray-900 dark:text-white">
+      <div className={`mb-4 ${isCanceled ? 'opacity-60' : ''}`}>
+        <p className={`font-semibold ${isCanceled ? 'text-gray-500 dark:text-gray-400' : 'text-gray-900 dark:text-white'}`}>
           {displayStudents.map(s => s.firstName + (s.lastName ? ' ' + s.lastName : '')).join(', ')}
           {hasAdditionalStudents ? ` +${appointment.studentIds.length - 2} mehr` : ''}
         </p>
@@ -116,7 +160,7 @@ export function AppointmentCard({
 
       {/* Status Controls */}
       {showStatusControls && (
-        <div className="flex justify-between items-center">
+        <div className={`flex justify-between items-center ${isCanceled ? 'opacity-60' : ''}`}>
           {/* Quick status select */}
           <select
             defaultValue={appointment.status}
