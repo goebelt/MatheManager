@@ -260,6 +260,13 @@ export function InvoiceTemplate({
             <span className="text-base font-bold">&euro;{invoice.total.toFixed(2)}</span>
           </div>
 
+          {/* Tax exemption notice */}
+          <div className="mt-2 text-center">
+            <p className="text-xs text-gray-600 italic">
+              Gemäß &sect;4 Nr. 21 bin ich von der Umsatzsteuer befreit.
+            </p>
+          </div>
+
           {/* Payment terms */}
           <div className="mt-3 p-2 bg-gray-50 border border-gray-200 rounded-lg print-break-avoid">
             <p className="text-xs font-semibold text-gray-700 mb-1">Zahlungsbedingungen:</p>
