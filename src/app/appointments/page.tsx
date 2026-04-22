@@ -633,12 +633,216 @@ export default function AppointmentsPage() {
         </div>
       )}
 
+      {/* Edit Appointment Modal */}
+      {editingAppointmentId && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-md w-full p-6">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+              <Edit2 size={20} className="text-blue-600" />
+              Termin bearbeiten
+            </h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                  Datum *
+                </label>
+                <input
+                  type="date"
+                  value={formDate}
+                  onChange={e => setFormDate(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                  Uhrzeit *
+                </label>
+                <input
+                  type="time"
+                  value={formTime}
+                  onChange={e => setFormTime(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                  Dauer (Minuten)
+                </label>
+                <select
+                  value={formDuration}
+                  onChange={e => setFormDuration(parseInt(e.target.value))}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                >
+                  <option value={60}>60 Minuten</option>
+                  <option value={90}>90 Minuten</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                  Status
+                </label>
+                <select
+                  value={formStatus}
+                  onChange={e => setFormStatus(e.target.value as 'attended' | 'canceled_paid' | 'canceled_free' | 'planned')}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                >
+                  <option value="planned">Geplant</option>
+                  <option value="attended">Besucht</option>
+                  <option value="canceled_paid">Abgesagt (bezahlt)</option>
+                  <option value="canceled_free">Abgesagt (kostenlos)</option>
+                </select>
+              </div>
+              <div className="student-dropdown-container">
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                  Schüler *
+                </label>
+                <div className="relative">
+                  {/* Selected students display */}
+                  <div
+                    onClick={() => setStudentDropdownOpen(!studentDropdownOpen)}
+                    className="min-h-[42px] px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-green-500"
+                  >
+                    {formStudentIds.length === 0 ? (
+                      <span className="text-gray-500 dark:text-slate-400 text-sm">
+                        Schüler auswählen...
+                      </span>
+                    ) : (
+                      <div className="flex flex-wrap gap-1">
+                        {formStudentIds.map(id => {
+                          const student = (data?.students || []).find(s => s.id === id);
+                          if (!student) return null;
+                          return (
+                            <span
+                              key={id}
+                              className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded text-sm"
+                            >
+                              {student.firstName} {student.lastName || ''}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setFormStudentIds(formStudentIds.filter(sid => sid !== id));
+                                }}
+                                className="hover:text-blue-900 dark:hover:text-blue-100"
+                              >
+                                <X size={14} />
+                              </button>
+                            </span>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Dropdown with filter */}
+                  {studentDropdownOpen && (
+                    <div className="absolute z-10 w-full mt-1 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg shadow-lg max-h-60 overflow-hidden">
+                      {/* Filter input */}
+                      <div className="p-2 border-b border-gray-200 dark:border-slate-700">
+                        <input
+                          type="text"
+                          placeholder="Nach Schüler oder Familie filtern..."
+                          value={studentFilter}
+                          onChange={e => setStudentFilter(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                          autoFocus
+                        />
+                      </div>
+
+                      {/* Student list */}
+                      <div className="max-h-48 overflow-y-auto">
+                        {getFilteredStudents().length === 0 ? (
+                          <div className="p-4 text-center text-gray-500 dark:text-slate-400 text-sm">
+                            Keine Schüler gefunden
+                          </div>
+                        ) : (
+                          getFilteredStudents().map(student => {
+                            const familyName = getFamilyForStudent(student.id);
+                            const isSelected = formStudentIds.includes(student.id);
+                            return (
+                              <button
+                                key={student.id}
+                                onClick={() => {
+                                  if (isSelected) {
+                                    setFormStudentIds(formStudentIds.filter(id => id !== student.id));
+                                  } else {
+                                    setFormStudentIds([...formStudentIds, student.id]);
+                                  }
+                                }}
+                                className={`w-full px-3 py-2 text-left hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors ${
+                                  isSelected ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+                                }`}
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <div className={`w-5 h-5 rounded border flex items-center justify-center ${
+                                      isSelected ? 'bg-green-600 border-green-600 text-white' : 'border-gray-300 dark:border-slate-600'
+                                    }`}>
+                                      {isSelected && <Check size={12} />}
+                                    </div>
+                                    <div className="flex flex-col">
+                                      <span className="text-sm font-medium text-gray-900 dark:text-white">
+                                        {student.firstName} {student.lastName || ''}
+                                      </span>
+                                      {familyName && (
+                                        <span className="text-xs text-gray-500 dark:text-slate-400">
+                                          {familyName}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              </button>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 mt-6">
+              <button
+                onClick={() => {
+                  if (confirm('Möchtest du diesen Termin wirklich löschen?')) {
+                    handleDeleteAppointment(editingAppointmentId);
+                    setEditingAppointmentId(null);
+                    resetForm();
+                  }
+                }}
+                className="px-4 py-2 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors"
+              >
+                <Trash2 size={16} className="inline mr-1" />
+                Löschen
+              </button>
+              <button
+                onClick={() => {
+                  setEditingAppointmentId(null);
+                  resetForm();
+                }}
+                className="px-4 py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={handleUpdateAppointment}
+                disabled={!formDate || formStudentIds.length === 0}
+                className="px-4 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Save size={16} className="inline mr-1" />
+                Speichern
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <main className="max-w-5xl mx-auto px-4 py-6">
-        {/* Add/Edit Appointment Form */}
-        {(showAddForm || editingAppointmentId) && (
+        {/* Add Appointment Form */}
+        {showAddForm && (
           <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl shadow-sm p-6 mb-6">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              {editingAppointmentId ? 'Termin bearbeiten' : 'Neuen Termin anlegen'}
+              Neuen Termin anlegen
             </h2>
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
@@ -685,7 +889,6 @@ export default function AppointmentsPage() {
                   onChange={e => setFormStatus(e.target.value as 'attended' | 'canceled_paid' | 'canceled_free' | 'planned')}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
                 >
-                  <option value="planned">Geplant</option>
                   <option value="planned">Geplant</option>
                   <option value="attended">Besucht</option>
                   <option value="canceled_paid">Abgesagt (bezahlt)</option>
@@ -802,26 +1005,9 @@ export default function AppointmentsPage() {
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-6">
-              {editingAppointmentId && (
-                <button
-                  onClick={() => {
-                    if (confirm('Möchtest du diesen Termin wirklich löschen?')) {
-                      handleDeleteAppointment(editingAppointmentId);
-                      setShowAddForm(false);
-                      setEditingAppointmentId(null);
-                      resetForm();
-                    }
-                  }}
-                  className="px-4 py-2 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors"
-                >
-                  <Trash2 size={16} className="inline mr-1" />
-                  Löschen
-                </button>
-              )}
               <button
                 onClick={() => {
                   setShowAddForm(false);
-                  setEditingAppointmentId(null);
                   resetForm();
                 }}
                 className="px-4 py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
@@ -829,12 +1015,12 @@ export default function AppointmentsPage() {
                 Abbrechen
               </button>
               <button
-                onClick={editingAppointmentId ? handleUpdateAppointment : handleAddAppointment}
+                onClick={handleAddAppointment}
                 disabled={!formDate || formStudentIds.length === 0}
                 className="px-4 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Save size={16} className="inline mr-1" />
-                {editingAppointmentId ? 'Aktualisieren' : 'Speichern'}
+                Speichern
               </button>
             </div>
           </div>
@@ -894,7 +1080,6 @@ export default function AppointmentsPage() {
                     ) : (
                       dayAppointments.map(appointment => {
                         const students = getStudentsForAppointment(appointment.studentIds);
-                        const isEditing = editingAppointmentId === appointment.id;
                         const status = getAppointmentStatus(appointment, filteredAppointments);
 
                         return (
