@@ -100,7 +100,9 @@ export default function AppointmentsPage() {
             appointmentDate.setDate(appointmentDate.getDate() + dayDiff);
 
             // Check if this is the right week for biweekly students
-            if (student.rhythm === 'biweekly') {
+            // Use rhythm from preferred schedule, fallback to student rhythm
+            const rhythm = schedule.rhythm || student.rhythm;
+            if (rhythm === 'biweekly') {
               const weekNumber = getWeekNumberForDate(appointmentDate);
               if (weekNumber % 2 !== 0) continue; // Skip odd weeks for biweekly
             }

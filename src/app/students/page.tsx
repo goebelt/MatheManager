@@ -68,6 +68,7 @@ export default function StudentsPage() {
     const newSchedule: PreferredSchedule = {
       dayOfWeek: newScheduleDay,
       time: newScheduleTime,
+      rhythm: formRhythm, // Rhythmus aus dem Formular übernehmen
     };
     setFormPreferredSchedule([...formPreferredSchedule, newSchedule]);
   };
@@ -393,7 +394,7 @@ export default function StudentsPage() {
                       className="flex items-center justify-between px-3 py-2 bg-gray-50 dark:bg-slate-700/50 rounded-lg text-sm"
                     >
                       <span className="text-gray-700 dark:text-slate-300">
-                        {DAYS_OF_WEEK.find(d => d.value === schedule.dayOfWeek)?.label} um {schedule.time}
+                        {DAYS_OF_WEEK.find(d => d.value === schedule.dayOfWeek)?.label} um {schedule.time} ({schedule.rhythm === 'weekly' ? 'wöchentlich' : 'zweiwöchentlich'})
                       </span>
                       <button
                         onClick={() => handleRemoveSchedule(index)}
@@ -518,7 +519,7 @@ export default function StudentsPage() {
                             key={index}
                             className="px-2 py-1 bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-md text-xs"
                           >
-                            {DAYS_OF_WEEK.find(d => d.value === schedule.dayOfWeek)?.label} {schedule.time}
+                            {DAYS_OF_WEEK.find(d => d.value === schedule.dayOfWeek)?.label} {schedule.time} ({schedule.rhythm === 'weekly' ? 'wöchentlich' : 'zweiwöchentlich'})
                           </span>
                         ))}
                       </div>
