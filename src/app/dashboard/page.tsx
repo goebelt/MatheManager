@@ -1,5 +1,5 @@
 ﻿/**
- * Dashboard Page - Terminverwaltung mit Wochenübersicht und Auto-Vorschlägen
+ * Dashboard Page - Terminverwaltung mit Tagesübersicht und Auto-Vorschlägen
  */
 
 'use client';
@@ -7,7 +7,7 @@
 import { useState, useEffect } from 'react';
 import type { Student, Appointment, DataContainer } from '@/types';
 import { DashboardHeader } from '@/components/DashboardHeader';
-import { WeekView } from '@/components/WeekView';
+import { DayView } from '@/components/DayView';
 
 
 export default function DashboardPage() {
@@ -59,18 +59,18 @@ export default function DashboardPage() {
     setData(updatedData);
   };
 
-  const handlePreviousWeek = () => {
+  const handlePreviousDay = () => {
     setCurrentDate(prev => {
       const date = new Date(prev);
-      date.setDate(date.getDate() - 7);
+      date.setDate(date.getDate() - 1);
       return date;
     });
   };
 
-  const handleNextWeek = () => {
+  const handleNextDay = () => {
     setCurrentDate(prev => {
       const date = new Date(prev);
-      date.setDate(date.getDate() + 7);
+      date.setDate(date.getDate() + 1);
       return date;
     });
   };
@@ -99,13 +99,13 @@ export default function DashboardPage() {
       {/* Header */}
       <DashboardHeader
         currentDate={currentDate}
-        onPreviousWeek={handlePreviousWeek}
-        onNextWeek={handleNextWeek}
+        onPreviousDay={handlePreviousDay}
+        onNextDay={handleNextDay}
       />
 
       {/* Main Content */}
       <main className="max-w-4xl mx-auto p-4 sm:p-6">
-        <WeekView
+        <DayView
           existingAppointments={data.appointments || []}
           students={data.students}
           priceEntries={data.priceEntries || []}
