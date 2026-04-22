@@ -7,10 +7,11 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { Home, Users, FileText, Package, Euro, Calendar, User } from 'lucide-react';
+import { Home, Users, FileText, Package, Euro, Calendar, User, Layout } from 'lucide-react';
 
 const NAV_ITEMS = [
   { href: '/', icon: <Home size={20} />, label: 'Startseite' },
+  { href: '/dashboard', icon: <Layout size={20} />, label: 'Dashboard' },
   { href: '/families', icon: <Users size={20} />, label: 'Familien & Schueler' },
   { href: '/students', icon: <User size={20} />, label: 'Schuelerverwaltung' },
   { href: '/appointments', icon: <Calendar size={20} />, label: 'Terminplan' },
