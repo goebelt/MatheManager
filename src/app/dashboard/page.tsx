@@ -75,6 +75,10 @@ export default function DashboardPage() {
     });
   };
 
+  const handleGoToToday = () => {
+    setCurrentDate(new Date());
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
@@ -101,6 +105,7 @@ export default function DashboardPage() {
         currentDate={currentDate}
         onPreviousDay={handlePreviousDay}
         onNextDay={handleNextDay}
+        onGoToToday={handleGoToToday}
       />
 
       {/* Main Content */}

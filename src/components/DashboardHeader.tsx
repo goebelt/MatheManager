@@ -4,18 +4,20 @@
 
 'use client';
 
-import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar, CalendarDays } from 'lucide-react';
 
 interface DashboardHeaderProps {
   currentDate: Date;
   onPreviousDay: () => void;
   onNextDay: () => void;
+  onGoToToday: () => void;
 }
 
 export function DashboardHeader({ 
   currentDate, 
   onPreviousDay, 
-  onNextDay 
+  onNextDay,
+  onGoToToday
 }: DashboardHeaderProps) {
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('de-DE', { 
@@ -30,7 +32,7 @@ export function DashboardHeader({
 
   return (
     <div className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 p-4">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex items-center justify-center gap-4">
         {/* Navigation */}
         <div className="flex items-center gap-1">
           <button
@@ -62,11 +64,21 @@ export function DashboardHeader({
           >
             <ChevronRight size={20} />
           </button>
-        </div>
 
-        {/* Placeholder for future features */}
-        <div className="text-xs text-gray-500 dark:text-gray-400 hidden sm:block">
-          Tagesübersicht mit Terminvorschlägen
+          {/* Today Button */}
+          <button
+            onClick={onGoToToday}
+            className={`px-3 py-2 rounded-lg font-medium text-sm transition-colors ${
+              isToday 
+                ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 cursor-default'
+                : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+            }`}
+            disabled={isToday}
+            title="Zum heutigen Tag springen"
+          >
+            <CalendarDays size={16} className="inline mr-1" />
+            Heute
+          </button>
         </div>
       </div>
     </div>
