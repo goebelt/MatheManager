@@ -72,13 +72,6 @@ export default function AppointmentsPage() {
     setData(newData);
   };
 
-  const getFamilyForStudent = (studentId: string): string => {
-    const student = (data?.students || []).find(s => s.id === studentId);
-    if (!student || !student.familyId) return '';
-    const family = (data?.families || []).find(f => f.id === student.familyId);
-    return family?.name || '';
-  };
-
   const handleAutoSchedule = () => {
     if (autoScheduleStudentIds.length === 0) {
       alert('Bitte mindestens einen Schüler auswählen');
