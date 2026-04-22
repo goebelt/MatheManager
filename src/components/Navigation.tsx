@@ -7,7 +7,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { Home, Users, FileText, Package, Euro, Calendar, User, Layout } from 'lucide-react';
+import { Home, Users, FileText, Euro, Calendar, User, Layout } from 'lucide-react';
 
 const NAV_ITEMS = [
   { href: '/', icon: <Home size={20} />, label: 'Startseite' },
@@ -39,15 +39,9 @@ export function Navigation({ isLoading = false }: NavigationProps) {
   return (
     <nav className="bg-white dark:bg-slate-800 shadow-sm border-b border-gray-200 dark:border-slate-700 sticky top-0 z-50 print:hidden">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          {/* Logo */}
-          <div className="flex items-center gap-2">
-            <Package className="h-8 w-8 text-green-600 dark:text-green-500" />
-            <span className="text-xl font-bold text-gray-900 dark:text-white">MatheManager</span>
-          </div>
-
+        <div className="flex items-center justify-center h-16">
           {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center gap-1 flex-1 justify-center">
+          <div className="hidden md:flex items-center gap-1">
             {NAV_ITEMS.map((item) => (
               <Link
                 key={item.href}
@@ -63,9 +57,6 @@ export function Navigation({ isLoading = false }: NavigationProps) {
               </Link>
             ))}
           </div>
-
-          {/* Spacer for balance */}
-          <div className="hidden md:block w-8"></div>
 
           {/* Mobile menu button */}
           <button
