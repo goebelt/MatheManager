@@ -131,11 +131,11 @@ export function InvoiceTemplate({
           {invoice.billedTo.name && (
             <>
               <p className="text-base font-bold">{invoice.billedTo.name}</p>
-              {invoice.billedTo.street && invoice.billedTo.zipCode && (
-                <>
-                  <p className="text-xs">{invoice.billedTo.street}</p>
-                  <p className="text-xs">{`${invoice.billedTo.zipCode} ${invoice.billedTo.city}`}</p>
-                </>
+              {invoice.billedTo.street && (
+                <p className="text-xs">{invoice.billedTo.street}</p>
+              )}
+              {invoice.billedTo.zipCode && invoice.billedTo.city && (
+                <p className="text-xs">{`${invoice.billedTo.zipCode} ${invoice.billedTo.city}`}</p>
               )}
             </>
           )}
