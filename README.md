@@ -11,29 +11,55 @@ Next.js App zur Verwaltung von Mathe-Nachhilfe mit Tailwind CSS. Verwalten Sie F
 - Status-Bediener für jeden Termin: Stattgefunden, Ausfall bezahlt, Ausfall frei
 - **Gruppenunterricht**: Bis zu 2 Schüler pro Termin
 
+### Termine
+- Verwaltung aller Nachhilfestunden
+- Klickbare Termin-Karten zum Bearbeiten
+- Lösch-Button mit Konfliktvermeidung
+
 ### Abrechnung
 - **Automatische Honorarberechnung** basierend auf Preis-Einträgen und gültigen Zeiträumen
 - Filterbare Übersichten nach Zeitraum und Schüler/Familie
 - Aufteilung in Einzelstunden vs. Gruppenstunden
+- Stundensatz-Spalte für detaillierte Übersicht
 
-### Rechnungen (Neu!)
+### Rechnungen
 - Professionelle Druckvorlage mit Firmenkopfzeile
 - Auswahl der Familie und Wunschzeitraum
 - Automatische Rechnungsnummer Generierung (`YYYY-MM-ID`)
 - Drucken per `window.print()` – optimiert für A4 Ausgabe
 - **Einstellungen** um eigene Firmendaten einzugeben (Name, Adresse, Steuernummer)
 
-### Preissystem
+### Preise
+- **Standardpreise** für Einzel- und Gruppenstunden (gilt für alle ohne eigenen Eintrag)
 - Flexible Preiseinträge mit Start-/Enddatum
 - Individuelle Preisgestaltung pro Schüler/Familie
+- Name-Feld für Preisregelungen
+
+### Schüler
+- Verwaltung aller Schüler
+- Zuordnung zu Familien
+- Individuelle Preisregelungen möglich
+
+### Familien
+- Verwaltung von Familien
+- Zentrale Verwaltung für mehrere Schüler
+
+### Einstellungen
+- Firmeninformationen für Rechnungen
+- Rechnungsnummer-Verwaltung
 
 ## 📸 Screenshots
 
 | Funktion | Beschreibung |
 |----------|-------------|
 | **Dashboard** | Wochenübersicht mit Terminvorschlägen |
+| **Termine** | Verwaltung aller Nachhilfestunden |
 | **Abrechnung** | Honorarberechnung und Filterung |
 | **Rechnungen** | Professioneller Druckausgabe |
+| **Preise** | Flexible Preisverwaltung |
+| **Schüler** | Schülerübersicht und -verwaltung |
+| **Familien** | Familienverwaltung |
+| **Einstellungen** | Firmendaten und Konfiguration |
 
 ## 🚀 Installation & Start
 
@@ -51,10 +77,12 @@ Das App-Interface ist in deutscher Sprache optimiert und nutzt Tailwind CSS für
 
 | Technologie | Beschreibung |
 |-------------|-------------|
-| **Next.js 13+** | React Framework mit App Router |
+| **Next.js 15** | React Framework mit App Router |
+| **React 19** | UI-Bibliothek |
 | **TypeScript** | Typsichere Entwicklung |
 | **Tailwind CSS** | Utility-first CSS Framework |
 | **lucide-react** | Moderne Icon-Bibliothek |
+| **@heroicons/react** | Zusätzliche Icon-Bibliothek |
 
 ## 📁 Projektstruktur
 
@@ -62,17 +90,45 @@ Das App-Interface ist in deutscher Sprache optimiert und nutzt Tailwind CSS für
 MatheManager/
 ├── src/
 │   ├── app/                  # Next.js App Router Pages
+│   │   ├── page.tsx          # Startseite
 │   │   ├── dashboard/        # Dashboard mit Terminübersicht
+│   │   ├── appointments/     # Terminverwaltung
 │   │   ├── billing/          # Abrechnungs-Übersicht & Honorarberechnung
-│   │   ├── invoices/         # Rechnungsgenerator (Neu!)
-│   │   ├── settings/         # Firmeninformationen für Rechnungen
+│   │   ├── invoices/         # Rechnungsgenerator
+│   │   ├── prices/           # Preisverwaltung
+│   │   ├── students/         # Schülerverwaltung
 │   │   ├── families/         # Familienverwaltung
-│   │   └── layout.tsx        # App-Layout mit Navigation
+│   │   ├── settings/         # Firmeninformationen für Rechnungen
+│   │   ├── layout.tsx        # App-Layout mit Navigation
+│   │   └── globals.css       # Globale Styles
 │   ├── components/           # Reusable UI-Komponenten
 │   │   ├── AppointmentCard.tsx    # Termin-Karte
 │   │   ├── DashboardHeader.tsx    # Header mit Wochen-Navigation
-│   │   ├── WeekView.tsx     # Woche-Ansicht mit Vorschlägen
-│   │   └── InvoiceTemplate.tsx  # Professionelle Druckvorlage (Neu!)
+│   │   ├── WeekView.tsx          # Woche-Ansicht mit Vorschlägen
+│   │   ├── InvoiceTemplate.tsx   # Professionelle Druckvorlage
+│   │   └── Navigation.tsx        # Navigationsleiste
 │   ├── lib/                  # Utility-Module
-│   │   ├── billing.ts       # Preisberechnung & Honorare
-│   │   ├── storage.ts        # SSR-sicherer localStorage-Acces
+│   │   ├── billing.ts            # Preisberechnung & Honorare
+│   │   ├── storage.ts            # SSR-sicherer localStorage-Access
+│   │   └── constants.ts          # Konstanten
+│   ├── types/                 # TypeScript Typdefinitionen
+│   │   ├── index.ts              # Haupt-Typen
+│   │   ├── dashboardTypes.ts     # Dashboard-spezifische Typen
+│   │   └── css.d.ts              # CSS Module Typen
+│   ├── global.d.ts           # Globale Typdefinitionen
+│   └── next-env.d.ts         # Next.js Typen
+├── package.json
+├── tsconfig.json
+├── tailwind.config.ts
+├── next.config.js
+└── README.md
+```
+
+## 📋 Wichtige Regeln
+
+### Gruppenstunden
+- Bei Gruppenstunden muss jeder Schüler den Gruppenpreis bezahlen (gilt immer für dieses Projekt)
+
+### Datenhaltung
+- Alle Daten werden lokal im Browser gespeichert (localStorage)
+- Export/Import-Funktionalität für Datensicherung verfügbar
