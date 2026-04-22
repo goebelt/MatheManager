@@ -27,6 +27,7 @@ export default function AppointmentsPage() {
   const [showAutoSchedule, setShowAutoSchedule] = useState(false);
   const [autoScheduleWeeks, setAutoScheduleWeeks] = useState(4);
   const [autoScheduleStudentIds, setAutoScheduleStudentIds] = useState<string[]>([]);
+  const [autoScheduleFilter, setAutoScheduleFilter] = useState('');
 
   // Student dropdown states
   const [studentDropdownOpen, setStudentDropdownOpen] = useState(false);
@@ -69,6 +70,13 @@ export default function AppointmentsPage() {
   const saveData = (newData: DataContainer) => {
     localStorage.setItem('mathe_manager_data', JSON.stringify(newData));
     setData(newData);
+  };
+
+  const getFamilyForStudent = (studentId: string): string => {
+    const student = (data?.students || []).find(s => s.id === studentId);
+    if (!student || !student.familyId) return '';
+    const family = (data?.families || []).find(f => f.id === student.familyId);
+    return family?.name || '';
   };
 
   const handleAutoSchedule = () => {
@@ -199,6 +207,7 @@ export default function AppointmentsPage() {
     saveData(updatedData);
     setShowAutoSchedule(false);
     setAutoScheduleStudentIds([]);
+    setAutoScheduleFilter('');
     alert(`${newAppointments.length} Termine wurden erstellt!`);
   };
 
@@ -542,6 +551,15 @@ export default function AppointmentsPage() {
                 <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
                   Schüler auswählen *
                 </label>
+                <div className="mb-2">
+                  <input
+                    type="text"
+                    placeholder="Schüler oder Familie suchen..."
+                    value={autoScheduleFilter}
+                    onChange={e => setAutoScheduleFilter(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500 text-sm"
+                  />
+                </div>
                 <div className="space-y-2 max-h-60 overflow-y-auto">
                   {/* Select All Checkbox */}
                   <label className="flex items-center gap-2 p-2 border border-gray-200 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 cursor-pointer bg-gray-50 dark:bg-slate-700/30">
@@ -561,7 +579,12 @@ export default function AppointmentsPage() {
                       Alle auswählen
                     </span>
                   </label>
-                  {(data?.students || []).map(student => (
+                  {(data?.students || []).filter(student => {
+                    const filter = autoScheduleFilter.toLowerCase();
+                    const fullName = `${student.firstName} ${student.lastName || ''}`.toLowerCase();
+                    const familyName = getFamilyForStudent(student.id).toLowerCase();
+                    return fullName.includes(filter) || familyName.includes(filter);
+                  }).map(student => (
                     <label key={student.id} className="flex items-center gap-2 p-2 border border-gray-200 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 cursor-pointer">
                       <input
                         type="checkbox"
@@ -575,9 +598,16 @@ export default function AppointmentsPage() {
                         }}
                         className="w-4 h-4 text-green-600 rounded focus:ring-green-500"
                       />
-                      <span className="text-sm text-gray-900 dark:text-white">
-                        {student.firstName} {student.lastName || ''}
-                      </span>
+                      <div className="flex-1">
+                        <span className="text-sm text-gray-900 dark:text-white">
+                          {student.firstName} {student.lastName || ''}
+                        </span>
+                        {getFamilyForStudent(student.id) && (
+                          <span className="text-xs text-gray-500 dark:text-slate-400 ml-2">
+                            ({getFamilyForStudent(student.id)})
+                          </span>
+                        )}
+                      </div>
                       <span className="text-xs text-gray-500 dark:text-slate-400 ml-auto">
                         {student.rhythm === 'weekly' ? 'Wöchentlich' : 'Zweiwöchentlich'}
                       </span>
@@ -591,6 +621,7 @@ export default function AppointmentsPage() {
                 onClick={() => {
                   setShowAutoSchedule(false);
                   setAutoScheduleStudentIds([]);
+                  setAutoScheduleFilter('');
                 }}
                 className="px-4 py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
               >
