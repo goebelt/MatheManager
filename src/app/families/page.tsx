@@ -94,6 +94,21 @@ export default function FamiliesPage() {
       lastUpdated: new Date().toISOString(),
     };
     updatedData.families = [...(updatedData.families || []), newFamily];
+
+    // Add first student if provided
+    if (studentFirstName.trim()) {
+      const newStudent: Student = {
+        id: `student-${Date.now()}`,
+        familyId: newFamily.id,
+        firstName: studentFirstName.trim(),
+        lastName: studentLastName.trim() || undefined,
+        notes: '',
+        defaultDuration: studentDuration,
+        rhythm: studentRhythm,
+      };
+      updatedData.students = [...(updatedData.students || []), newStudent];
+    }
+
     updatedData.lastUpdated = new Date().toISOString();
 
     saveData(updatedData);
