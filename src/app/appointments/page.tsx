@@ -10,6 +10,7 @@ import {
   Clock, User, Save, AlertCircle, Sparkles, Check, AlertTriangle, CheckCircle
 } from 'lucide-react';
 import type { Student, Appointment, DataContainer } from '@/types';
+import { addMinutes as addMinutesUtil, getWeekNumber as getWeekNumberUtil, getAppointmentStatus as getAppointmentStatusUtil, formatDateLocal, autoPlanStudents } from '@/lib/scheduling';
 
 export default function AppointmentsPage() {
   const [data, setData] = useState<DataContainer | null>(null);
@@ -77,132 +78,23 @@ export default function AppointmentsPage() {
       alert('Bitte mindestens einen Schüler auswählen');
       return;
     }
-
     const selectedStudents = (data?.students || []).filter(s => autoScheduleStudentIds.includes(s.id));
-    const newAppointments: Appointment[] = [];
-    // Create start date in local timezone to avoid UTC offset issues
     const startDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate());
     startDate.setHours(0, 0, 0, 0);
-
-    selectedStudents.forEach(student => {
-      // Use preferred schedule if available, otherwise find usual weekday from existing appointments
-      let preferredSchedules = student.preferredSchedule || [];
-      
-      if (preferredSchedules.length > 0) {
-        // Use all preferred schedules
-        preferredSchedules.forEach(schedule => {
-          for (let week = 0; week < autoScheduleWeeks; week++) {
-            const appointmentDate = new Date(startDate);
-            appointmentDate.setDate(startDate.getDate() + (week * 7));
-            
-            // Adjust to the preferred weekday
-            const currentDay = appointmentDate.getDay() || 7; // Sunday = 7
-            const dayDiff = schedule.dayOfWeek - currentDay;
-            appointmentDate.setDate(appointmentDate.getDate() + dayDiff);
-
-            // Check if this is the right week for biweekly students
-            // Use rhythm from preferred schedule, fallback to student rhythm
-            const rhythm = schedule.rhythm || student.rhythm;
-            if (rhythm === 'biweekly') {
-              const weekNumber = getWeekNumberForDate(appointmentDate);
-              if (weekNumber % 2 !== 0) continue; // Skip odd weeks for biweekly
-            }
-
-            // Check if appointment already exists
-            // Create date string in local timezone (YYYY-MM-DD format)
-            const dateStr = `${appointmentDate.getFullYear()}-${String(appointmentDate.getMonth() + 1).padStart(2, '0')}-${String(appointmentDate.getDate()).padStart(2, '0')}`;
-            const existing = (data?.appointments || []).find(
-              a => a.date === dateStr && a.studentIds.includes(student.id)
-            );
-            if (existing) continue;
-
-            newAppointments.push({
-              id: `appointment-${Date.now()}-${week}-${student.id}-${schedule.dayOfWeek}`,
-              studentIds: [student.id],
-              date: dateStr,
-              time: schedule.time,
-              duration: student.defaultDuration,
-              status: 'planned',
-            });
-          }
-        });
-      } else {
-        // Find the student's usual weekday from existing appointments
-        let usualWeekday = 1; // Default to Monday (ISO-8601)
-        let usualTime = '09:00';
-        
-        const studentAppts = (data?.appointments || []).filter(a => a.studentIds.includes(student.id));
-        if (studentAppts.length > 0) {
-          const weekdayCount: Record<number, number> = {};
-          studentAppts.forEach(appt => {
-            const d = new Date(appt.date);
-            const wd = d.getDay() || 7; // Sunday = 7 (ISO-8601)
-            weekdayCount[wd] = (weekdayCount[wd] || 0) + 1;
-          });
-          let best = 1, bestCount = 0;
-          Object.entries(weekdayCount).forEach(([wd, count]) => {
-            if (count > bestCount) { bestCount = count; best = parseInt(wd); }
-          });
-          usualWeekday = best;
-        }
-
-        // Generate appointments for the specified number of weeks
-        for (let week = 0; week < autoScheduleWeeks; week++) {
-          const appointmentDate = new Date(startDate);
-          appointmentDate.setDate(startDate.getDate() + (week * 7));
-          
-          // Adjust to the student's usual weekday
-          const currentDay = appointmentDate.getDay() || 7; // Sunday = 7 (ISO-8601)
-          const dayDiff = usualWeekday - currentDay;
-          appointmentDate.setDate(appointmentDate.getDate() + dayDiff);
-
-          // Check if this is the right week for biweekly students
-          if (student.rhythm === 'biweekly') {
-            const weekNumber = getWeekNumberForDate(appointmentDate);
-            if (weekNumber % 2 !== 0) continue; // Skip odd weeks for biweekly
-          }
-
-          // Check if appointment already exists
-          // Create date string in local timezone (YYYY-MM-DD format)
-          const dateStr = `${appointmentDate.getFullYear()}-${String(appointmentDate.getMonth() + 1).padStart(2, '0')}-${String(appointmentDate.getDate()).padStart(2, '0')}`;
-          const existing = (data?.appointments || []).find(
-            a => a.date === dateStr && a.studentIds.includes(student.id)
-          );
-          if (existing) continue;
-
-          newAppointments.push({
-            id: `appointment-${Date.now()}-${week}-${student.id}`,
-            studentIds: [student.id],
-            date: dateStr,
-            time: usualTime,
-            duration: student.defaultDuration,
-            status: 'planned',
-          });
-        }
-      }
-    });
-
+    const newAppointments = autoPlanStudents(selectedStudents, data?.appointments || [], startDate, autoScheduleWeeks);
     if (newAppointments.length === 0) {
       alert('Keine neuen Termine erstellt (alle existieren bereits)');
       return;
     }
-
-    const updatedData: DataContainer = data || {
-      families: [],
-      students: [],
-      priceEntries: [],
-      appointments: [],
-      lastUpdated: new Date().toISOString(),
-    };
+    const updatedData: DataContainer = data || { families: [], students: [], priceEntries: [], appointments: [], lastUpdated: new Date().toISOString() };
     updatedData.appointments = [...(updatedData.appointments || []), ...newAppointments];
     updatedData.lastUpdated = new Date().toISOString();
-
     saveData(updatedData);
     setShowAutoSchedule(false);
     setAutoScheduleStudentIds([]);
     setAutoScheduleFilter('');
     alert(`${newAppointments.length} Termine wurden erstellt!`);
-  };
+  };;
 
   const handleAddAppointment = () => {
     if (!formDate || formStudentIds.length === 0) {
@@ -371,72 +263,7 @@ export default function AppointmentsPage() {
     return date.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' });
   };
 
-  const getWeekNumber = (date: Date): number => {
-    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-    const dayNum = d.getUTCDay() || 7;
-    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-    return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
-  };
-
-  const getWeekNumberForDate = (date: Date): number => {
-    return getWeekNumber(date);
-  };
-
-  // Calculate conflict status for an appointment
-  const getAppointmentStatus = (appointment: Appointment, allAppointments: Appointment[]): 'ok' | 'conflict' | 'tight' => {
-    // Skip conflict detection for canceled appointments
-    if (appointment.status.startsWith('canceled')) {
-      return 'ok';
-    }
-
-    if (!appointment.time) return 'ok';
-
-    // Get all non-canceled appointments on the same day
-    const sameDayAppointments = allAppointments.filter(app => 
-      app.date === appointment.date && 
-      app.time &&
-      !app.status.startsWith('canceled')
-    );
-    
-    // Sort by time
-    sameDayAppointments.sort((a, b) => (a.time || '').localeCompare(b.time || ''));
-    
-    // Find the index of the current appointment
-    const currentIndex = sameDayAppointments.findIndex(app => app.id === appointment.id);
-    
-    // If it's the first appointment, no conflict
-    if (currentIndex <= 0) return 'ok';
-    
-    // Get the previous appointment
-    const previousAppointment = sameDayAppointments[currentIndex - 1];
-    if (!previousAppointment.time) return 'ok';
-    
-    // Calculate end time of previous appointment
-    const prevEndTime = addMinutes(previousAppointment.time, previousAppointment.duration);
-    
-    // Check for conflict
-    if (appointment.time < prevEndTime) {
-      return 'conflict';
-    }
-    
-    // Check for tight schedule (no pause or less than 5 minutes)
-    const prevEndTimePlus5 = addMinutes(prevEndTime, 5);
-    if (appointment.time <= prevEndTimePlus5) {
-      return 'tight';
-    }
-    
-    return 'ok';
-  };
-
-  // Helper function to add minutes to a time string
-  const addMinutes = (time: string, minutes: number): string => {
-    const [hours, mins] = time.split(':').map(Number);
-    const totalMinutes = hours * 60 + mins + minutes;
-    const newHours = Math.floor(totalMinutes / 60) % 24;
-    const newMins = totalMinutes % 60;
-    return `${newHours.toString().padStart(2, '0')}:${newMins.toString().padStart(2, '0')}`;
-  };
+  const getWeekNumber = getWeekNumberUtil; const getWeekNumberForDate = getWeekNumberUtil; const getAppointmentStatus = getAppointmentStatusUtil; const addMinutes = addMinutesUtil;
 
   if (loading) {
     return (

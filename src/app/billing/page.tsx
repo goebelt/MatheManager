@@ -8,6 +8,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { DollarSign, Calendar, User, Filter, ArrowUpRight, Loader2, X, Check } from 'lucide-react';
 import type { Appointment, Student, PriceEntry, DataContainer, PaymentStatus } from '@/types';
 import { calculateAppointmentFee } from '@/lib/billing';
+import { filterAppointmentsByDate } from '@/lib/dateFilters';
 
 
 export default function BillingPage() {
@@ -128,55 +129,15 @@ export default function BillingPage() {
 
   // Filter appointments based on selected filters
   const filteredAppointments = useMemo(() => {
-    if (!data) return [];
-
-    let result = data.appointments || [];
-    const now = new Date();
-    now.setHours(23, 59, 59, 999); // End of today
-
-    // Exclude planned appointments from billing
-    result = result.filter(app => app.status !== 'planned');
-
-    // Apply date range filter
-    if (timeRange === 'month') {
-      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
-      const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-      result = result.filter(app => {
-        const appDate = new Date(app.date);
-        return appDate >= firstDay && appDate <= lastDay;
-      });
-    } else if (timeRange === 'year') {
-      const startOfYear = new Date(now.getFullYear(), 0, 1);
-      const endOfYear = new Date(now.getFullYear(), 11, 31);
-      result = result.filter(app => {
-        const appDate = new Date(app.date);
-        return appDate >= startOfYear && appDate <= endOfYear;
-      });
-    } else if (timeRange === 'custom' && startDate && endDate) {
-      result = result.filter(app => {
-        const appDate = new Date(app.date);
-        const start = new Date(startDate);
-        start.setHours(0, 0, 0, 0);
-        const end = new Date(endDate);
-        end.setHours(23, 59, 59, 999);
-        return appDate >= start && appDate <= end;
-      });
-    } else if (timeRange === 'all') {
-      // Show all appointments
-      result = result;
-    }
-
-    // Apply student filter (no filter if no students selected)
-    if (selectedStudentIds.length > 0) {
-      result = result.filter(
-        app => app.studentIds.some(id => selectedStudentIds.includes(id))
-      );
-    }
-
-    // Sort by date ascending
-    result.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-    return result;
+    return filterAppointmentsByDate(data?.appointments || [], {
+      timeRange,
+      startDate,
+      endDate,
+      referenceDate: new Date(),
+    }).filter(app => {
+      if (selectedStudentIds.length === 0) return true;
+      return app.studentIds.some(id => selectedStudentIds.includes(id));
+    });
   }, [data, selectedStudentIds, timeRange, startDate, endDate]);
 
   // Calculate fees for each appointment - expand group appointments to one row per student

@@ -8,6 +8,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { Printer, User, Calendar, DollarSign, ArrowRight, Building2, FileText, Check, X } from 'lucide-react';
 import type { DataContainer, InvoiceItem, Family, Student, PriceEntry } from '@/types';
 import { calculateAppointmentFee } from '@/lib/billing';
+import { formatInvoiceNumber, calculateDueDate, calculateInvoiceTotals } from '@/lib/invoiceUtils';
+import { filterAppointmentsByDate } from '@/lib/dateFilters';
 import { InvoiceTemplate, type InvoiceData } from '@/components/InvoiceTemplate';
 
 export default function InvoicesPage() {
@@ -79,36 +81,14 @@ export default function InvoicesPage() {
 
   // Filter appointments based on selected filters and calculate invoice items
   const filteredAppointments = useMemo(() => {
-    if (!data) return [];
-
-    let result = data.appointments || [];
-
-    // Exclude planned appointments from invoices
-    result = result.filter(app => app.status !== 'planned');
-
-    // Apply date range filter
-    if (startDate && endDate) {
-      result = result.filter(app => {
-        const appDate = new Date(app.date);
-        const start = new Date(startDate);
-        start.setHours(0, 0, 0, 0);
-        const end = new Date(endDate);
-        end.setHours(23, 59, 59, 999);
-        return appDate >= start && appDate <= end;
-      });
-    }
-
-    // Apply student filter (no filter if no students selected)
-    if (selectedStudentIds.length > 0) {
-      result = result.filter(
-        app => app.studentIds.some(id => selectedStudentIds.includes(id))
-      );
-    }
-
-    // Sort by date ascending
-    result.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-    return result;
+    return filterAppointmentsByDate(data?.appointments || [], {
+      timeRange: (startDate && endDate) ? 'custom' : 'all',
+      startDate,
+      endDate,
+    }).filter(app => {
+      if (selectedStudentIds.length === 0) return true;
+      return app.studentIds.some(id => selectedStudentIds.includes(id));
+    });
   }, [data, selectedStudentIds, startDate, endDate]);
 
   // Calculate invoice items from filtered appointments
@@ -229,26 +209,18 @@ export default function InvoicesPage() {
     if (!data || invoiceItems.length === 0) return;
 
     // Find the family for the first student in the filtered list
-    const firstStudentId = invoiceItems[0].appointmentId ? 
-      filteredAppointments.find(app => app.id === invoiceItems[0].appointmentId)?.studentIds[0] : null;
-    
+    const firstStudentId = invoiceItems[0].appointmentId ? filteredAppointments.find(app => app.id === invoiceItems[0].appointmentId)?.studentIds[0] : null;
     const student = firstStudentId ? data.students.find(s => s.id === firstStudentId) : null;
     const family = student ? data.families.find(f => f.id === student.familyId) : null;
 
-    // Calculate total fee for all items
-    const subtotal = invoiceItems.reduce((sum, item) => sum + item.totalPrice, 0);
-
-    const taxRate = 0; // Umsatzsteuerbefreit
-    const taxAmount = subtotal * taxRate;
-    const total = subtotal + taxAmount;
-
-    // Generate invoice number in format YYYY/00001
+    // Use extracted invoice utilities
+    const { subtotal, taxAmount, total } = calculateInvoiceTotals(invoiceItems);
     const currentYear = new Date().getFullYear();
     const currentInvoiceNumber = data.invoiceSettings?.invoiceNumberStart || 1;
-    
-    // Format invoice number as YYYY/00001
-    const invoiceNumber = `${currentYear}/${currentInvoiceNumber.toString().padStart(5, '0')}`;
-    
+    const invoiceNumber = formatInvoiceNumber(currentYear, currentInvoiceNumber);
+    const invoiceDate = new Date();
+    const dueDate = calculateDueDate(invoiceDate, data.invoiceSettings?.paymentTerms || 14);
+
     // Increment and save invoice number in settings
     const updatedData = {
       ...data,
@@ -276,8 +248,8 @@ export default function InvoicesPage() {
 
     setInvoiceData({
       invoiceNumber: invoiceNumber,
-      invoiceDate: new Date().toISOString(),
-      dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      invoiceDate: invoiceDate.toISOString(),
+      dueDate: dueDate.toISOString(),
       issuedBy: {
         name: data.invoiceSettings?.businessName || 'MatheManager',
         street: data.invoiceSettings?.street,
@@ -296,11 +268,11 @@ export default function InvoicesPage() {
       },
       items: invoiceItems,
       subtotal: subtotal,
-      taxRate: taxRate,
+      taxRate: 0,
       taxAmount: taxAmount,
       total: total,
     });
-  };
+  };;
 
   if (loading) {
     return (
