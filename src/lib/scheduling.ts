@@ -1,7 +1,6 @@
 /**
  * Scheduling utilities – extracted from appointments page for testability
  */
-
 import type { Appointment, Student, DataContainer } from '@/types';
 
 /**
@@ -39,53 +38,38 @@ export function getAppointmentStatus(
   appointment: Appointment,
   allAppointments: Appointment[]
 ): 'ok' | 'conflict' | 'tight' {
-  // Skip conflict detection for canceled appointments
   if (appointment.status.startsWith('canceled')) {
     return 'ok';
   }
   if (!appointment.time) return 'ok';
 
-  // Get all non-canceled appointments on the same day
   const sameDayAppointments = allAppointments.filter(
-    app =>
-      app.date === appointment.date &&
-      app.time &&
-      !app.status.startsWith('canceled')
+    app => app.date === appointment.date && app.time && !app.status.startsWith('canceled')
   );
-
-  // Sort by time
   sameDayAppointments.sort((a, b) => (a.time || '').localeCompare(b.time || ''));
 
-  // Find the index of the current appointment
   const currentIndex = sameDayAppointments.findIndex(app => app.id === appointment.id);
-
-  // If it's the first appointment, no conflict
   if (currentIndex <= 0) return 'ok';
 
-  // Get the previous appointment
   const previousAppointment = sameDayAppointments[currentIndex - 1];
   if (!previousAppointment.time) return 'ok';
 
-  // Calculate end time of previous appointment
   const prevEndTime = addMinutes(previousAppointment.time, previousAppointment.duration);
 
-  // Check for conflict
   if (appointment.time < prevEndTime) {
     return 'conflict';
   }
-
-  // Check for tight schedule (no pause or less than 5 minutes)
   const prevEndTimePlus5 = addMinutes(prevEndTime, 5);
   if (appointment.time <= prevEndTimePlus5) {
     return 'tight';
   }
-
   return 'ok';
 }
 
 /**
  * Auto-plan: Generate planned appointments for students based on preferred schedules.
  * Returns new appointments (does NOT modify data directly).
+ * Lunch breaks are intentionally ignored – auto-plan only avoids existing appointments.
  */
 export function autoPlanStudents(
   students: Student[],
@@ -99,25 +83,20 @@ export function autoPlanStudents(
     const preferredSchedules = student.preferredSchedule || [];
 
     if (preferredSchedules.length > 0) {
-      // Use all preferred schedules
       preferredSchedules.forEach(schedule => {
         for (let week = 0; week < weeks; week++) {
           const appointmentDate = new Date(startDate);
           appointmentDate.setDate(startDate.getDate() + week * 7);
-
-          // Adjust to the preferred weekday
           const currentDay = appointmentDate.getDay() || 7;
           const dayDiff = schedule.dayOfWeek - currentDay;
           appointmentDate.setDate(appointmentDate.getDate() + dayDiff);
 
-          // Check biweekly rhythm
           const rhythm = schedule.rhythm || student.rhythm;
           if (rhythm === 'biweekly') {
             const weekNumber = getWeekNumber(appointmentDate);
             if (weekNumber % 2 !== 0) continue;
           }
 
-          // Check if appointment already exists
           const dateStr = formatDateLocal(appointmentDate);
           const existing = existingAppointments.find(
             a => a.date === dateStr && a.studentIds.includes(student.id)
@@ -135,13 +114,9 @@ export function autoPlanStudents(
         }
       });
     } else {
-      // Find the student's usual weekday from existing appointments
       let usualWeekday = 1;
       let usualTime = '09:00';
-      const studentAppts = existingAppointments.filter(a =>
-        a.studentIds.includes(student.id)
-      );
-
+      const studentAppts = existingAppointments.filter(a => a.studentIds.includes(student.id));
       if (studentAppts.length > 0) {
         const weekdayCount: Record<number, number> = {};
         studentAppts.forEach(appt => {
@@ -149,34 +124,25 @@ export function autoPlanStudents(
           const wd = d.getDay() || 7;
           weekdayCount[wd] = (weekdayCount[wd] || 0) + 1;
         });
-
-        let best = 1,
-          bestCount = 0;
+        let best = 1, bestCount = 0;
         Object.entries(weekdayCount).forEach(([wd, count]) => {
-          if (count > bestCount) {
-            bestCount = count;
-            best = parseInt(wd);
-          }
+          if (count > bestCount) { bestCount = count; best = parseInt(wd); }
         });
         usualWeekday = best;
       }
 
-      // Generate appointments for the specified number of weeks
       for (let week = 0; week < weeks; week++) {
         const appointmentDate = new Date(startDate);
         appointmentDate.setDate(startDate.getDate() + week * 7);
-
         const currentDay = appointmentDate.getDay() || 7;
         const dayDiff = usualWeekday - currentDay;
         appointmentDate.setDate(appointmentDate.getDate() + dayDiff);
 
-        // Check biweekly rhythm
         if (student.rhythm === 'biweekly') {
           const weekNumber = getWeekNumber(appointmentDate);
           if (weekNumber % 2 !== 0) continue;
         }
 
-        // Check if appointment already exists
         const dateStr = formatDateLocal(appointmentDate);
         const existing = existingAppointments.find(
           a => a.date === dateStr && a.studentIds.includes(student.id)
@@ -210,11 +176,24 @@ export function formatDateLocal(date: Date): string {
  */
 export interface TimeSlot {
   id: string;
-  date: string;       // YYYY-MM-DD
-  startTime: string;  // HH:MM
-  endTime: string;    // HH:MM
-  duration: number;   // minutes
+  date: string; // YYYY-MM-DD
+  startTime: string; // HH:MM
+  endTime: string; // HH:MM
+  duration: number; // minutes
   isPlaceholder: true;
+}
+
+/**
+ * Represents a break/blocker (e.g. lunch break) – rendered as a grey card.
+ * Not stored in data; derived from ScheduleSettings.
+ */
+export interface BreakBlock {
+  id: string;
+  date: string; // YYYY-MM-DD
+  startTime: string; // HH:MM
+  endTime: string; // HH:MM
+  duration: number; // minutes
+  label: string; // e.g. "Mittagspause"
 }
 
 /**
@@ -224,6 +203,7 @@ export interface TimeSlot {
  * - Fills the time window (start..end) with slots, preferring `slotDuration` minutes
  * - Leaves `breakMinutes` pause between slots AND existing appointments
  * - Existing appointments create "occupied" blocks; gaps around them are filled
+ * - Break blocks (e.g. lunch) are treated as occupied time – no slots overlap them
  * - If a gap is too small for slotDuration, tries 60 min, then the remaining gap
  * - Skips gaps shorter than 30 minutes
  */
@@ -233,7 +213,9 @@ export function generateTimeSlots(
   dayStart: string,
   dayEnd: string,
   slotDuration: number = 90,
-  breakMinutes: number = 10
+  breakMinutes: number = 10,
+  breakStart?: string, // e.g. "12:10" – lunch break start
+  breakEnd?: string,   // e.g. "13:00" – lunch break end
 ): TimeSlot[] {
   const slots: TimeSlot[] = [];
 
@@ -251,6 +233,15 @@ export function generateTimeSlots(
     blocks.push({ start, end });
   }
 
+  // Add lunch break as an occupied block (if configured)
+  if (breakStart && breakEnd) {
+    const bs = timeToMinutes(breakStart);
+    const be = timeToMinutes(breakEnd);
+    if (be > bs) {
+      blocks.push({ start: bs, end: be });
+    }
+  }
+
   // Merge overlapping blocks
   blocks.sort((a, b) => a.start - b.start);
   const merged: Block[] = [];
@@ -263,15 +254,47 @@ export function generateTimeSlots(
   }
 
   // Expand blocks by breakMinutes on each side (don't overlap with slots)
-  const occupied: Block[] = merged.map(b => ({
+  // BUT: don't expand break blocks (lunch) – they already have clear boundaries
+  const occupied: Block[] = [];
+
+  // Re-check: we need to know which blocks are break blocks vs appointment blocks
+  // Easiest approach: expand appointment blocks, add break blocks as-is,
+  // then merge everything
+  const apptBlocks: Block[] = [];
+  for (const appt of dayAppts) {
+    const start = timeToMinutes(appt.time!);
+    const end = start + appt.duration;
+    apptBlocks.push({ start, end });
+  }
+  // Sort and merge appointment blocks
+  apptBlocks.sort((a, b) => a.start - b.start);
+  const mergedApptBlocks: Block[] = [];
+  for (const block of apptBlocks) {
+    if (mergedApptBlocks.length > 0 && block.start <= mergedApptBlocks[mergedApptBlocks.length - 1].end) {
+      mergedApptBlocks[mergedApptBlocks.length - 1].end = Math.max(mergedApptBlocks[mergedApptBlocks.length - 1].end, block.end);
+    } else {
+      mergedApptBlocks.push({ ...block });
+    }
+  }
+  // Expand appointment blocks by breakMinutes
+  const expandedApptBlocks: Block[] = mergedApptBlocks.map(b => ({
     start: Math.max(0, b.start - breakMinutes),
     end: b.end + breakMinutes,
   }));
 
-  // Merge occupied blocks again after expansion
-  occupied.sort((a, b) => a.start - b.start);
+  // Add break block (lunch) as-is – no extra breakMinutes padding
+  if (breakStart && breakEnd) {
+    const bs = timeToMinutes(breakStart);
+    const be = timeToMinutes(breakEnd);
+    if (be > bs) {
+      expandedApptBlocks.push({ start: bs, end: be });
+    }
+  }
+
+  // Merge everything together
+  expandedApptBlocks.sort((a, b) => a.start - b.start);
   const mergedOccupied: Block[] = [];
-  for (const block of occupied) {
+  for (const block of expandedApptBlocks) {
     if (mergedOccupied.length > 0 && block.start <= mergedOccupied[mergedOccupied.length - 1].end) {
       mergedOccupied[mergedOccupied.length - 1].end = Math.max(mergedOccupied[mergedOccupied.length - 1].end, block.end);
     } else {
@@ -282,7 +305,6 @@ export function generateTimeSlots(
   // Find free gaps between dayStart and dayEnd
   const windowStart = timeToMinutes(dayStart);
   const windowEnd = timeToMinutes(dayEnd);
-
   const gaps: Block[] = [];
   let cursor = windowStart;
 
@@ -302,13 +324,8 @@ export function generateTimeSlots(
     let pos = gap.start;
     while (pos + 30 <= gap.end) { // minimum 30 min to be useful
       let dur = slotDuration;
-
-      // Remaining space in gap (including break after this slot)
       const remaining = gap.end - pos;
-      const availableWithBreak = remaining >= dur + breakMinutes
-        ? dur
-        : remaining - breakMinutes;
-
+      const availableWithBreak = remaining >= dur + breakMinutes ? dur : remaining - breakMinutes;
       if (availableWithBreak >= dur) {
         dur = slotDuration;
       } else if (remaining >= 60 + breakMinutes || (remaining >= 60 && pos + 60 <= gap.end)) {
@@ -318,12 +335,9 @@ export function generateTimeSlots(
       } else {
         dur = remaining;
       }
-
       if (dur < 30) break; // too short
-
       const startTime = minutesToTime(pos);
       const endTime = minutesToTime(pos + dur);
-
       slots.push({
         id: `slot-${dateStr}-${slotIndex++}`,
         date: dateStr,
@@ -332,12 +346,38 @@ export function generateTimeSlots(
         duration: dur,
         isPlaceholder: true,
       });
-
       pos += dur + breakMinutes;
     }
   }
-
   return slots;
+}
+
+/**
+ * Get break blocks for a given day based on ScheduleSettings.
+ * Returns an empty array if no break is configured for that day type.
+ */
+export function getBreakBlocks(
+  dateStr: string,
+  scheduleSettings: import('@/types').ScheduleSettings,
+): BreakBlock[] {
+  const isWe = isWeekend(dateStr);
+  const breakStart = isWe ? scheduleSettings.weekendBreakStart : scheduleSettings.weekdayBreakStart;
+  const breakEnd = isWe ? scheduleSettings.weekendBreakEnd : scheduleSettings.weekdayBreakEnd;
+
+  if (!breakStart || !breakEnd) return [];
+
+  const bs = timeToMinutes(breakStart);
+  const be = timeToMinutes(breakEnd);
+  if (be <= bs) return [];
+
+  return [{
+    id: `break-${dateStr}`,
+    date: dateStr,
+    startTime: breakStart,
+    endTime: breakEnd,
+    duration: be - bs,
+    label: 'Mittagspause',
+  }];
 }
 
 /**
@@ -358,7 +398,7 @@ export function minutesToTime(minutes: number): string {
 }
 
 /**
- * Get default schedule settings.
+ * Get default schedule settings (including lunch break defaults).
  */
 export function getDefaultScheduleSettings(): import('@/types').ScheduleSettings {
   return {
@@ -368,6 +408,10 @@ export function getDefaultScheduleSettings(): import('@/types').ScheduleSettings
     weekendEnd: '14:00',
     slotDuration: 90,
     breakMinutes: 10,
+    weekdayBreakStart: '12:10',
+    weekdayBreakEnd: '13:00',
+    weekendBreakStart: '',
+    weekendBreakEnd: '',
   };
 }
 

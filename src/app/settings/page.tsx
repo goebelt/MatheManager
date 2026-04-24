@@ -1,10 +1,10 @@
 /**
- * Settings Page - Manage invoice letterhead, bank details, and schedule time windows
+ * Settings Page - Manage invoice letterhead, bank details, and schedule time windows + breaks
  */
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Save, Building2, Mail, Phone, MapPin, FileText, CreditCard, AlertTriangle, Download, Upload, Clock } from 'lucide-react';
+import { Save, Building2, Mail, Phone, MapPin, FileText, CreditCard, AlertTriangle, Download, Upload, Clock, Coffee } from 'lucide-react';
 import type { InvoiceSettings, ScheduleSettings } from '@/types';
 import { getDefaultScheduleSettings } from '@/lib/scheduling';
 
@@ -174,6 +174,7 @@ export default function SettingsPage() {
 
       <main className="max-w-3xl mx-auto px-4 py-6">
         <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl shadow-sm">
+
           {/* Business Info */}
           <div className="p-6 border-b border-gray-100 dark:border-slate-700">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2 pb-2 border-b border-gray-100 dark:border-slate-700">
@@ -221,7 +222,7 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          {/* Optional: Tax */}
+          {/* Tax */}
           <div className="p-6 border-b border-gray-100 dark:border-slate-700">
             <p className="text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
               <FileText size={14} /> Steuer & Rechnungswesen
@@ -297,7 +298,7 @@ export default function SettingsPage() {
               <Clock size={18} /> Terminplanung – Zeitfenster
             </h2>
             <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">
-              Konfiguriere die Zeitfenster für die Platzhalter in der Terminansicht. Die Auto-Plan-Funktion ignoriert Platzhalter.
+              Konfiguriere die Zeitfenster für die Platzhalter in der Terminansicht. Die Auto-Plan-Funktion ignoriert Platzhalter und Pausen.
             </p>
 
             {/* Weekday (Mon–Fri) */}
@@ -356,6 +357,58 @@ export default function SettingsPage() {
                   onChange={(e) => setScheduleSettings({ ...scheduleSettings, breakMinutes: parseInt(e.target.value) || 10 })} min={0} max={60}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500" />
                 <p className="text-xs text-gray-500 dark:text-slate-400 mt-1"> Pause zwischen Slots und bestehenden Terminen </p>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Lunch Break / Break Blocker ── */}
+          <div className="p-6 border-b border-gray-100 dark:border-slate-700">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2 pb-2 border-b border-gray-100 dark:border-slate-700">
+              <Coffee size={18} /> Mittagspause / Pausenblocker
+            </h2>
+            <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">
+              Definiere eine Pause, die als grauer Blocker in der Terminansicht angezeigt wird. Platzhalter werden darum herum eingefügt. Die Auto-Plan-Funktion wird davon nicht beeinflusst. Leer lassen = keine Pause.
+            </p>
+
+            {/* Weekday break */}
+            <div className="mb-6">
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-3"> Montag – Freitag </h3>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5"> Pausen-Beginn </label>
+                  <input type="time" value={scheduleSettings.weekdayBreakStart}
+                    onChange={(e) => setScheduleSettings({ ...scheduleSettings, weekdayBreakStart: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500" />
+                  <p className="text-xs text-gray-500 dark:text-slate-400 mt-1"> z.B. 12:10 – leer = keine Pause </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5"> Pausen-Ende </label>
+                  <input type="time" value={scheduleSettings.weekdayBreakEnd}
+                    onChange={(e) => setScheduleSettings({ ...scheduleSettings, weekdayBreakEnd: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500" />
+                  <p className="text-xs text-gray-500 dark:text-slate-400 mt-1"> z.B. 13:00 – leer = keine Pause </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Weekend break */}
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-3"> Samstag – Sonntag </h3>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5"> Pausen-Beginn </label>
+                  <input type="time" value={scheduleSettings.weekendBreakStart}
+                    onChange={(e) => setScheduleSettings({ ...scheduleSettings, weekendBreakStart: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500" />
+                  <p className="text-xs text-gray-500 dark:text-slate-400 mt-1"> Leer = keine Pause am Wochenende </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5"> Pausen-Ende </label>
+                  <input type="time" value={scheduleSettings.weekendBreakEnd}
+                    onChange={(e) => setScheduleSettings({ ...scheduleSettings, weekendBreakEnd: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500" />
+                  <p className="text-xs text-gray-500 dark:text-slate-400 mt-1"> Leer = keine Pause am Wochenende </p>
+                </div>
               </div>
             </div>
           </div>

@@ -33,7 +33,7 @@ export interface PriceEntry {
   studentIds: string[]; // Mehrere Schüler können zugeordnet werden (leeres Array = Standardpreis)
   // Feste Preise für die 4 Kombinationen
   individual60: number; // Preis für 60 Minuten Einzelunterricht
-  individual90: number; // Preis für 90 Minuten Einzelunterricht
+  individual90: number; // Preis für 90 Minuten Gruppenunterricht
   group60: number; // Preis für 60 Minuten Gruppenunterricht
   group90: number; // Preis für 90 Minuten Gruppenunterricht
   validFrom: string; // ISO Date
@@ -73,15 +73,19 @@ export interface PricePeriod {
 }
 
 /**
- * Schedule display settings – configurable time windows
+ * Schedule display settings – configurable time windows and break blocks
  */
 export interface ScheduleSettings {
-  weekdayStart: string;  // "HH:MM" e.g. "08:00"
-  weekdayEnd: string;    // "HH:MM" e.g. "20:00"
-  weekendStart: string;  // "HH:MM" e.g. "09:00"
-  weekendEnd: string;    // "HH:MM" e.g. "14:00"
-  slotDuration: number;  // preferred slot in minutes, default 90
-  breakMinutes: number;  // pause between slots, default 10
+  weekdayStart: string; // "HH:MM" e.g. "08:00"
+  weekdayEnd: string; // "HH:MM" e.g. "20:00"
+  weekendStart: string; // "HH:MM" e.g. "09:00"
+  weekendEnd: string; // "HH:MM" e.g. "14:00"
+  slotDuration: number; // preferred slot in minutes, default 90
+  breakMinutes: number; // pause between slots, default 10
+  weekdayBreakStart: string; // "HH:MM" e.g. "12:10" (empty = no break)
+  weekdayBreakEnd: string; // "HH:MM" e.g. "13:00" (empty = no break)
+  weekendBreakStart: string; // "HH:MM" e.g. "" (empty = no break on weekends)
+  weekendBreakEnd: string; // "HH:MM" e.g. "" (empty = no break on weekends)
 }
 
 /**

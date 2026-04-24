@@ -1,6 +1,6 @@
 /**
  * Appointments Management Page - Create, edit, delete appointments
- * Includes clickable placeholder slots for free time windows
+ * Includes clickable placeholder slots and break blockers (e.g. lunch)
  */
 'use client';
 
@@ -8,7 +8,7 @@ import { useState, useEffect, useMemo } from 'react';
 import {
   Calendar, Plus, Edit2, Trash2, X, ChevronLeft, ChevronRight,
   Clock, User, Save, AlertCircle, Sparkles, Check, AlertTriangle, CheckCircle,
-  CalendarPlus,
+  CalendarPlus, Coffee,
 } from 'lucide-react';
 import type { Student, Appointment, DataContainer, ScheduleSettings } from '@/types';
 import {
@@ -18,9 +18,11 @@ import {
   formatDateLocal,
   autoPlanStudents,
   generateTimeSlots,
+  getBreakBlocks,
   getDefaultScheduleSettings,
   isWeekend,
   type TimeSlot,
+  type BreakBlock,
 } from '@/lib/scheduling';
 
 export default function AppointmentsPage() {
@@ -49,7 +51,6 @@ export default function AppointmentsPage() {
 
   useEffect(() => { loadData(); }, []);
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
@@ -240,6 +241,8 @@ export default function AppointmentsPage() {
       const isWe = isWeekend(dateStr);
       const start = isWe ? scheduleSettings.weekendStart : scheduleSettings.weekdayStart;
       const end = isWe ? scheduleSettings.weekendEnd : scheduleSettings.weekdayEnd;
+      const breakStart = isWe ? scheduleSettings.weekendBreakStart : scheduleSettings.weekdayBreakStart;
+      const breakEnd = isWe ? scheduleSettings.weekendBreakEnd : scheduleSettings.weekdayBreakEnd;
       const slots = generateTimeSlots(
         dateStr,
         filteredAppointments,
@@ -247,6 +250,8 @@ export default function AppointmentsPage() {
         end,
         scheduleSettings.slotDuration,
         scheduleSettings.breakMinutes,
+        breakStart || undefined,
+        breakEnd || undefined,
       );
       map.set(dateStr, slots);
     }
@@ -260,11 +265,6 @@ export default function AppointmentsPage() {
     setCurrentDate(prev => { const date = new Date(prev); date.setDate(date.getDate() + 7); return date; });
   };
   const handleCurrentWeek = () => { setCurrentDate(new Date()); };
-
-  const formatDate = (dateStr: string): string => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' });
-  };
 
   const getWeekNumber = getWeekNumberUtil;
   const getAppointmentStatus = getAppointmentStatusUtil;
@@ -282,9 +282,10 @@ export default function AppointmentsPage() {
 
   type DayItem =
     | { kind: 'appointment'; appointment: Appointment }
-    | { kind: 'slot'; slot: TimeSlot };
+    | { kind: 'slot'; slot: TimeSlot }
+    | { kind: 'break'; block: BreakBlock };
 
-  /** Reusable student multi-select dropdown (used inside modal) */
+  /** Reusable student multi-select dropdown */
   const StudentDropdown = () => (
     <div className="student-dropdown-container">
       <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1"> Schüler * </label>
@@ -545,7 +546,7 @@ export default function AppointmentsPage() {
       )}
 
       <main className="max-w-5xl mx-auto px-4 py-6">
-        {/* Week Calendar View with Placeholders */}
+        {/* Week Calendar View with Placeholders & Breaks */}
         <div className="grid grid-cols-7 gap-4">
           {(() => {
             const weekDays = [
@@ -565,14 +566,17 @@ export default function AppointmentsPage() {
 
               const dayAppointments = filteredAppointments.filter(a => a.date === dateStr);
               const daySlots = weekDaySlotMap.get(dateStr) || [];
+              const dayBreaks = getBreakBlocks(dateStr, scheduleSettings);
 
               const items: DayItem[] = [
                 ...dayAppointments.map(a => ({ kind: 'appointment' as const, appointment: a })),
                 ...daySlots.map(s => ({ kind: 'slot' as const, slot: s })),
+                ...dayBreaks.map(b => ({ kind: 'break' as const, block: b })),
               ];
+
               items.sort((a, b) => {
-                const timeA = a.kind === 'appointment' ? (a.appointment.time || '99:99') : a.slot.startTime;
-                const timeB = b.kind === 'appointment' ? (b.appointment.time || '99:99') : b.slot.startTime;
+                const timeA = a.kind === 'appointment' ? (a.appointment.time || '99:99') : a.kind === 'break' ? a.block.startTime : a.slot.startTime;
+                const timeB = b.kind === 'appointment' ? (b.appointment.time || '99:99') : b.kind === 'break' ? b.block.startTime : b.slot.startTime;
                 return timeA.localeCompare(timeB);
               });
 
@@ -586,119 +590,144 @@ export default function AppointmentsPage() {
                       Keine Termine
                     </div>
                   ) : (
-                    items.map(item =>
-                      item.kind === 'slot' ? (
-                        /* ── Placeholder Slot ── */
-                        <div key={item.slot.id}
-                          onClick={() => handleSlotClick(item.slot)}
-                          className="bg-white dark:bg-slate-800 border-2 border-dashed border-green-300 dark:border-green-700 rounded-xl shadow-sm cursor-pointer hover:bg-green-50 dark:hover:bg-green-900/20 hover:border-green-400 dark:hover:border-green-500 transition-all overflow-hidden group">
-                          <div className="px-4 py-3">
-                            <div className="flex items-center gap-2">
-                              <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-green-50 dark:bg-green-900/30 text-green-500 group-hover:bg-green-100 dark:group-hover:bg-green-900/50 transition-colors">
-                                <CalendarPlus size={18} />
-                              </div>
-                              <div>
-                                <h3 className="font-semibold text-base text-green-700 dark:text-green-400">
-                                  {item.slot.startTime} – {item.slot.endTime}
-                                </h3>
-                                <p className="text-xs text-green-600 dark:text-green-500">
-                                  Frei • {item.slot.duration} Min
-                                </p>
+                    items.map(item => {
+                      if (item.kind === 'break') {
+                        /* ── Break Blocker (e.g. Mittagspause) ── */
+                        const block = item.block;
+                        return (
+                          <div key={block.id}
+                            className="bg-gray-200 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-xl overflow-hidden">
+                            <div className="px-4 py-3">
+                              <div className="flex items-center gap-2">
+                                <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-gray-300 dark:bg-slate-600 text-gray-600 dark:text-slate-300">
+                                  <Coffee size={18} />
+                                </div>
+                                <div>
+                                  <h3 className="font-semibold text-base text-gray-600 dark:text-slate-300">
+                                    {block.startTime} – {block.endTime}
+                                  </h3>
+                                  <p className="text-xs text-gray-500 dark:text-slate-400">
+                                    {block.label} • {block.duration} Min
+                                  </p>
+                                </div>
                               </div>
                             </div>
                           </div>
-                        </div>
-                      ) : (
-                        /* ── Real Appointment ── */
-                        (() => {
-                          const appointment = item.appointment;
-                          const students = getStudentsForAppointment(appointment.studentIds);
-                          const status = getAppointmentStatus(appointment, filteredAppointments);
-                          return (
-                            <div key={appointment.id}
-                              className={`bg-white dark:bg-slate-800 border rounded-xl shadow-sm overflow-hidden cursor-pointer hover:shadow-md transition-shadow ${
-                                appointment.status.startsWith('canceled') ? 'border-gray-300 dark:border-slate-600 opacity-60'
-                                : status === 'conflict' ? 'border-red-500 dark:border-red-500'
-                                : status === 'tight' ? 'border-yellow-500 dark:border-yellow-500'
-                                : 'border-gray-200 dark:border-slate-700'
-                              }`}
-                              onClick={() => handleEditAppointment(appointment)}>
-                              <div className={`px-4 py-3 border-b ${
-                                appointment.status.startsWith('canceled') ? 'bg-gray-50 dark:bg-slate-700/50 border-gray-200 dark:border-slate-700'
-                                : 'bg-gray-50 dark:bg-slate-700/50 border-gray-200 dark:border-slate-700'
-                              }`}>
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-2">
-                                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                                      appointment.status === 'planned' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600'
-                                      : appointment.status.startsWith('canceled') ? 'bg-gray-200 dark:bg-slate-600 text-gray-500'
-                                      : 'bg-green-100 dark:bg-green-900/30 text-green-600'
-                                    }`}>
-                                      <Clock size={18} />
-                                    </div>
-                                    <h3 className={`font-semibold text-base ${
-                                      appointment.status.startsWith('canceled') ? 'text-gray-500 dark:text-gray-400' : 'text-gray-900 dark:text-white'
-                                    }`}>
-                                      {appointment.time || '--:--'}
-                                    </h3>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    {appointment.status === 'planned' && (
-                                      <button onClick={(e) => { e.stopPropagation(); handleDeleteAppointment(appointment.id); }}
-                                        className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors" title="Löschen">
-                                        <Trash2 size={18} />
-                                      </button>
-                                    )}
-                                  </div>
+                        );
+                      }
+
+                      if (item.kind === 'slot') {
+                        /* ── Placeholder Slot ── */
+                        return (
+                          <div key={item.slot.id}
+                            onClick={() => handleSlotClick(item.slot)}
+                            className="bg-white dark:bg-slate-800 border-2 border-dashed border-green-300 dark:border-green-700 rounded-xl shadow-sm cursor-pointer hover:bg-green-50 dark:hover:bg-green-900/20 hover:border-green-400 dark:hover:border-green-500 transition-all overflow-hidden group">
+                            <div className="px-4 py-3">
+                              <div className="flex items-center gap-2">
+                                <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-green-50 dark:bg-green-900/30 text-green-500 group-hover:bg-green-100 dark:group-hover:bg-green-900/50 transition-colors">
+                                  <CalendarPlus size={18} />
                                 </div>
-                                <div className={`flex items-center gap-1 text-sm mt-2 ${
-                                  appointment.status.startsWith('canceled') ? 'text-gray-400 dark:text-gray-500' : 'text-gray-500 dark:text-slate-400'
-                                }`}>
-                                  {!appointment.status.startsWith('canceled') && (
-                                    <>
-                                      {status === 'conflict' && <span title="Konflikt"><AlertTriangle size={16} className="text-red-500" /></span>}
-                                      {status === 'tight' && <span title="Keine Pause"><AlertTriangle size={16} className="text-yellow-500" /></span>}
-                                      {status === 'ok' && <span title="Termin passt"><CheckCircle size={16} className="text-green-500" /></span>}
-                                    </>
-                                  )}
-                                  <span>{appointment.duration} Min</span>
-                                </div>
-                                <div className={`text-sm mt-1 ${
-                                  appointment.status === 'attended' ? 'text-green-600'
-                                  : appointment.status === 'canceled_paid' ? 'text-orange-600'
-                                  : appointment.status === 'canceled_free' ? 'text-red-600'
-                                  : 'text-blue-600'
-                                }`}>
-                                  {appointment.status === 'attended' ? 'Besucht'
-                                    : appointment.status === 'canceled_paid' ? 'Abgesagt (bezahlt)'
-                                    : appointment.status === 'canceled_free' ? 'Abgesagt (kostenlos)'
-                                    : 'Geplant'}
-                                </div>
-                              </div>
-                              <div className={`p-4 ${appointment.status.startsWith('canceled') ? 'opacity-60' : ''}`}>
-                                <div className="flex items-center gap-2 mb-2">
-                                  <User size={16} className={`text-gray-500 ${appointment.status.startsWith('canceled') ? 'text-gray-400' : ''}`} />
-                                  <span className={`text-sm font-medium ${
-                                    appointment.status.startsWith('canceled') ? 'text-gray-400 dark:text-gray-500' : 'text-gray-700 dark:text-slate-300'
-                                  }`}>
-                                    {students.length} Schüler:
-                                  </span>
-                                </div>
-                                <div className="flex flex-wrap gap-1">
-                                  {students.map(student => (
-                                    <span key={student.id} className={`px-2 py-1 rounded text-sm ${
-                                      appointment.status.startsWith('canceled') ? 'bg-gray-100 dark:bg-slate-600 text-gray-400 dark:text-gray-500' : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
-                                    }`}>
-                                      {student.firstName} {student.lastName || ''}
-                                    </span>
-                                  ))}
+                                <div>
+                                  <h3 className="font-semibold text-base text-green-700 dark:text-green-400">
+                                    {item.slot.startTime} – {item.slot.endTime}
+                                  </h3>
+                                  <p className="text-xs text-green-600 dark:text-green-500">
+                                    Frei • {item.slot.duration} Min
+                                  </p>
                                 </div>
                               </div>
                             </div>
-                          );
-                        })()
-                      )
-                    )
+                          </div>
+                        );
+                      }
+
+                      /* ── Real Appointment ── */
+                      const appointment = item.appointment;
+                      const students = getStudentsForAppointment(appointment.studentIds);
+                      const status = getAppointmentStatus(appointment, filteredAppointments);
+                      return (
+                        <div key={appointment.id}
+                          className={`bg-white dark:bg-slate-800 border rounded-xl shadow-sm overflow-hidden cursor-pointer hover:shadow-md transition-shadow ${
+                            appointment.status.startsWith('canceled') ? 'border-gray-300 dark:border-slate-600 opacity-60'
+                            : status === 'conflict' ? 'border-red-500 dark:border-red-500'
+                            : status === 'tight' ? 'border-yellow-500 dark:border-yellow-500'
+                            : 'border-gray-200 dark:border-slate-700'
+                          }`}
+                          onClick={() => handleEditAppointment(appointment)}>
+                          <div className={`px-4 py-3 border-b ${
+                            appointment.status.startsWith('canceled') ? 'bg-gray-50 dark:bg-slate-700/50 border-gray-200 dark:border-slate-700'
+                            : 'bg-gray-50 dark:bg-slate-700/50 border-gray-200 dark:border-slate-700'
+                          }`}>
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                                  appointment.status === 'planned' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600'
+                                  : appointment.status.startsWith('canceled') ? 'bg-gray-200 dark:bg-slate-600 text-gray-500'
+                                  : 'bg-green-100 dark:bg-green-900/30 text-green-600'
+                                }`}>
+                                  <Clock size={18} />
+                                </div>
+                                <h3 className={`font-semibold text-base ${
+                                  appointment.status.startsWith('canceled') ? 'text-gray-500 dark:text-gray-400' : 'text-gray-900 dark:text-white'
+                                }`}>
+                                  {appointment.time || '--:--'}
+                                </h3>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {appointment.status === 'planned' && (
+                                  <button onClick={(e) => { e.stopPropagation(); handleDeleteAppointment(appointment.id); }}
+                                    className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors" title="Löschen">
+                                    <Trash2 size={18} />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                            <div className={`flex items-center gap-1 text-sm mt-2 ${
+                              appointment.status.startsWith('canceled') ? 'text-gray-400 dark:text-gray-500' : 'text-gray-500 dark:text-slate-400'
+                            }`}>
+                              {!appointment.status.startsWith('canceled') && (
+                                <>
+                                  {status === 'conflict' && <span title="Konflikt"><AlertTriangle size={16} className="text-red-500" /></span>}
+                                  {status === 'tight' && <span title="Keine Pause"><AlertTriangle size={16} className="text-yellow-500" /></span>}
+                                  {status === 'ok' && <span title="Termin passt"><CheckCircle size={16} className="text-green-500" /></span>}
+                                </>
+                              )}
+                              <span>{appointment.duration} Min</span>
+                            </div>
+                            <div className={`text-sm mt-1 ${
+                              appointment.status === 'attended' ? 'text-green-600'
+                              : appointment.status === 'canceled_paid' ? 'text-orange-600'
+                              : appointment.status === 'canceled_free' ? 'text-red-600'
+                              : 'text-blue-600'
+                            }`}>
+                              {appointment.status === 'attended' ? 'Besucht'
+                                : appointment.status === 'canceled_paid' ? 'Abgesagt (bezahlt)'
+                                : appointment.status === 'canceled_free' ? 'Abgesagt (kostenlos)'
+                                : 'Geplant'}
+                            </div>
+                          </div>
+                          <div className={`p-4 ${appointment.status.startsWith('canceled') ? 'opacity-60' : ''}`}>
+                            <div className="flex items-center gap-2 mb-2">
+                              <User size={16} className={`text-gray-500 ${appointment.status.startsWith('canceled') ? 'text-gray-400' : ''}`} />
+                              <span className={`text-sm font-medium ${
+                                appointment.status.startsWith('canceled') ? 'text-gray-400 dark:text-gray-500' : 'text-gray-700 dark:text-slate-300'
+                              }`}>
+                                {students.length} Schüler:
+                              </span>
+                            </div>
+                            <div className="flex flex-wrap gap-1">
+                              {students.map(student => (
+                                <span key={student.id} className={`px-2 py-1 rounded text-sm ${
+                                  appointment.status.startsWith('canceled') ? 'bg-gray-100 dark:bg-slate-600 text-gray-400 dark:text-gray-500' : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                                }`}>
+                                  {student.firstName} {student.lastName || ''}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
                   )}
                 </div>
               );
