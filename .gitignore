@@ -29,7 +29,7 @@ yarn-error.log*
 node_modules/
 buildchain/node_modules/
 
-# Fix scripts (temporary)
+# Temporary fix/helper scripts (one-off, not for production)
 fix-*.js
 fix-*.ts
 fix-*.py
@@ -42,11 +42,17 @@ check-*.js
 scan-*.ps1
 update-*.js
 undo-*.js
+refactor-*.js
 rebuild.bat
 build-test.bat
+run-build.bat
 commit-push.ps1
+STRUCTURE_CHECK.md
 
-# Type definitions
+# Type definitions (auto-generated)
 next-env.d.ts
 src/next-env.d.ts
 src/global.d.ts
+
+# Coverage
+coverage/
