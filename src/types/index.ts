@@ -73,6 +73,18 @@ export interface PricePeriod {
 }
 
 /**
+ * Schedule display settings – configurable time windows
+ */
+export interface ScheduleSettings {
+  weekdayStart: string;  // "HH:MM" e.g. "08:00"
+  weekdayEnd: string;    // "HH:MM" e.g. "20:00"
+  weekendStart: string;  // "HH:MM" e.g. "09:00"
+  weekendEnd: string;    // "HH:MM" e.g. "14:00"
+  slotDuration: number;  // preferred slot in minutes, default 90
+  breakMinutes: number;  // pause between slots, default 10
+}
+
+/**
  * Database-like data container with metadata
  */
 export interface DataContainer {
@@ -83,6 +95,7 @@ export interface DataContainer {
   appointments: Appointment[];
   paymentStatuses?: PaymentStatus[]; // Bezahlstatus pro Schüler pro Termin
   invoiceSettings?: InvoiceSettings; // User's letterhead settings
+  scheduleSettings?: ScheduleSettings; // Time window config for placeholders
   lastUpdated?: string; // ISO timestamp
 }
 

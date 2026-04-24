@@ -204,3 +204,178 @@ export function autoPlanStudents(
 export function formatDateLocal(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
+
+/**
+ * Represents a free time slot placeholder (not a real appointment).
+ */
+export interface TimeSlot {
+  id: string;
+  date: string;       // YYYY-MM-DD
+  startTime: string;  // HH:MM
+  endTime: string;    // HH:MM
+  duration: number;   // minutes
+  isPlaceholder: true;
+}
+
+/**
+ * Generate free time slot placeholders for a single day.
+ *
+ * Rules:
+ * - Fills the time window (start..end) with slots, preferring `slotDuration` minutes
+ * - Leaves `breakMinutes` pause between slots AND existing appointments
+ * - Existing appointments create "occupied" blocks; gaps around them are filled
+ * - If a gap is too small for slotDuration, tries 60 min, then the remaining gap
+ * - Skips gaps shorter than 30 minutes
+ */
+export function generateTimeSlots(
+  dateStr: string,
+  existingAppointments: Appointment[],
+  dayStart: string,
+  dayEnd: string,
+  slotDuration: number = 90,
+  breakMinutes: number = 10
+): TimeSlot[] {
+  const slots: TimeSlot[] = [];
+
+  // Build occupied blocks from existing appointments (sorted by time)
+  const dayAppts = existingAppointments
+    .filter(a => a.date === dateStr && a.time)
+    .sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+
+  type Block = { start: number; end: number }; // minutes since 00:00
+  const blocks: Block[] = [];
+
+  for (const appt of dayAppts) {
+    const start = timeToMinutes(appt.time!);
+    const end = start + appt.duration;
+    blocks.push({ start, end });
+  }
+
+  // Merge overlapping blocks
+  blocks.sort((a, b) => a.start - b.start);
+  const merged: Block[] = [];
+  for (const block of blocks) {
+    if (merged.length > 0 && block.start <= merged[merged.length - 1].end) {
+      merged[merged.length - 1].end = Math.max(merged[merged.length - 1].end, block.end);
+    } else {
+      merged.push({ ...block });
+    }
+  }
+
+  // Expand blocks by breakMinutes on each side (don't overlap with slots)
+  const occupied: Block[] = merged.map(b => ({
+    start: Math.max(0, b.start - breakMinutes),
+    end: b.end + breakMinutes,
+  }));
+
+  // Merge occupied blocks again after expansion
+  occupied.sort((a, b) => a.start - b.start);
+  const mergedOccupied: Block[] = [];
+  for (const block of occupied) {
+    if (mergedOccupied.length > 0 && block.start <= mergedOccupied[mergedOccupied.length - 1].end) {
+      mergedOccupied[mergedOccupied.length - 1].end = Math.max(mergedOccupied[mergedOccupied.length - 1].end, block.end);
+    } else {
+      mergedOccupied.push({ ...block });
+    }
+  }
+
+  // Find free gaps between dayStart and dayEnd
+  const windowStart = timeToMinutes(dayStart);
+  const windowEnd = timeToMinutes(dayEnd);
+
+  const gaps: Block[] = [];
+  let cursor = windowStart;
+
+  for (const block of mergedOccupied) {
+    if (block.start > cursor) {
+      gaps.push({ start: cursor, end: Math.min(block.start, windowEnd) });
+    }
+    cursor = Math.max(cursor, block.end);
+  }
+  if (cursor < windowEnd) {
+    gaps.push({ start: cursor, end: windowEnd });
+  }
+
+  // Fill gaps with slots
+  let slotIndex = 0;
+  for (const gap of gaps) {
+    let pos = gap.start;
+    while (pos + 30 <= gap.end) { // minimum 30 min to be useful
+      let dur = slotDuration;
+
+      // Remaining space in gap (including break after this slot)
+      const remaining = gap.end - pos;
+      const availableWithBreak = remaining >= dur + breakMinutes
+        ? dur
+        : remaining - breakMinutes;
+
+      if (availableWithBreak >= dur) {
+        dur = slotDuration;
+      } else if (remaining >= 60 + breakMinutes || (remaining >= 60 && pos + 60 <= gap.end)) {
+        dur = 60;
+      } else if (remaining >= 60) {
+        dur = 60;
+      } else {
+        dur = remaining;
+      }
+
+      if (dur < 30) break; // too short
+
+      const startTime = minutesToTime(pos);
+      const endTime = minutesToTime(pos + dur);
+
+      slots.push({
+        id: `slot-${dateStr}-${slotIndex++}`,
+        date: dateStr,
+        startTime,
+        endTime,
+        duration: dur,
+        isPlaceholder: true,
+      });
+
+      pos += dur + breakMinutes;
+    }
+  }
+
+  return slots;
+}
+
+/**
+ * Convert "HH:MM" to minutes since midnight.
+ */
+export function timeToMinutes(time: string): number {
+  const [h, m] = time.split(':').map(Number);
+  return h * 60 + m;
+}
+
+/**
+ * Convert minutes since midnight to "HH:MM".
+ */
+export function minutesToTime(minutes: number): string {
+  const h = Math.floor(minutes / 60) % 24;
+  const m = minutes % 60;
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+}
+
+/**
+ * Get default schedule settings.
+ */
+export function getDefaultScheduleSettings(): import('@/types').ScheduleSettings {
+  return {
+    weekdayStart: '08:00',
+    weekdayEnd: '20:00',
+    weekendStart: '09:00',
+    weekendEnd: '14:00',
+    slotDuration: 90,
+    breakMinutes: 10,
+  };
+}
+
+/**
+ * Check if a date is a weekend day (Saturday=6 or Sunday=0 in JS).
+ */
+export function isWeekend(dateStr: string): boolean {
+  const d = new Date(dateStr + 'T12:00:00'); // midday to avoid UTC issues
+  const day = d.getDay();
+  return day === 0 || day === 6;
+}
