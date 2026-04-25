@@ -187,12 +187,13 @@ export interface BreakBlock {
  *
  * Rules:
  * - Fills the time window (start..end) with slots, preferring `slotDuration` minutes
- * - breakMinutes creates padding around REAL appointments only (not between placeholders)
+ * - breakMinutes creates padding around REAL appointments (not around break blocks)
+ * - breakMinutes pause between consecutive placeholder slots
+ * - NO break after the last slot in a gap (blocker/appointment provides separation)
  * - Break blocks (e.g. lunch) are treated as occupied time – no slots overlap them
  * - No extra padding around break blocks (slots can touch the break directly)
- * - If a gap is too small for slotDuration, tries 60 min, then the remaining gap
+ * - Last slot in a gap fills the full remaining space
  * - Skips gaps shorter than 30 minutes
- * - NO break between consecutive placeholder slots (they are suggestions, not bookings)
  */
 export function generateTimeSlots(
   dateStr: string,
@@ -274,7 +275,8 @@ export function generateTimeSlots(
   }
 
   // Fill gaps with placeholder slots
-  // NO break between consecutive placeholder slots – they are just suggestions
+  // breakMinutes pause between consecutive placeholders,
+  // but NO break after the last slot in a gap (the blocker/appointment provides separation)
   let slotIndex = 0;
   for (const gap of gaps) {
     let pos = gap.start;
@@ -282,10 +284,14 @@ export function generateTimeSlots(
       let dur = slotDuration;
       const remaining = gap.end - pos;
 
+      // Would there be room for another slot (≥30 min) after this one + break?
+      // If not, this is the last slot in the gap
+      const wouldBeLast = remaining < dur + breakMinutes + 30;
+
       if (remaining >= dur) {
         dur = slotDuration;
       } else {
-        dur = remaining; // Take the full remaining gap
+        dur = remaining; // Last slot fills the gap
       }
 
       if (dur < 30) break;
@@ -300,7 +306,12 @@ export function generateTimeSlots(
         duration: dur,
         isPlaceholder: true,
       });
-      pos += dur; // No break between placeholder slots
+
+      if (wouldBeLast) {
+        pos += dur; // Last slot – no break after (blocker provides separation)
+      } else {
+        pos += dur + breakMinutes; // Break between placeholder slots
+      }
     }
   }
   return slots;
