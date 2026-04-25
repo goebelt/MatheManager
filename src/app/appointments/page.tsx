@@ -556,7 +556,7 @@ export default function AppointmentsPage() {
               { name: 'Donnerstag', day: 4 },
               { name: 'Freitag', day: 5 },
               { name: 'Samstag', day: 6 },
-              { name: 'Sonntag', day: 0 },
+              { name: 'Sonntag', day: 7 },
             ];
             return weekDays.map((weekDay) => {
               const dayDate = new Date(weekStart);
