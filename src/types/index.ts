@@ -19,6 +19,7 @@ export interface Student {
   defaultDuration: number; // 60 oder 90 Minuten
   rhythm: 'weekly' | 'biweekly';
   preferredSchedule?: PreferredSchedule[]; // Bevorzugte Wochentage und Zeiten
+  inactive?: boolean; // Inaktive Schüler werden bei Auto-Plan übersprungen
 }
 
 export interface PreferredSchedule {

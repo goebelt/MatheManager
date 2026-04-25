@@ -25,7 +25,7 @@ Next.js App zur Verwaltung von Mathe-Nachhilfe mit Tailwind CSS. Verwalten Sie F
 - **Popup-Dialog** zum Erstellen/Bearbeiten von Terminen (universelles Modal)
 - Klickbare Termin-Karten zum Bearbeiten
 - Lösch-Button mit Konfliktvermeidung
-- Auto-Planung ignoriert Platzhalter und Pausenblocker
+- Auto-Planung ignoriert Platzhalter, Pausenblocker und **inaktive Schüler**
 
 ### Abrechnung
 - **Automatische Honorarberechnung** basierend auf Preis-Einträgen und gültigen Zeiträumen
@@ -55,6 +55,9 @@ Next.js App zur Verwaltung von Mathe-Nachhilfe mit Tailwind CSS. Verwalten Sie F
 - Verwaltung aller Schüler
 - Zuordnung zu Familien
 - Individuelle Preisregelungen möglich
+- **Aktiv/Inaktiv-Flag**: Inaktive Schüler werden bei Auto-Planung übersprungen
+- Inaktive Schüler werden ausgegraut dargestellt (durchgestrichener Name, „Inaktiv"-Badge)
+- Toggle-Button zum Aktivieren/Deaktivieren pro Schüler
 
 ### Familien
 - Verwaltung von Familien
@@ -106,7 +109,7 @@ npm run test:coverage # Mit Coverage-Report
 - **Business-Logik** ist in `src/lib/` Module extrahiert → reine Funktionen, keine React-Mocks nötig
 - **UI-Tests** nutzen `@testing-library/react` mit jsdom-Umgebung
 - **Datum-Handling** verwendet immer lokale Zeitzone (`new Date(y,m,d)`) um UTC-Offset-Bugs zu vermeiden
-- **Scheduling-Tests** decken ab: Slot-Generierung, Pausenlogik, Mittagsblocker, Auto-Planung, Zeit-Konvertierung
+- **Scheduling-Tests** decken ab: Slot-Generierung, Pausenlogik, Mittagsblocker, Auto-Planung, Inaktiv-Überspringung, Zeit-Konvertierung
 
 ## 🛠️ Technologie-Stack
 

@@ -67,6 +67,7 @@ export function autoPlanStudents(
   const newAppointments: Appointment[] = [];
 
   students.forEach(student => {
+    if (student.inactive) return; // Skip inactive students
     const preferredSchedules = student.preferredSchedule || [];
 
     if (preferredSchedules.length > 0) {

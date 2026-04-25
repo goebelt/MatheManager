@@ -99,6 +99,34 @@ describe('autoPlanStudents', () => {
     const result = autoPlanStudents(s, [], new Date(2026, 0, 5), 1);
     expect(result[0]?.time).toBe('09:00');
   });
+  it('skips inactive students', () => {
+    const s = [
+      { id: 's1', familyId: 'f1', firstName: 'Max', defaultDuration: 60, rhythm: 'weekly' as const, preferredSchedule: [{ dayOfWeek: 1, time: '14:00', rhythm: 'weekly' as const }] },
+      { id: 's2', familyId: 'f1', firstName: 'Anna', defaultDuration: 60, rhythm: 'weekly' as const, inactive: true, preferredSchedule: [{ dayOfWeek: 1, time: '15:00', rhythm: 'weekly' as const }] },
+    ];
+    const result = autoPlanStudents(s, [], new Date(2026, 0, 5), 2);
+    expect(result.length).toBe(2); // only Max, 2 weeks
+    expect(result.every(a => a.studentIds.includes('s1'))).toBe(true);
+    expect(result.some(a => a.studentIds.includes('s2'))).toBe(false);
+  });
+  it('skips all inactive students', () => {
+    const s = [
+      { id: 's1', familyId: 'f1', firstName: 'Max', defaultDuration: 60, rhythm: 'weekly' as const, inactive: true },
+      { id: 's2', familyId: 'f1', firstName: 'Anna', defaultDuration: 90, rhythm: 'weekly' as const, inactive: true },
+    ];
+    const result = autoPlanStudents(s, [], new Date(2026, 0, 5), 4);
+    expect(result).toEqual([]);
+  });
+  it('plans active students even when inactive ones exist', () => {
+    const s = [
+      { id: 's1', familyId: 'f1', firstName: 'Max', defaultDuration: 60, rhythm: 'weekly' as const, preferredSchedule: [{ dayOfWeek: 1, time: '10:00', rhythm: 'weekly' as const }] },
+      { id: 's2', familyId: 'f1', firstName: 'Inactive', defaultDuration: 90, rhythm: 'weekly' as const, inactive: true, preferredSchedule: [{ dayOfWeek: 2, time: '14:00', rhythm: 'weekly' as const }] },
+      { id: 's3', familyId: 'f2', firstName: 'Lisa', defaultDuration: 60, rhythm: 'weekly' as const, preferredSchedule: [{ dayOfWeek: 3, time: '16:00', rhythm: 'weekly' as const }] },
+    ];
+    const result = autoPlanStudents(s, [], new Date(2026, 0, 5), 1);
+    expect(result.length).toBe(2); // Max + Lisa, not Inactive
+    expect(result.every(a => !a.studentIds.includes('s2'))).toBe(true);
+  });
 });
 
 // ── timeToMinutes / minutesToTime ──
