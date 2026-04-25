@@ -48,6 +48,166 @@ export interface AppointmentPreviewData {
   dateRange: { from: string; to: string };
 }
 
+// ── Preview Template Component (used for both screen and print) ──
+
+function AppointmentPreviewTemplate({ preview }: { preview: AppointmentPreviewData }) {
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('de-DE', { year: 'numeric', month: '2-digit', day: '2-digit' });
+  };
+
+  return (
+    <div className="min-h-screen bg-white p-0 print:p-0 print:min-h-0">
+      <style>{`
+        @media print {
+          @page { size: A4; margin: 10mm; padding: 0; }
+          body { margin: 0; padding: 0; width: 210mm; height: 297mm; }
+          .print-break-avoid { page-break-inside: avoid; }
+          .print-break-after { page-break-after: always; }
+        }
+      `}</style>
+
+      {/* Preview Header */}
+      <header className="mb-4 border-b-4 border-blue-700 pb-3 print-break-avoid">
+        <div className="flex justify-between items-start mb-3">
+          <div className="flex-1">
+            <h1 className="text-xl font-bold uppercase tracking-wider mb-1">
+              {preview.issuedBy.name || 'MatheManager'}
+            </h1>
+            {preview.issuedBy.street && <p className="text-xs font-semibold uppercase">{preview.issuedBy.street}</p>}
+            {(preview.issuedBy.zipCode || preview.issuedBy.city) && (
+              <p className="text-xs font-semibold uppercase">{preview.issuedBy.zipCode} {preview.issuedBy.city}</p>
+            )}
+            {preview.issuedBy.email && <p className="text-xs mt-1">{preview.issuedBy.email}</p>}
+            {preview.issuedBy.phone && <p className="text-xs mt-1">{preview.issuedBy.phone}</p>}
+          </div>
+          <div className="text-right">
+            <h2 className="text-xl font-bold uppercase tracking-wider mb-1 text-blue-700">
+              TERMINVORSCHAU
+            </h2>
+            <p className="text-sm font-semibold">{formatDate(new Date().toISOString())}</p>
+            {preview.dateRange.from && preview.dateRange.to && (
+              <p className="text-xs text-gray-600 mt-1">
+                Zeitraum: {formatDate(preview.dateRange.from)} – {formatDate(preview.dateRange.to)}
+              </p>
+            )}
+          </div>
+        </div>
+        <div className="mt-3 pt-2 border-t-2 border-dashed border-blue-700">
+          <p className="text-xs uppercase font-bold mb-1">Terminliste & Zahlungsvorschau für:</p>
+          {preview.billedTo.name && <p className="text-base font-bold">{preview.billedTo.name}</p>}
+        </div>
+      </header>
+
+      {/* Preview Items Table */}
+      <div className="mb-4 print-break-avoid">
+        <table className="w-full border-collapse">
+          <thead>
+            <tr className="border-b-4 border-blue-700 bg-blue-50 print:bg-white">
+              <th className="text-left py-1 px-1.5 text-xs uppercase font-semibold tracking-wider" style={{ width: '16%' }}>
+                Datum / Zeit
+              </th>
+              <th className="text-left py-1 px-1.5 text-xs uppercase font-semibold tracking-wider" style={{ width: '16%' }}>
+                Schüler
+              </th>
+              <th className="text-left py-1 px-1.5 text-xs uppercase font-semibold tracking-wider" style={{ width: '14%' }}>
+                Typ
+              </th>
+              <th className="text-left py-1 px-1.5 text-xs uppercase font-semibold tracking-wider" style={{ width: '14%' }}>
+                Dauer
+              </th>
+              <th className="text-right py-1 px-1.5 text-xs uppercase font-semibold tracking-wider" style={{ width: '20%' }}>
+                Preis
+              </th>
+              <th className="text-right py-1 px-1.5 text-xs uppercase font-semibold tracking-wider" style={{ width: '20%' }}>
+                Gesamtpreis
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {preview.items.length > 0 ? (
+              preview.items.map((item, index) => (
+                <tr key={index} className="border-b border-dotted border-gray-300 hover:bg-blue-50 transition-colors print-break-avoid">
+                  <td className="py-1.5 px-1.5 text-xs">
+                    <div className="font-medium">{formatDate(item.date)}</div>
+                    <div className="text-gray-500 flex items-center gap-1">
+                      <Clock size={10} /> {item.time}
+                    </div>
+                  </td>
+                  <td className="py-1.5 px-1.5 text-xs font-medium">{item.studentName}</td>
+                  <td className="py-1.5 px-1.5 text-xs">
+                    {item.lessonType === 'group' ? (
+                      <span className="inline-flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span> Gruppe
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span> Einzel
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-1.5 px-1.5 text-xs">{item.duration} Min</td>
+                  <td className="py-1.5 px-1.5 text-xs text-right">&euro;{item.unitPrice.toFixed(2)}</td>
+                  <td className="py-1.5 px-1.5 text-xs text-right font-semibold">&euro;{item.totalPrice.toFixed(2)}</td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={6} className="py-3 px-2 text-center text-gray-400 italic">
+                  Keine geplanten Termine vorhanden
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Totals Section */}
+      <div className="flex justify-end mt-4 print-break-avoid">
+        <div className="w-[45%]">
+          <div className="flex justify-between py-1 border-b border-dotted border-gray-300">
+            <span className="text-xs font-medium text-gray-600">Voraussichtlicher Gesamtbetrag</span>
+            <span className="text-xs font-semibold">&euro;{preview.total.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between py-2 border-t-4 border-blue-700 mt-1">
+            <span className="text-base font-bold text-blue-700">Voraussichtliche Summe</span>
+            <span className="text-base font-bold text-blue-700">&euro;{preview.total.toFixed(2)}</span>
+          </div>
+          <div className="mt-2 text-center">
+            <p className="text-xs text-gray-600 italic">
+              Gemäß &sect;4 Nr. 21 bin ich von der Umsatzsteuer befreit.
+            </p>
+          </div>
+          <div className="mt-3 p-2 bg-blue-50 border border-blue-200 rounded-lg print-break-avoid">
+            <p className="text-xs font-semibold text-blue-700 mb-1">Hinweis:</p>
+            <p className="text-xs text-blue-600">
+              Dies ist eine Vorschau der geplanten Termine und voraussichtlichen Kosten.
+              Die tatsächliche Abrechnung erfolgt nach Durchführung der Termine.
+            </p>
+          </div>
+          {/* Action buttons – hidden in print */}
+          <div className="flex gap-2 mt-3 print:hidden">
+            <button onClick={() => window.print()}
+              className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-700 text-white font-medium rounded-lg hover:bg-blue-800 transition-colors text-xs">
+              <Printer size={12} /> Drucken
+            </button>
+            <button onClick={() => window.print()}
+              className="flex-1 flex items-center justify-center gap-2 px-3 py-2 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors text-xs">
+              <Download size={12} /> PDF
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className="mt-4 pt-2 border-t border-gray-200 text-center">
+        <p className="text-xs text-gray-500">
+          Diese Terminvorschau ist kein Rechnungsdokument. Die endgültige Abrechnung erfolgt separat.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 // ── Page Component ──
 
 export default function InvoicesPage() {
@@ -55,16 +215,12 @@ export default function InvoicesPage() {
   const [invoiceData, setInvoiceData] = useState<InvoiceData | null>(null);
   const [previewData, setPreviewData] = useState<AppointmentPreviewData | null>(null);
   const [loading, setLoading] = useState(true);
-
-  // Which view to show: 'invoice' or 'preview'
   const [activeView, setActiveView] = useState<'invoice' | 'preview'>('invoice');
 
-  // Filter states
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
 
-  // Student dropdown states
   const [studentDropdownOpen, setStudentDropdownOpen] = useState(false);
   const [studentFilter, setStudentFilter] = useState('');
 
@@ -128,50 +284,38 @@ export default function InvoicesPage() {
   // ── Filtered appointments for PREVIEW (ONLY planned) ──
   const plannedAppointments = useMemo(() => {
     let result = (data?.appointments || []).filter(app => app.status === 'planned');
-
-    // Date filter
     if (startDate && endDate) {
-      const start = new Date(startDate);
-      start.setHours(0, 0, 0, 0);
-      const end = new Date(endDate);
-      end.setHours(23, 59, 59, 999);
+      const start = new Date(startDate); start.setHours(0, 0, 0, 0);
+      const end = new Date(endDate); end.setHours(23, 59, 59, 999);
       result = result.filter(app => {
         const appDate = new Date(app.date);
         return appDate >= start && appDate <= end;
       });
     }
-
-    // Student filter
     if (selectedStudentIds.length > 0) {
       result = result.filter(app => app.studentIds.some(id => selectedStudentIds.includes(id)));
     }
-
-    // Sort by date + time
     result.sort((a, b) => {
       const dateCompare = a.date.localeCompare(b.date);
       if (dateCompare !== 0) return dateCompare;
       return (a.time || '').localeCompare(b.time || '');
     });
-
     return result;
   }, [data, selectedStudentIds, startDate, endDate]);
 
-  // ── Invoice items (existing logic) ──
+  // ── Invoice items ──
   const invoiceItems = useMemo(() => {
     if (!data) return [];
     const items: InvoiceItem[] = [];
     const seen = new Set<string>();
-
     filteredAppointments.forEach(appointment => {
       appointment.studentIds.forEach(studentId => {
         if (selectedStudentIds.length > 0 && !selectedStudentIds.includes(studentId)) return;
         const key = `${appointment.id}-${studentId}`;
         if (seen.has(key)) return;
         seen.add(key);
-
         const student = data.students.find(s => s.id === studentId);
         const lessonType = appointment.studentIds.length > 1 ? 'group' : 'individual';
-
         let priceEntry: PriceEntry | undefined;
         for (const entry of data.priceEntries || []) {
           if (new Date(appointment.date) >= new Date(entry.validFrom) && entry.studentIds && entry.studentIds.includes(studentId)) {
@@ -187,44 +331,27 @@ export default function InvoicesPage() {
             }
           }
         }
-
         let fee = calculateAppointmentFee(appointment, studentId, data.priceEntries || []);
         if (appointment.status === 'canceled_free') fee = 0;
-
-        const paymentStatus = (data?.paymentStatuses || []).find(
-          s => s.appointmentId === appointment.id && s.studentId === studentId
-        );
-
+        const paymentStatus = (data?.paymentStatuses || []).find(s => s.appointmentId === appointment.id && s.studentId === studentId);
         let description = lessonType === 'group' ? 'Gruppenunterricht' : 'Einzelunterricht';
         if (appointment.status === 'attended') description += ' (besucht)';
         else if (appointment.status === 'canceled_paid') description += ' (ausgefallen, 50%)';
         else if (appointment.status === 'canceled_free') description += ' (ausgefallen, kostenlos)';
         else if (appointment.status === 'planned') description += ' (geplant)';
-
         let hourlyRate = 0;
         if (priceEntry) {
           if (lessonType === 'individual') {
-            hourlyRate = appointment.duration === 90
-              ? (priceEntry.individual90 || 0) / 1.5
-              : (priceEntry.individual60 || 0);
+            hourlyRate = appointment.duration === 90 ? (priceEntry.individual90 || 0) / 1.5 : (priceEntry.individual60 || 0);
           } else {
-            hourlyRate = appointment.duration === 90
-              ? (priceEntry.group90 || 0) / 1.5
-              : (priceEntry.group60 || 0);
+            hourlyRate = appointment.duration === 90 ? (priceEntry.group90 || 0) / 1.5 : (priceEntry.group60 || 0);
           }
         }
-
         items.push({
-          appointmentId: appointment.id,
-          date: appointment.date,
+          appointmentId: appointment.id, date: appointment.date,
           studentName: student ? `${student.firstName} ${student.lastName || ''}`.trim() : 'Unknown',
-          lessonType,
-          status: appointment.status as 'attended' | 'canceled_paid' | 'canceled_free' | 'planned',
-          hourlyRate,
-          description,
-          unitPrice: fee,
-          quantity: 1,
-          totalPrice: fee,
+          lessonType, status: appointment.status as 'attended' | 'canceled_paid' | 'canceled_free' | 'planned',
+          hourlyRate, description, unitPrice: fee, quantity: 1, totalPrice: fee,
           isPaid: paymentStatus?.isPaid || false,
         });
       });
@@ -232,23 +359,19 @@ export default function InvoicesPage() {
     return items;
   }, [filteredAppointments, data, selectedStudentIds]);
 
-  // ── Preview items (planned appointments with price) ──
+  // ── Preview items ──
   const previewItems = useMemo(() => {
     if (!data) return [];
     const items: AppointmentPreviewItem[] = [];
     const seen = new Set<string>();
-
     plannedAppointments.forEach(appointment => {
       appointment.studentIds.forEach(studentId => {
         if (selectedStudentIds.length > 0 && !selectedStudentIds.includes(studentId)) return;
         const key = `${appointment.id}-${studentId}`;
         if (seen.has(key)) return;
         seen.add(key);
-
         const student = data.students.find(s => s.id === studentId);
         const lessonType = appointment.studentIds.length > 1 ? 'group' : 'individual';
-
-        // Calculate price for planned appointment (full price, no cancellation)
         let priceEntry: PriceEntry | undefined;
         for (const entry of data.priceEntries || []) {
           if (new Date(appointment.date) >= new Date(entry.validFrom) && entry.studentIds && entry.studentIds.includes(studentId)) {
@@ -264,30 +387,19 @@ export default function InvoicesPage() {
             }
           }
         }
-
         let unitPrice = 0;
         if (priceEntry) {
           if (lessonType === 'individual') {
-            unitPrice = appointment.duration === 90
-              ? (priceEntry.individual90 || 0)
-              : (priceEntry.individual60 || 0);
+            unitPrice = appointment.duration === 90 ? (priceEntry.individual90 || 0) : (priceEntry.individual60 || 0);
           } else {
-            unitPrice = appointment.duration === 90
-              ? (priceEntry.group90 || 0)
-              : (priceEntry.group60 || 0);
+            unitPrice = appointment.duration === 90 ? (priceEntry.group90 || 0) : (priceEntry.group60 || 0);
           }
         }
-
         items.push({
-          appointmentId: appointment.id,
-          date: appointment.date,
-          time: appointment.time || '--:--',
+          appointmentId: appointment.id, date: appointment.date, time: appointment.time || '--:--',
           studentName: student ? `${student.firstName} ${student.lastName || ''}`.trim() : 'Unknown',
-          lessonType,
-          duration: appointment.duration,
-          status: appointment.status,
-          unitPrice,
-          totalPrice: unitPrice,
+          lessonType, duration: appointment.duration, status: appointment.status,
+          unitPrice, totalPrice: unitPrice,
         });
       });
     });
@@ -307,7 +419,6 @@ export default function InvoicesPage() {
     const invoiceNumber = formatInvoiceNumber(currentYear, currentInvoiceNumber);
     const invoiceDate = new Date();
     const dueDate = calculateDueDate(invoiceDate, data.invoiceSettings?.paymentTerms || 14);
-
     const updatedData = {
       ...data,
       invoiceSettings: {
@@ -315,12 +426,9 @@ export default function InvoicesPage() {
         street: data.invoiceSettings?.street || '',
         zipCode: data.invoiceSettings?.zipCode || '',
         city: data.invoiceSettings?.city || '',
-        email: data.invoiceSettings?.email,
-        phone: data.invoiceSettings?.phone,
-        vatId: data.invoiceSettings?.vatId,
-        taxId: data.invoiceSettings?.taxId,
-        bankName: data.invoiceSettings?.bankName,
-        iban: data.invoiceSettings?.iban,
+        email: data.invoiceSettings?.email, phone: data.invoiceSettings?.phone,
+        vatId: data.invoiceSettings?.vatId, taxId: data.invoiceSettings?.taxId,
+        bankName: data.invoiceSettings?.bankName, iban: data.invoiceSettings?.iban,
         bankBic: data.invoiceSettings?.bankBic,
         paymentTerms: data.invoiceSettings?.paymentTerms || 14,
         hourlyRate: data.invoiceSettings?.hourlyRate || 0,
@@ -331,30 +439,19 @@ export default function InvoicesPage() {
     };
     localStorage.setItem('mathe_manager_data', JSON.stringify(updatedData));
     setData(updatedData);
-
     setInvoiceData({
       invoiceNumber,
       invoiceDate: invoiceDate.toISOString(),
       dueDate: dueDate.toISOString(),
       issuedBy: {
         name: data.invoiceSettings?.businessName || 'MatheManager',
-        street: data.invoiceSettings?.street,
-        zipCode: data.invoiceSettings?.zipCode,
-        city: data.invoiceSettings?.city,
-        email: data.invoiceSettings?.email,
-        phone: data.invoiceSettings?.phone,
-        vatId: data.invoiceSettings?.vatId,
+        street: data.invoiceSettings?.street, zipCode: data.invoiceSettings?.zipCode,
+        city: data.invoiceSettings?.city, email: data.invoiceSettings?.email,
+        phone: data.invoiceSettings?.phone, vatId: data.invoiceSettings?.vatId,
         iban: data.invoiceSettings?.iban,
       },
-      billedTo: {
-        name: family?.name || 'Familie',
-        street: family?.address,
-      },
-      items: invoiceItems,
-      subtotal,
-      taxRate: 0,
-      taxAmount,
-      total,
+      billedTo: { name: family?.name || 'Familie', street: family?.address },
+      items: invoiceItems, subtotal, taxRate: 0, taxAmount, total,
     });
     setActiveView('invoice');
   };
@@ -365,20 +462,14 @@ export default function InvoicesPage() {
     const student = firstStudentId ? data.students.find(s => s.id === firstStudentId) : null;
     const family = student ? data.families.find(f => f.id === student.familyId) : null;
     const total = previewItems.reduce((sum, item) => sum + item.totalPrice, 0);
-
     setPreviewData({
       issuedBy: {
         name: data.invoiceSettings?.businessName || 'MatheManager',
-        street: data.invoiceSettings?.street,
-        zipCode: data.invoiceSettings?.zipCode,
-        city: data.invoiceSettings?.city,
-        email: data.invoiceSettings?.email,
+        street: data.invoiceSettings?.street, zipCode: data.invoiceSettings?.zipCode,
+        city: data.invoiceSettings?.city, email: data.invoiceSettings?.email,
         phone: data.invoiceSettings?.phone,
       },
-      billedTo: {
-        name: family?.name || 'Familie',
-        street: family?.address,
-      },
+      billedTo: { name: family?.name || 'Familie', street: family?.address },
       items: previewItems,
       total: Math.round(total * 100) / 100,
       dateRange: {
@@ -397,10 +488,6 @@ export default function InvoicesPage() {
     );
   }
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('de-DE', { year: 'numeric', month: '2-digit', day: '2-digit' });
-  };
-
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Header */}
@@ -416,18 +503,12 @@ export default function InvoicesPage() {
               </p>
             </div>
             <div className="flex gap-2">
-              <button
-                onClick={calculatePreview}
-                disabled={previewItems.length === 0}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
+              <button onClick={calculatePreview} disabled={previewItems.length === 0}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                 <Eye size={16} /> Terminvorschau
               </button>
-              <button
-                onClick={calculateInvoice}
-                disabled={invoiceItems.length === 0}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-black text-white font-medium rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
+              <button onClick={calculateInvoice} disabled={invoiceItems.length === 0}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-black text-white font-medium rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                 <Printer size={16} /> Rechnung erstellen
               </button>
             </div>
@@ -435,7 +516,7 @@ export default function InvoicesPage() {
         </div>
       </header>
 
-      {/* Main Content - Filters */}
+      {/* Filters */}
       <main className="max-w-4xl mx-auto px-4 py-6 print:hidden">
         <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl shadow-sm p-6 mb-6">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2 pb-2 border-b border-gray-100 dark:border-slate-700">
@@ -493,15 +574,20 @@ export default function InvoicesPage() {
         </div>
       </main>
 
-      {/* Invoice Preview */}
+      {/* ── Print-only views (hidden on screen, visible when printing) ── */}
       {activeView === 'invoice' && invoiceData && (
         <div className="print:block hidden">
           <InvoiceTemplate invoice={invoiceData} onPrint={() => window.print()} />
         </div>
       )}
+      {activeView === 'preview' && previewData && (
+        <div className="print:block hidden">
+          <AppointmentPreviewTemplate preview={previewData} />
+        </div>
+      )}
 
+      {/* ── Screen-only views (hidden when printing) ── */}
       <main className="max-w-4xl mx-auto px-4 py-6 print:hidden">
-        {/* Invoice View */}
         {activeView === 'invoice' && (
           <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl shadow-sm p-6">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2 pb-2 border-b border-gray-100 dark:border-slate-700">
@@ -519,162 +605,17 @@ export default function InvoicesPage() {
           </div>
         )}
 
-        {/* Appointment Preview View */}
         {activeView === 'preview' && (
-          <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-0 overflow-hidden">
-            {/* Preview Header */}
-            <div className="mb-0 border-b-4 border-blue-700 pb-3 px-6 pt-6">
-              <div className="flex justify-between items-start mb-3">
-                <div className="flex-1">
-                  <h1 className="text-xl font-bold uppercase tracking-wider mb-1">
-                    {previewData?.issuedBy.name || 'MatheManager'}
-                  </h1>
-                  {previewData?.issuedBy.street && <p className="text-xs font-semibold uppercase">{previewData.issuedBy.street}</p>}
-                  {(previewData?.issuedBy.zipCode || previewData?.issuedBy.city) && (
-                    <p className="text-xs font-semibold uppercase">{previewData.issuedBy.zipCode} {previewData.issuedBy.city}</p>
-                  )}
-                  {previewData?.issuedBy.email && <p className="text-xs mt-1">{previewData.issuedBy.email}</p>}
-                  {previewData?.issuedBy.phone && <p className="text-xs mt-1">{previewData.issuedBy.phone}</p>}
-                </div>
-                <div className="text-right">
-                  <h2 className="text-xl font-bold uppercase tracking-wider mb-1 text-blue-700">
-                    TERMINVORSCHAU
-                  </h2>
-                  <p className="text-sm font-semibold">{formatDate(new Date().toISOString())}</p>
-                  {previewData?.dateRange.from && previewData?.dateRange.to && (
-                    <p className="text-xs text-gray-600 mt-1">
-                      Zeitraum: {formatDate(previewData.dateRange.from)} – {formatDate(previewData.dateRange.to)}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              {/* Billed To */}
-              <div className="mt-3 pt-2 border-t-2 border-dashed border-blue-700">
-                <p className="text-xs uppercase font-bold mb-1">Terminliste & Zahlungsvorschau für:</p>
-                {previewData?.billedTo.name && (
-                  <p className="text-base font-bold">{previewData.billedTo.name}</p>
-                )}
-              </div>
-            </div>
-
-            {/* Preview Items Table */}
-            <div className="px-6 mb-4">
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="border-b-4 border-blue-700 bg-blue-50">
-                    <th className="text-left py-1 px-1.5 text-xs uppercase font-semibold tracking-wider" style={{ width: '16%' }}>
-                      Datum / Zeit
-                    </th>
-                    <th className="text-left py-1 px-1.5 text-xs uppercase font-semibold tracking-wider" style={{ width: '16%' }}>
-                      Schüler
-                    </th>
-                    <th className="text-left py-1 px-1.5 text-xs uppercase font-semibold tracking-wider" style={{ width: '14%' }}>
-                      Typ
-                    </th>
-                    <th className="text-left py-1 px-1.5 text-xs uppercase font-semibold tracking-wider" style={{ width: '14%' }}>
-                      Dauer
-                    </th>
-                    <th className="text-right py-1 px-1.5 text-xs uppercase font-semibold tracking-wider" style={{ width: '20%' }}>
-                      Preis
-                    </th>
-                    <th className="text-right py-1 px-1.5 text-xs uppercase font-semibold tracking-wider" style={{ width: '20%' }}>
-                      Gesamtpreis
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {previewData && previewData.items.length > 0 ? (
-                    previewData.items.map((item, index) => (
-                      <tr key={index} className="border-b border-dotted border-gray-300 hover:bg-blue-50 transition-colors">
-                        <td className="py-1.5 px-1.5 text-xs">
-                          <div className="font-medium">{formatDate(item.date)}</div>
-                          <div className="text-gray-500 flex items-center gap-1">
-                            <Clock size={10} /> {item.time}
-                          </div>
-                        </td>
-                        <td className="py-1.5 px-1.5 text-xs font-medium">{item.studentName}</td>
-                        <td className="py-1.5 px-1.5 text-xs">
-                          {item.lessonType === 'group' ? (
-                            <span className="inline-flex items-center gap-1">
-                              <span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span> Gruppe
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1">
-                              <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span> Einzel
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-1.5 px-1.5 text-xs">{item.duration} Min</td>
-                        <td className="py-1.5 px-1.5 text-xs text-right">&euro;{item.unitPrice.toFixed(2)}</td>
-                        <td className="py-1.5 px-1.5 text-xs text-right font-semibold">&euro;{item.totalPrice.toFixed(2)}</td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={6} className="py-3 px-2 text-center text-gray-400 italic">
-                        Keine geplanten Termine vorhanden
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Totals Section */}
-            {previewData && (
-              <div className="flex justify-end px-6 pb-2">
-                <div className="w-[45%]">
-                  <div className="flex justify-between py-1 border-b border-dotted border-gray-300">
-                    <span className="text-xs font-medium text-gray-600">Voraussichtlicher Gesamtbetrag</span>
-                    <span className="text-xs font-semibold">&euro;{previewData.total.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between py-2 border-t-4 border-blue-700 mt-1">
-                    <span className="text-base font-bold text-blue-700">Voraussichtliche Summe</span>
-                    <span className="text-base font-bold text-blue-700">&euro;{previewData.total.toFixed(2)}</span>
-                  </div>
-
-                  {/* Tax exemption notice */}
-                  <div className="mt-2 text-center">
-                    <p className="text-xs text-gray-600 italic">
-                      Gemäß &sect;4 Nr. 21 bin ich von der Umsatzsteuer befreit.
-                    </p>
-                  </div>
-
-                  {/* Info box */}
-                  <div className="mt-3 p-2 bg-blue-50 border border-blue-200 rounded-lg">
-                    <p className="text-xs font-semibold text-blue-700 mb-1">Hinweis:</p>
-                    <p className="text-xs text-blue-600">
-                      Dies ist eine Vorschau der geplanten Termine und voraussichtlichen Kosten.
-                      Die tatsächliche Abrechnung erfolgt nach Durchführung der Termine.
-                    </p>
-                  </div>
-
-                  {/* Action buttons */}
-                  <div className="flex gap-2 mt-3 print:hidden">
-                    <button
-                      onClick={() => window.print()}
-                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-700 text-white font-medium rounded-lg hover:bg-blue-800 transition-colors text-xs"
-                    >
-                      <Printer size={12} /> Drucken
-                    </button>
-                    <button
-                      onClick={() => window.print()}
-                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors text-xs"
-                    >
-                      <Download size={12} /> PDF
-                    </button>
-                  </div>
-                </div>
+          <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+            {previewData ? (
+              <AppointmentPreviewTemplate preview={previewData} />
+            ) : (
+              <div className="text-center py-16 text-gray-500">
+                <Eye size={32} className="mx-auto mb-3 opacity-30" />
+                <p>Noch keine Vorschaudaten</p>
+                <p className="text-sm mt-1">Wählen Sie einen Zeitraum und klicken Sie auf Terminvorschau</p>
               </div>
             )}
-
-            {/* Footer */}
-            <div className="px-6 pt-2 pb-4 border-t border-gray-200 text-center">
-              <p className="text-xs text-gray-500">
-                Diese Terminvorschau ist kein Rechnungsdokument. Die endgültige Abrechnung erfolgt separat.
-              </p>
-            </div>
           </div>
         )}
       </main>
