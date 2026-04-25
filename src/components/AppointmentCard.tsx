@@ -1,7 +1,6 @@
 /**
  * AppointmentCard - Displays a single appointment with status management
  */
-
 'use client';
 
 import { useState } from 'react';
@@ -36,7 +35,6 @@ export function AppointmentCard({
     : [student];
 
   const hasAdditionalStudents = appointment.studentIds.length > 2;
-
   const showStatusControls = !!onStatusChange;
 
   // Check if appointment is canceled
@@ -103,9 +101,29 @@ export function AppointmentCard({
     return null;
   };
 
+  // Format time display: use appointment.time directly (HH:MM format)
+  const formatTimeDisplay = (): string => {
+    if (appointment.time) {
+      return appointment.time;
+    }
+    return '–';
+  };
+
+  // Calculate end time from start time + duration
+  const formatEndTime = (): string => {
+    if (!appointment.time) return '';
+    const [h, m] = appointment.time.split(':').map(Number);
+    const totalMin = h * 60 + m + getDuration();
+    const endH = Math.floor(totalMin / 60) % 24;
+    const endM = totalMin % 60;
+    return `${endH.toString().padStart(2, '0')}:${endM.toString().padStart(2, '0')}`;
+  };
+
   const isAttended = appointment.status === 'attended';
   const duration = getDuration();
   const priceCount = appointment.studentIds.length;
+  const timeDisplay = formatTimeDisplay();
+  const endTimeDisplay = formatEndTime();
 
   return (
     <div className={`bg-white dark:bg-slate-800 border rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow ${getBorderColor()}`}>
@@ -113,10 +131,7 @@ export function AppointmentCard({
       <div className="flex justify-between items-start mb-3">
         <div>
           <div className={`text-xs font-semibold uppercase tracking-wider ${isCanceled ? 'text-gray-400 dark:text-gray-500' : 'text-gray-500 dark:text-gray-400'}`}>
-            {new Date(appointment.date).toLocaleTimeString('de-DE', {
-              hour: '2-digit',
-              minute: '2-digit',
-            })}
+            {timeDisplay}{endTimeDisplay ? ` – ${endTimeDisplay}` : ''}
           </div>
           <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium mt-1 ${
             isGroupAppointment
