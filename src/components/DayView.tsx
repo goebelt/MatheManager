@@ -1,12 +1,14 @@
 /**
  * DayView - Displays appointments for the selected day with auto-suggestions
+ * Uses getAppointmentStatus from lib/scheduling for conflict detection
+ * (same logic as the appointments page).
  */
-
 'use client';
 
 import { useMemo } from 'react';
 import { Calendar as CalendarIcon, Sparkles } from 'lucide-react';
 import type { Student, Appointment } from '@/types';
+import { getAppointmentStatus } from '@/lib/scheduling';
 import { AppointmentCard } from './AppointmentCard';
 
 interface DayViewProps {
@@ -26,67 +28,22 @@ export function DayView({
   onAddStudent,
   currentDate = new Date(),
 }: DayViewProps) {
-
   // Filter only non-canceled appointments for suggestions and conflict detection
-  const pendingAppointments = useMemo(() =>
-    existingAppointments.filter(
-      a => !a.status.startsWith('canceled')
-    ),
-    [existingAppointments]
-  );
+  const pendingAppointments = useMemo(() => existingAppointments.filter(
+    a => !a.status.startsWith('canceled')
+  ), [existingAppointments]);
 
   // Get the date string for the current day
   const dateStr = useMemo(() => {
     return currentDate.toISOString().split('T')[0];
   }, [currentDate]);
 
-  // Get appointments for the current day
+  // Get appointments for the current day, sorted by time
   const dayAppointments = useMemo(() => {
-    return existingAppointments.filter(apt => apt.date === dateStr);
+    return existingAppointments
+      .filter(apt => apt.date === dateStr)
+      .sort((a, b) => (a.time || '').localeCompare(b.time || ''));
   }, [dateStr, existingAppointments]);
-
-  // Detect conflicts between appointments
-  const getConflictStatus = (appointment: Appointment, allAppointments: Appointment[]): 'conflict' | 'tight' | 'ok' | null => {
-    // Skip conflict detection for canceled appointments
-    if (appointment.status.startsWith('canceled')) {
-      return null;
-    }
-
-    // Get all non-canceled appointments on the same date
-    const sameDateAppointments = allAppointments
-      .filter(a => a.date === appointment.date && !a.status.startsWith('canceled'))
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-    // Find the index of the current appointment
-    const currentIndex = sameDateAppointments.findIndex(a => a.id === appointment.id);
-    if (currentIndex <= 0) return null;
-
-    // Check against previous appointment
-    const prevAppointment = sameDateAppointments[currentIndex - 1];
-    if (!prevAppointment) return null;
-
-    // Parse times
-    const prevEndTime = new Date(prevAppointment.date);
-    prevEndTime.setMinutes(prevEndTime.getMinutes() + prevAppointment.duration);
-    
-    const currentStartTime = new Date(appointment.date);
-
-    // Calculate time difference in minutes
-    const timeDiff = (currentStartTime.getTime() - prevEndTime.getTime()) / (1000 * 60);
-
-    // Conflict: start time is before or at the end time of previous appointment
-    if (timeDiff <= 0) {
-      return 'conflict';
-    }
-
-    // Tight: start time is within 5 minutes of end time
-    if (timeDiff <= 5) {
-      return 'tight';
-    }
-
-    // OK: sufficient gap
-    return 'ok';
-  };
 
   const handleStatusChange = (appointmentId: string, newStatus: 'attended' | 'canceled_paid' | 'canceled_free' | 'planned') => {
     if (onStatusUpdate) {
@@ -126,9 +83,11 @@ export function DayView({
             </div>
           ) : (
             dayAppointments.map(appointment => {
-              // Get conflict status for this appointment
-              const conflictStatus = getConflictStatus(appointment, dayAppointments);
-
+              // Use the same conflict detection logic as the appointments page
+              const status = getAppointmentStatus(appointment, existingAppointments);
+              // Map scheduling status to the conflictStatus prop format
+              const conflictStatus: 'conflict' | 'tight' | 'ok' | null =
+                appointment.status.startsWith('canceled') ? null : status;
               return (
                 <AppointmentCard
                   key={appointment.id}

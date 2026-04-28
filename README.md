@@ -1,4 +1,4 @@
-# MatheManager
+﻿﻿# MatheManager
 
 **[🌐 Live Demo](https://mathe-manager.netlify.app/)**
 
@@ -7,7 +7,7 @@ Next.js App zur Verwaltung von Mathe-Nachhilfe mit Tailwind CSS. Verwalten Sie F
 ## 🎯 Features
 
 ### Dashboard
-- **Wochenübersicht** mit automatischen Terminvorschlägen basierend auf Schüler-Rhythmus (wöchentlich / zweiwöchentlich)
+- **Tagesübersicht** mit automatischen Terminvorschlägen basierend auf Schüler-Rhythmus (wöchentlich / zweiwöchentlich) - **Sortierung nach Uhrzeit**: Termine werden chronologisch nach Startzeit angezeigt - **Einheitliche Konfliktlogik**: Nutzt `getAppointmentStatus` aus `lib/scheduling` (identisch zur Termine-Seite) – erkennt Konflikte (Überlappungen) und knappe Pausen (≤5 Min)
 - Status-Bediener für jeden Termin: Stattgefunden, Ausfall bezahlt, Ausfall frei
 - **Gruppenunterricht**: Bis zu 2 Schüler pro Termin
 - **Korrekte Uhrzeitanzeige**: Start- und Endzeit pro Termin (z.B. `14:00 – 15:30`)
@@ -144,7 +144,7 @@ MatheManager/
 │   ├── components/             # Reusable UI-Komponenten
 │   │   ├── AppointmentCard.tsx # Termin-Karte mit Uhrzeit (Start–Ende) und Status-Controls
 │   │   ├── DashboardHeader.tsx # Header mit Wochen-Navigation
-│   │   ├── DayView.tsx         # Tagesansicht für Termine
+│   │   ├── DayView.tsx         # Tagesansicht (sortiert, Konfliktlogik via scheduling.ts)
 │   │   ├── WeekView.tsx        # Wochenansicht mit Vorschlägen
 │   │   ├── InvoiceTemplate.tsx # Professionelle Druckvorlage
 │   │   ├── Navigation.tsx      # Navigationsleiste
