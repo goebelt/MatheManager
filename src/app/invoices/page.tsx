@@ -218,8 +218,12 @@ export default function InvoicesPage() {
   const [activeView, setActiveView] = useState<'invoice' | 'preview'>('invoice');
 
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
+  // Default to current month range
+  const now = new Date();
+  const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+  const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+  const [startDate, setStartDate] = useState(firstDayOfMonth);
+  const [endDate, setEndDate] = useState(lastDayOfMonth);
 
   const [studentDropdownOpen, setStudentDropdownOpen] = useState(false);
   const [studentFilter, setStudentFilter] = useState('');
