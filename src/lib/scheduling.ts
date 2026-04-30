@@ -100,7 +100,8 @@ export function autoPlanStudents(
               // Check if a group appointment already exists for both students on this date/time
               const existingGroupAppointment = existingAppointments.find(
                 a => a.date === dateStr && a.time === schedule.time &&
-                   a.studentIds.includes(student.id) && a.studentIds.includes(schedule.groupWithStudentId)
+                   a.studentIds.includes(student.id) &&
+                   schedule.groupWithStudentId && a.studentIds.includes(schedule.groupWithStudentId)
               );
               
               if (existingGroupAppointment) {
