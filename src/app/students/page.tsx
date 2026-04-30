@@ -37,6 +37,8 @@ export default function StudentsPage() {
   // Add schedule form state
   const [newScheduleDay, setNewScheduleDay] = useState<number>(1);
   const [newScheduleTime, setNewScheduleTime] = useState('14:00');
+  const [newScheduleIsGroup, setNewScheduleIsGroup] = useState(false);
+  const [newScheduleGroupWithStudentId, setNewScheduleGroupWithStudentId] = useState('');
 
   useEffect(() => { loadData(); }, []);
 
@@ -69,8 +71,13 @@ export default function StudentsPage() {
       dayOfWeek: newScheduleDay,
       time: newScheduleTime,
       rhythm: formRhythm,
+      isGroupAppointment: newScheduleIsGroup || undefined,
+      groupWithStudentId: newScheduleIsGroup ? newScheduleGroupWithStudentId || undefined : undefined,
     };
     setFormPreferredSchedule([...formPreferredSchedule, newSchedule]);
+    // Reset group fields
+    setNewScheduleIsGroup(false);
+    setNewScheduleGroupWithStudentId('');
   };
 
   const handleRemoveSchedule = (index: number) => {
@@ -291,22 +298,42 @@ export default function StudentsPage() {
             {/* Preferred Schedule */}
             <div className="mt-4 pt-4 border-t border-gray-200 dark:border-slate-700">
               <h4 className="text-sm font-semibold text-gray-800 dark:text-slate-200 mb-3">Bevorzugte Termine</h4>
-              <div className="flex gap-2 mb-2">
-                <select value={newScheduleDay} onChange={e => setNewScheduleDay(parseInt(e.target.value))}
-                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                >
-                  {DAYS_OF_WEEK.map(day => (
-                    <option key={day.value} value={day.value}>{day.label}</option>
-                  ))}
-                </select>
-                <input type="time" value={newScheduleTime} onChange={e => setNewScheduleTime(e.target.value)}
-                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
-                <button onClick={handleAddSchedule}
-                  className="px-3 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors"
-                >
-                  <Plus size={16} />
-                </button>
+              <div className="grid gap-2 mb-2">
+                <div className="flex gap-2">
+                  <select value={newScheduleDay} onChange={e => setNewScheduleDay(parseInt(e.target.value))}
+                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  >
+                    {DAYS_OF_WEEK.map(day => (
+                      <option key={day.value} value={day.value}>{day.label}</option>
+                    ))}
+                  </select>
+                  <input type="time" value={newScheduleTime} onChange={e => setNewScheduleTime(e.target.value)}
+                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                  <button onClick={handleAddSchedule}
+                    className="px-3 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors"
+                  >
+                    <Plus size={16} />
+                  </button>
+                </div>
+                <div className="flex items-center gap-4">
+                  <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-slate-300">
+                    <input type="checkbox" checked={newScheduleIsGroup} onChange={e => setNewScheduleIsGroup(e.target.checked)}
+                      className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
+                    />
+                    Gruppentermin
+                  </label>
+                  {newScheduleIsGroup && (
+                    <select value={newScheduleGroupWithStudentId} onChange={e => setNewScheduleGroupWithStudentId(e.target.value)}
+                      className="flex-1 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    >
+                      <option value="">Schüler auswählen...</option>
+                      {(data?.students || []).filter(s => s.id !== editingStudentId).map(student => (
+                        <option key={student.id} value={student.id}>{student.firstName} {student.lastName || ''}</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
               </div>
               {formPreferredSchedule.length > 0 ? (
                 <div className="space-y-2">
@@ -439,6 +466,11 @@ export default function StudentsPage() {
                               <div key={index} className="flex items-center justify-between px-3 py-2 bg-gray-50 dark:bg-slate-700/50 rounded-lg text-sm">
                                 <span className="text-gray-700 dark:text-slate-300">
                                   {DAYS_OF_WEEK.find(d => d.value === schedule.dayOfWeek)?.label} um {schedule.time} ({schedule.rhythm === 'weekly' ? 'wöchentlich' : 'zweiwöchentlich'})
+                                  {schedule.isGroupAppointment && (
+                                    <span className="ml-2 px-2 py-0.5 bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 rounded text-xs">
+                                      Gruppe mit {(data?.students || []).find(s => s.id === schedule.groupWithStudentId)?.firstName || '?'}
+                                    </span>
+                                  )}
                                 </span>
                                 <button onClick={() => handleRemoveSchedule(index)} className="text-red-500 hover:text-red-700 transition-colors">
                                   <X size={16} />
@@ -531,8 +563,15 @@ export default function StudentsPage() {
                           </div>
                           <div className="flex flex-wrap gap-2">
                             {student.preferredSchedule.map((schedule, index) => (
-                              <span key={index} className="px-2 py-1 bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-md text-xs">
+                              <span key={index} className={`px-2 py-1 rounded-md text-xs ${
+                                schedule.isGroupAppointment
+                                  ? 'bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
+                                  : 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                              }`}>
                                 {DAYS_OF_WEEK.find(d => d.value === schedule.dayOfWeek)?.label} {schedule.time} ({schedule.rhythm === 'weekly' ? 'wöchentlich' : 'zweiwöchentlich'})
+                                {schedule.isGroupAppointment && (
+                                  <span className="ml-1"> + {(data?.students || []).find(s => s.id === schedule.groupWithStudentId)?.firstName || '?'}</span>
+                                )}
                               </span>
                             ))}
                           </div>

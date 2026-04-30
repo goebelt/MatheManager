@@ -65,6 +65,7 @@ export function autoPlanStudents(
   weeks: number
 ): Appointment[] {
   const newAppointments: Appointment[] = [];
+  const processedGroupAppointments = new Set<string>(); // Track group appointments to avoid duplicates
 
   students.forEach(student => {
     if (student.inactive) return; // Skip inactive students
@@ -91,14 +92,47 @@ export function autoPlanStudents(
           );
           if (existing) continue;
 
-          newAppointments.push({
-            id: `auto-${Date.now()}-${week}-${student.id}-${schedule.dayOfWeek}`,
-            studentIds: [student.id],
-            date: dateStr,
-            time: schedule.time,
-            duration: student.defaultDuration,
-            status: 'planned',
-          });
+          // Check if this is a group appointment
+          if (schedule.isGroupAppointment && schedule.groupWithStudentId) {
+            // Create a unique key for this group appointment
+            const groupKey = `${dateStr}-${schedule.time}-${schedule.dayOfWeek}`;
+            
+            // Only create the appointment once (for the first student in the group)
+            if (!processedGroupAppointments.has(groupKey)) {
+              processedGroupAppointments.add(groupKey);
+              
+              // Find the other student in the group
+              const otherStudent = students.find(s => s.id === schedule.groupWithStudentId);
+              if (otherStudent) {
+                // Check if the other student also has this preferred schedule
+                const otherStudentHasSchedule = otherStudent.preferredSchedule?.some(
+                  os => os.dayOfWeek === schedule.dayOfWeek && os.time === schedule.time
+                );
+                
+                if (otherStudentHasSchedule) {
+                  // Create a group appointment with both students
+                  newAppointments.push({
+                    id: `auto-${Date.now()}-${week}-${student.id}-${schedule.dayOfWeek}-group`,
+                    studentIds: [student.id, otherStudent.id],
+                    date: dateStr,
+                    time: schedule.time,
+                    duration: Math.max(student.defaultDuration, otherStudent.defaultDuration), // Use the longer duration
+                    status: 'planned',
+                  });
+                }
+              }
+            }
+          } else {
+            // Create individual appointment
+            newAppointments.push({
+              id: `auto-${Date.now()}-${week}-${student.id}-${schedule.dayOfWeek}`,
+              studentIds: [student.id],
+              date: dateStr,
+              time: schedule.time,
+              duration: student.defaultDuration,
+              status: 'planned',
+            });
+          }
         }
       });
     } else {
