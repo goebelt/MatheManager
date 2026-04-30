@@ -127,6 +127,135 @@ describe('autoPlanStudents', () => {
     expect(result.length).toBe(2); // Max + Lisa, not Inactive
     expect(result.every(a => !a.studentIds.includes('s2'))).toBe(true);
   });
+
+  // ── Group Appointments ──
+
+  it('creates group appointment when both students have matching preferred schedule', () => {
+    const s = [
+      { id: 's1', familyId: 'f1', firstName: 'Max', defaultDuration: 60, rhythm: 'weekly' as const, preferredSchedule: [{ dayOfWeek: 1, time: '14:00', rhythm: 'weekly' as const, isGroupAppointment: true, groupWithStudentId: 's2' }] },
+      { id: 's2', familyId: 'f2', firstName: 'Anna', defaultDuration: 60, rhythm: 'weekly' as const, preferredSchedule: [{ dayOfWeek: 1, time: '14:00', rhythm: 'weekly' as const }] },
+    ];
+    const result = autoPlanStudents(s, [], new Date(2026, 0, 5), 1);
+    expect(result.length).toBe(1);
+    expect(result[0].studentIds).toEqual(expect.arrayContaining(['s1', 's2']));
+    expect(result[0].time).toBe('14:00');
+  });
+
+  it('uses longer duration for group appointment', () => {
+    const s = [
+      { id: 's1', familyId: 'f1', firstName: 'Max', defaultDuration: 60, rhythm: 'weekly' as const, preferredSchedule: [{ dayOfWeek: 1, time: '14:00', rhythm: 'weekly' as const, isGroupAppointment: true, groupWithStudentId: 's2' }] },
+      { id: 's2', familyId: 'f2', firstName: 'Anna', defaultDuration: 90, rhythm: 'weekly' as const, preferredSchedule: [{ dayOfWeek: 1, time: '14:00', rhythm: 'weekly' as const }] },
+    ];
+    const result = autoPlanStudents(s, [], new Date(2026, 0, 5), 1);
+    expect(result[0].duration).toBe(90); // Max(60, 90) = 90
+  });
+
+  it('does not create group appointment when other student does not have matching schedule', () => {
+    const s = [
+      { id: 's1', familyId: 'f1', firstName: 'Max', defaultDuration: 60, rhythm: 'weekly' as const, preferredSchedule: [{ dayOfWeek: 1, time: '14:00', rhythm: 'weekly' as const, isGroupAppointment: true, groupWithStudentId: 's2' }] },
+      { id: 's2', familyId: 'f2', firstName: 'Anna', defaultDuration: 60, rhythm: 'weekly' as const, preferredSchedule: [{ dayOfWeek: 2, time: '14:00', rhythm: 'weekly' as const }] }, // Different day
+    ];
+    const result = autoPlanStudents(s, [], new Date(2026, 0, 5), 1);
+    expect(result.length).toBe(2); // Individual appointments created for both students
+    expect(result[0].studentIds).toEqual(['s1']);
+    expect(result[0].date).toBe('2026-01-05');
+    expect(result[0].time).toBe('14:00');
+    expect(result[1].studentIds).toEqual(['s2']);
+    expect(result[1].date).toBe('2026-01-06');
+    expect(result[1].time).toBe('14:00');
+  });
+
+  it('avoids duplicate group appointments', () => {
+    const s = [
+      { id: 's1', familyId: 'f1', firstName: 'Max', defaultDuration: 60, rhythm: 'weekly' as const, preferredSchedule: [{ dayOfWeek: 1, time: '14:00', rhythm: 'weekly' as const, isGroupAppointment: true, groupWithStudentId: 's2' }] },
+      { id: 's2', familyId: 'f2', firstName: 'Anna', defaultDuration: 60, rhythm: 'weekly' as const, preferredSchedule: [{ dayOfWeek: 1, time: '14:00', rhythm: 'weekly' as const }] },
+    ];
+    const existing: Appointment[] = [{ id: 'a1', studentIds: ['s1', 's2'], date: '2026-01-05', time: '14:00', duration: 60, status: 'attended' }];
+    const result = autoPlanStudents(s, existing, new Date(2026, 0, 5), 1);
+    expect(result.length).toBe(0); // No new appointment, group already exists
+  });
+
+  it('creates individual appointment when not marked as group', () => {
+    const s = [
+      { id: 's1', familyId: 'f1', firstName: 'Max', defaultDuration: 60, rhythm: 'weekly' as const, preferredSchedule: [{ dayOfWeek: 1, time: '14:00', rhythm: 'weekly' as const }] },
+      { id: 's2', familyId: 'f2', firstName: 'Anna', defaultDuration: 60, rhythm: 'weekly' as const, preferredSchedule: [{ dayOfWeek: 1, time: '14:00', rhythm: 'weekly' as const }] },
+    ];
+    const result = autoPlanStudents(s, [], new Date(2026, 0, 5), 1);
+    expect(result.length).toBe(2); // Two individual appointments
+    expect(result[0].studentIds).toEqual(['s1']);
+    expect(result[1].studentIds).toEqual(['s2']);
+  });
+
+  it('handles multiple group appointments with different partners', () => {
+    const s = [
+      { id: 's1', familyId: 'f1', firstName: 'Max', defaultDuration: 60, rhythm: 'weekly' as const, preferredSchedule: [{ dayOfWeek: 1, time: '14:00', rhythm: 'weekly' as const, isGroupAppointment: true, groupWithStudentId: 's2' }] },
+      { id: 's2', familyId: 'f2', firstName: 'Anna', defaultDuration: 60, rhythm: 'weekly' as const, preferredSchedule: [{ dayOfWeek: 1, time: '14:00', rhythm: 'weekly' as const }] },
+      { id: 's3', familyId: 'f3', firstName: 'Lisa', defaultDuration: 60, rhythm: 'weekly' as const, preferredSchedule: [{ dayOfWeek: 2, time: '15:00', rhythm: 'weekly' as const, isGroupAppointment: true, groupWithStudentId: 's4' }] },
+      { id: 's4', familyId: 'f4', firstName: 'Tom', defaultDuration: 60, rhythm: 'weekly' as const, preferredSchedule: [{ dayOfWeek: 2, time: '15:00', rhythm: 'weekly' as const }] },
+    ];
+    const result = autoPlanStudents(s, [], new Date(2026, 0, 5), 1);
+    expect(result.length).toBe(2); // Two group appointments
+    expect(result[0].studentIds).toEqual(expect.arrayContaining(['s1', 's2']));
+    expect(result[1].studentIds).toEqual(expect.arrayContaining(['s3', 's4']));
+  });
+
+  it('handles group appointments with biweekly rhythm', () => {
+    const s = [
+      { id: 's1', familyId: 'f1', firstName: 'Max', defaultDuration: 60, rhythm: 'weekly' as const, preferredSchedule: [{ dayOfWeek: 1, time: '14:00', rhythm: 'biweekly' as const, isGroupAppointment: true, groupWithStudentId: 's2' }] },
+      { id: 's2', familyId: 'f2', firstName: 'Anna', defaultDuration: 60, rhythm: 'weekly' as const, preferredSchedule: [{ dayOfWeek: 1, time: '14:00', rhythm: 'biweekly' as const }] },
+    ];
+    const result = autoPlanStudents(s, [], new Date(2026, 0, 5), 4); // 4 weeks
+    expect(result.length).toBe(2); // Only 2 appointments (even weeks)
+    expect(result[0].date).toBe('2026-01-05'); // Week 1 (odd) - skipped
+    expect(result[1].date).toBe('2026-01-19'); // Week 3 (odd) - skipped
+  });
+
+  it('skips group appointments when one student is inactive', () => {
+    const s = [
+      { id: 's1', familyId: 'f1', firstName: 'Max', defaultDuration: 60, rhythm: 'weekly' as const, preferredSchedule: [{ dayOfWeek: 1, time: '14:00', rhythm: 'weekly' as const, isGroupAppointment: true, groupWithStudentId: 's2' }] },
+      { id: 's2', familyId: 'f2', firstName: 'Anna', defaultDuration: 60, rhythm: 'weekly' as const, inactive: true, preferredSchedule: [{ dayOfWeek: 1, time: '14:00', rhythm: 'weekly' as const }] },
+    ];
+    const result = autoPlanStudents(s, [], new Date(2026, 0, 5), 1);
+    expect(result.length).toBe(1); // Individual appointment created for s1
+    expect(result[0].studentIds).toEqual(['s1']);
+  });
+
+  it('handles group appointments with multiple preferred schedules per student', () => {
+    const s = [
+      { id: 's1', familyId: 'f1', firstName: 'Max', defaultDuration: 60, rhythm: 'weekly' as const, preferredSchedule: [
+        { dayOfWeek: 1, time: '14:00', rhythm: 'weekly' as const, isGroupAppointment: true, groupWithStudentId: 's2' },
+        { dayOfWeek: 3, time: '15:00', rhythm: 'weekly' as const },
+      ]},
+      { id: 's2', familyId: 'f2', firstName: 'Anna', defaultDuration: 60, rhythm: 'weekly' as const, preferredSchedule: [
+        { dayOfWeek: 1, time: '14:00', rhythm: 'weekly' as const },
+        { dayOfWeek: 3, time: '15:00', rhythm: 'weekly' as const },
+      ]},
+    ];
+    const result = autoPlanStudents(s, [], new Date(2026, 0, 5), 1);
+    expect(result.length).toBe(3); // 1 group appointment + 2 individual appointments
+    expect(result[0].studentIds).toEqual(expect.arrayContaining(['s1', 's2']));
+    expect(result[0].date).toBe('2026-01-05');
+    expect(result[0].time).toBe('14:00');
+    expect(result[1].studentIds).toEqual(['s1']);
+    expect(result[1].date).toBe('2026-01-07');
+    expect(result[1].time).toBe('15:00');
+    expect(result[2].studentIds).toEqual(['s2']);
+    expect(result[2].date).toBe('2026-01-07');
+    expect(result[2].time).toBe('15:00');
+  });
+
+  it('handles group appointments when individual appointment already exists', () => {
+    const s = [
+      { id: 's1', familyId: 'f1', firstName: 'Max', defaultDuration: 60, rhythm: 'weekly' as const, preferredSchedule: [{ dayOfWeek: 1, time: '14:00', rhythm: 'weekly' as const, isGroupAppointment: true, groupWithStudentId: 's2' }] },
+      { id: 's2', familyId: 'f2', firstName: 'Anna', defaultDuration: 60, rhythm: 'weekly' as const, preferredSchedule: [{ dayOfWeek: 1, time: '14:00', rhythm: 'weekly' as const }] },
+    ];
+    const existing: Appointment[] = [
+      { id: 'a1', studentIds: ['s1'], date: '2026-01-05', time: '14:00', duration: 60, status: 'attended' },
+    ];
+    const result = autoPlanStudents(s, existing, new Date(2026, 0, 5), 1);
+    expect(result.length).toBe(1); // Individual appointment created for s2
+    expect(result[0].studentIds).toEqual(['s2']);
+  });
 });
 
 // ── timeToMinutes / minutesToTime ──
