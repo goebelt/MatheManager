@@ -87,11 +87,7 @@ export function autoPlanStudents(
           }
 
           const dateStr = formatDateLocal(appointmentDate);
-          const existing = existingAppointments.find(
-            a => a.date === dateStr && a.studentIds.includes(student.id)
-          );
-          if (existing) continue;
-
+          
           // Check if this is a group appointment
           if (schedule.isGroupAppointment && schedule.groupWithStudentId) {
             // Create a unique key for this group appointment
@@ -100,6 +96,17 @@ export function autoPlanStudents(
             // Only create the appointment once (for the first student in the group)
             if (!processedGroupAppointments.has(groupKey)) {
               processedGroupAppointments.add(groupKey);
+              
+              // Check if a group appointment already exists for both students on this date/time
+              const existingGroupAppointment = existingAppointments.find(
+                a => a.date === dateStr && a.time === schedule.time &&
+                   a.studentIds.includes(student.id) && a.studentIds.includes(schedule.groupWithStudentId)
+              );
+              
+              if (existingGroupAppointment) {
+                // Group appointment already exists, skip
+                continue;
+              }
               
               // Find the other student in the group
               const otherStudent = students.find(s => s.id === schedule.groupWithStudentId);
@@ -123,6 +130,12 @@ export function autoPlanStudents(
               }
             }
           } else {
+            // Check if individual appointment already exists
+            const existing = existingAppointments.find(
+              a => a.date === dateStr && a.studentIds.includes(student.id)
+            );
+            if (existing) continue;
+            
             // Create individual appointment
             newAppointments.push({
               id: `auto-${Date.now()}-${week}-${student.id}-${schedule.dayOfWeek}`,

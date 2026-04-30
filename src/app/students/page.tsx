@@ -39,6 +39,7 @@ export default function StudentsPage() {
   const [newScheduleTime, setNewScheduleTime] = useState('14:00');
   const [newScheduleIsGroup, setNewScheduleIsGroup] = useState(false);
   const [newScheduleGroupWithStudentId, setNewScheduleGroupWithStudentId] = useState('');
+  const [groupStudentFilter, setGroupStudentFilter] = useState('');
 
   useEffect(() => { loadData(); }, []);
 
@@ -78,10 +79,21 @@ export default function StudentsPage() {
     // Reset group fields
     setNewScheduleIsGroup(false);
     setNewScheduleGroupWithStudentId('');
+    setGroupStudentFilter('');
   };
 
   const handleRemoveSchedule = (index: number) => {
     setFormPreferredSchedule(formPreferredSchedule.filter((_, i) => i !== index));
+  };
+
+  const getFilteredGroupStudents = (): Student[] => {
+    const filter = groupStudentFilter.toLowerCase();
+    return (data?.students || []).filter(student => {
+      if (student.id === editingStudentId) return false; // Exclude current student
+      const fullName = `${student.firstName} ${student.lastName || ''}`.toLowerCase();
+      const familyName = getFamilyForStudent(student.id).toLowerCase();
+      return fullName.includes(filter) || familyName.includes(filter);
+    });
   };
 
   const handleAddStudent = () => {
@@ -157,12 +169,14 @@ export default function StudentsPage() {
     setFormNotes(student.notes || '');
     setFormPreferredSchedule(student.preferredSchedule || []);
     setEditingStudentId(student.id);
+    setNewScheduleIsGroup(false); setNewScheduleGroupWithStudentId(''); setGroupStudentFilter('');
   };
 
   const resetForm = () => {
     setFormFirstName(''); setFormLastName(''); setFormFamilyId('');
     setFormDuration(60); setFormRhythm('weekly'); setFormNotes('');
     setFormPreferredSchedule([]); setNewScheduleDay(1); setNewScheduleTime('14:00');
+    setNewScheduleIsGroup(false); setNewScheduleGroupWithStudentId(''); setGroupStudentFilter('');
   };
 
   const filteredStudents = (data?.students || []).filter(student => {
@@ -324,14 +338,19 @@ export default function StudentsPage() {
                     Gruppentermin
                   </label>
                   {newScheduleIsGroup && (
-                    <select value={newScheduleGroupWithStudentId} onChange={e => setNewScheduleGroupWithStudentId(e.target.value)}
-                      className="flex-1 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                    >
-                      <option value="">Schüler auswählen...</option>
-                      {(data?.students || []).filter(s => s.id !== editingStudentId).map(student => (
-                        <option key={student.id} value={student.id}>{student.firstName} {student.lastName || ''}</option>
-                      ))}
-                    </select>
+                    <div className="flex-1">
+                      <input type="text" placeholder="Schüler suchen..." value={groupStudentFilter} onChange={e => setGroupStudentFilter(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500 mb-2"
+                      />
+                      <select value={newScheduleGroupWithStudentId} onChange={e => setNewScheduleGroupWithStudentId(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                      >
+                        <option value="">Schüler auswählen...</option>
+                        {getFilteredGroupStudents().map(student => (
+                          <option key={student.id} value={student.id}>{student.firstName} {student.lastName || ''} ({getFamilyForStudent(student.id)})</option>
+                        ))}
+                      </select>
+                    </div>
                   )}
                 </div>
               </div>
@@ -469,14 +488,19 @@ export default function StudentsPage() {
                               Gruppentermin
                             </label>
                             {newScheduleIsGroup && (
-                              <select value={newScheduleGroupWithStudentId} onChange={e => setNewScheduleGroupWithStudentId(e.target.value)}
-                                className="flex-1 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                              >
-                                <option value="">Schüler auswählen...</option>
-                                {(data?.students || []).filter(s => s.id !== editingStudentId).map(student => (
-                                  <option key={student.id} value={student.id}>{student.firstName} {student.lastName || ''}</option>
-                                ))}
-                              </select>
+                              <div className="flex-1">
+                                <input type="text" placeholder="Schüler suchen..." value={groupStudentFilter} onChange={e => setGroupStudentFilter(e.target.value)}
+                                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500 mb-2"
+                                />
+                                <select value={newScheduleGroupWithStudentId} onChange={e => setNewScheduleGroupWithStudentId(e.target.value)}
+                                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                                >
+                                  <option value="">Schüler auswählen...</option>
+                                  {getFilteredGroupStudents().map(student => (
+                                    <option key={student.id} value={student.id}>{student.firstName} {student.lastName || ''} ({getFamilyForStudent(student.id)})</option>
+                                  ))}
+                                </select>
+                              </div>
                             )}
                           </div>
                         </div>
