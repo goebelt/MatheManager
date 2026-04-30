@@ -34,11 +34,18 @@ export interface PriceEntry {
   id: string;
   name?: string; // Name der Preisregelung
   studentIds: string[]; // Mehrere Schüler können zugeordnet werden (leeres Array = Standardpreis)
-  // Feste Preise für die 4 Kombinationen
-  individual60: number; // Preis für 60 Minuten Einzelunterricht
-  individual90: number; // Preis für 90 Minuten Gruppenunterricht
-  group60: number; // Preis für 60 Minuten Gruppenunterricht
-  group90: number; // Preis für 90 Minuten Gruppenunterricht
+  type: 'standard' | 'block'; // Art der Preisregelung
+  // Standard-Preise (nur für type='standard')
+  individual60?: number; // Preis für 60 Minuten Einzelunterricht
+  individual90?: number; // Preis für 90 Minuten Einzelunterricht
+  group60?: number; // Preis für 60 Minuten Gruppenunterricht
+  group90?: number; // Preis für 90 Minuten Gruppenunterricht
+  // Block-Unterricht (nur für type='block')
+  blockName?: string; // Name des Block-Unterrichts (z.B. "Abiturprogramm")
+  blockPrice?: number; // Festpreis für den gesamten Block
+  blockStartDate?: string; // Startdatum des Blocks (ISO Date)
+  blockEndDate?: string; // Enddatum des Blocks (ISO Date)
+  // Gültigkeitszeitraum
   validFrom: string; // ISO Date
   validTo?: string | null; // ISO Date, null = ongoing
   isDefault?: boolean; // Standardpreis für alle ohne eigenen Preiseintrag

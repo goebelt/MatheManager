@@ -5,6 +5,62 @@
 import type { Appointment, PriceEntry } from '@/types';
 
 /**
+ * Check if a student has a block pricing rule for a specific date
+ * 
+ * @param studentId - ID of the student
+ * @param date - Date to check (ISO Date)
+ * @param priceEntries - All available price entries
+ * @returns The block price entry if found, undefined otherwise
+ */
+export function getBlockPriceForStudent(
+  studentId: string,
+  date: string,
+  priceEntries?: PriceEntry[]
+): PriceEntry | undefined {
+  for (const entry of priceEntries || []) {
+    // Check if this is a block pricing rule
+    if (entry.type === 'block' && 
+        entry.studentIds && 
+        entry.studentIds.includes(studentId) &&
+        entry.blockStartDate && 
+        entry.blockEndDate) {
+      
+      // Check if the date is within the block period
+      const appointmentDate = new Date(date);
+      const blockStart = new Date(entry.blockStartDate);
+      const blockEnd = new Date(entry.blockEndDate);
+      
+      if (appointmentDate >= blockStart && appointmentDate <= blockEnd) {
+        return entry;
+      }
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Calculate the block price for a student
+ * 
+ * @param studentId - ID of the student
+ * @param priceEntries - All available price entries
+ * @returns The block price entry if found, undefined otherwise
+ */
+export function calculateBlockPrice(
+  studentId: string,
+  priceEntries?: PriceEntry[]
+): { entry: PriceEntry; price: number } | undefined {
+  for (const entry of priceEntries || []) {
+    if (entry.type === 'block' && 
+        entry.studentIds && 
+        entry.studentIds.includes(studentId) &&
+        entry.blockPrice !== undefined) {
+      return { entry, price: entry.blockPrice };
+    }
+  }
+  return undefined;
+}
+
+/**
  * Calculate the fee for a single appointment based on price rules
  * 
  * Formula: Fee = Amount × (Duration / 60)
@@ -30,6 +86,16 @@ export function calculateAppointmentFee(
       return 0;
     }
 
+    // Check if the student has a block pricing rule for this date
+    if (studentId) {
+      const blockEntry = getBlockPriceForStudent(studentId, appointment.date, priceEntries);
+      if (blockEntry) {
+        // Student is in a block pricing period - no individual fee for this appointment
+        // The block price will be calculated separately
+        return 0;
+      }
+    }
+
     // Find matching price entry:
     // - Appointment date must be between validFrom and validTo (if present)
     // - Priority: Student-specific price first, then default price
@@ -38,6 +104,9 @@ export function calculateAppointmentFee(
     // First, try to find a student-specific price entry
     if (studentId) {
       for (const entry of priceEntries || []) {
+        // Skip block pricing entries for standard fee calculation
+        if (entry.type === 'block') continue;
+        
         if (new Date(appointment.date) >= new Date(entry.validFrom) &&
             entry.studentIds && entry.studentIds.includes(studentId)) {
           const validTo = entry.validTo ? new Date(entry.validTo) : null;
@@ -54,6 +123,9 @@ export function calculateAppointmentFee(
     // If no student-specific price found, try to find a default price
     if (!matchedEntry) {
       for (const entry of priceEntries || []) {
+        // Skip block pricing entries for standard fee calculation
+        if (entry.type === 'block') continue;
+        
         if (new Date(appointment.date) >= new Date(entry.validFrom) &&
             (!entry.studentIds || entry.studentIds.length === 0)) {
           const validTo = entry.validTo ? new Date(entry.validTo) : null;

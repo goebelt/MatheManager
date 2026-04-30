@@ -50,6 +50,13 @@ Next.js App zur Verwaltung von Mathe-Nachhilfe mit Tailwind CSS. Verwalten Sie F
 - Flexible Preiseinträge mit Start-/Enddatum
 - Individuelle Preisgestaltung pro Schüler/Familie
 - Name-Feld für Preisregelungen
+- **Block-Unterricht**: Festpreis für einen bestimmten Zeitraum (kein Stundensatz)
+  - Block-Name (z.B. "Abiturprogramm")
+  - Block-Preis (z.B. 450 Euro)
+  - Block-Zeitraum (Start- und Enddatum)
+  - Schüler, die einem Block-Unterricht zugeordnet sind, fallen in diesem Zeitraum unter keine Einzelpreisregelungen oder Standardpreisregelungen
+  - Auf der Rechnung wird nur der Gesamtpreis für den Block-Unterricht und dessen definierter Name aufgeführt (Bsp. "Maria Meier, Abiturprogramm 450 Euro")
+  - Termine, die in der Zeit einer zugeordneten Block-Unterrichtsphase abgesagt werden, müssen auch nicht teilweise bezahlt werden und werden auch nicht einzeln auf der Rechnung ausgewiesen
 
 ### Schüler
 - Verwaltung aller Schüler
@@ -101,10 +108,10 @@ Das Projekt nutzt **Jest** + **ts-jest** + **React Testing Library** für automa
 
 | Phase | Bereich | Tests | Was getestet wird |
 |-------|---------|-------|-------------------|
-| **P0** | `lib/billing`, `lib/storage`, `types/dashboardTypes` | 50 | Honorarberechnung, localStorage, Rhythmus-Woche |
-| **P1** | `lib/scheduling`, `lib/dateFilters`, `lib/invoiceUtils` | 56 | Termin-Logik, Slot-Generierung, Pausenblocker, Datumsfilter, Rechnungsutils, Gruppentermine |
+| **P0** | `lib/billing`, `lib/storage`, `types/dashboardTypes` | 63 | Honorarberechnung, localStorage, Rhythmus-Woche, Block-Preise |
+| **P1** | `lib/scheduling`, `lib/dateFilters`, `lib/invoiceUtils` | 92 | Termin-Logik, Slot-Generierung, Pausenblocker, Datumsfilter, Rechnungsutils, Gruppentermine |
 | **P3** | `components/*` | 70 | UI-Rendering: InvoiceTemplate, AppointmentCard (Zeitanzeige), DayView, Navigation |
-| | **Gesamt** | **176** | |
+| | **Gesamt** | **225** | |
 
 ```bash
 npm test              # Alle Tests
