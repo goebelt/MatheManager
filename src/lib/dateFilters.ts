@@ -47,8 +47,10 @@ export function filterAppointmentsByDate(
       break;
     }
     case 'custom': {
-      if (options.startDate && options.endDate) {
-        const start = new Date(options.startDate);
+      // Default empty startDate to today (reference date)
+      const effectiveStartDate = options.startDate || now.toISOString().split('T')[0];
+      if (effectiveStartDate && options.endDate) {
+        const start = new Date(effectiveStartDate);
         start.setHours(0, 0, 0, 0);
         const end = new Date(options.endDate);
         end.setHours(23, 59, 59, 999);

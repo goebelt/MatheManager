@@ -271,9 +271,11 @@ export default function InvoicesPage() {
 
   // ── Filtered appointments for INVOICE (exclude planned) ──
   const filteredAppointments = useMemo(() => {
+    // If endDate is set, use custom range – startDate defaults to today if empty
+    const effectiveStartDate = startDate || new Date().toISOString().split('T')[0];
     return filterAppointmentsByDate(data?.appointments || [], {
-      timeRange: (startDate && endDate) ? 'custom' : 'all',
-      startDate,
+      timeRange: endDate ? 'custom' : 'all',
+      startDate: effectiveStartDate,
       endDate,
     }).filter(app => {
       if (selectedStudentIds.length === 0) return true;
