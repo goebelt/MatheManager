@@ -218,12 +218,19 @@ export default function InvoicesPage() {
   const [activeView, setActiveView] = useState<'invoice' | 'preview'>('invoice');
 
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
-  // Default to current month range
+  // Default to current month range (local timezone)
   const now = new Date();
-  const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-  const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
-  const [startDate, setStartDate] = useState(firstDayOfMonth);
-  const [endDate, setEndDate] = useState(lastDayOfMonth);
+  const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  // Format dates as YYYY-MM-DD in local timezone
+  const formatDateLocal = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+  const [startDate, setStartDate] = useState(formatDateLocal(firstDayOfMonth));
+  const [endDate, setEndDate] = useState(formatDateLocal(lastDayOfMonth));
 
   const [studentDropdownOpen, setStudentDropdownOpen] = useState(false);
   const [studentFilter, setStudentFilter] = useState('');
