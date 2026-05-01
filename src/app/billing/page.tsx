@@ -214,13 +214,13 @@ export default function BillingPage() {
         const isPaid = getPaymentStatus(appointment.id, studentId);
 
         // Determine display type
-        let displayType = appointmentType;
+        let displayType: 'individual' | 'group' | 'block' = appointmentType;
         let displayFee = fee;
         let blockName = undefined;
         let blockPrice = undefined;
 
         if (blockEntry) {
-          displayType = 'block' as const;
+          displayType = 'block';
           displayFee = blockEntry.blockPrice || 0;
           blockName = blockEntry.blockName;
           blockPrice = blockEntry.blockPrice;
