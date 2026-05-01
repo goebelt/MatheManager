@@ -158,13 +158,30 @@ export default function BillingPage() {
           return;
         }
 
+        // Check if student has block pricing for this date
+        let blockEntry: PriceEntry | undefined;
+        for (const entry of data.priceEntries || []) {
+          if (entry.type === 'block' && 
+              entry.studentIds && entry.studentIds.includes(studentId) &&
+              entry.blockStartDate && entry.blockEndDate) {
+            const appointmentDate = new Date(appointment.date);
+            const blockStart = new Date(entry.blockStartDate);
+            const blockEnd = new Date(entry.blockEndDate);
+            if (appointmentDate >= blockStart && appointmentDate <= blockEnd) {
+              blockEntry = entry;
+              break;
+            }
+          }
+        }
+
         // Find matching price entry for this specific student:
         // - Appointment date must be between validFrom and validTo (if present)
         // - Priority: Student-specific price first, then default price
         let priceEntry: PriceEntry | undefined;
         
-        // First, try to find a student-specific price entry
+        // First, try to find a student-specific price entry (skip block entries)
         for (const entry of data.priceEntries || []) {
+          if (entry.type === 'block') continue; // Skip block entries for standard pricing
           if (new Date(appointment.date) >= new Date(entry.validFrom) &&
               entry.studentIds && entry.studentIds.includes(studentId)) {
             const validTo = entry.validTo ? new Date(entry.validTo) : null;
@@ -175,9 +192,10 @@ export default function BillingPage() {
           }
         }
         
-        // If no student-specific price found, try to find a default price
+        // If no student-specific price found, try to find a default price (skip block entries)
         if (!priceEntry) {
           for (const entry of data.priceEntries || []) {
+            if (entry.type === 'block') continue; // Skip block entries for standard pricing
             if (new Date(appointment.date) >= new Date(entry.validFrom) &&
                 (!entry.studentIds || entry.studentIds.length === 0)) {
               const validTo = entry.validTo ? new Date(entry.validTo) : null;
@@ -195,15 +213,30 @@ export default function BillingPage() {
         const family = student ? (data?.families || []).find(f => f.id === student.familyId) : null;
         const isPaid = getPaymentStatus(appointment.id, studentId);
 
+        // Determine display type
+        let displayType = appointmentType;
+        let displayFee = fee;
+        let blockName = undefined;
+        let blockPrice = undefined;
+
+        if (blockEntry) {
+          displayType = 'block' as const;
+          displayFee = blockEntry.blockPrice || 0;
+          blockName = blockEntry.blockName;
+          blockPrice = blockEntry.blockPrice;
+        }
+
         rows.push({
           ...appointment,
           studentId,
           student,
           family,
-          calculatedFee: fee,
-          priceEntryType: appointmentType,
-          hasPrice: !!priceEntry,
+          calculatedFee: displayFee,
+          priceEntryType: displayType,
+          hasPrice: !!priceEntry || !!blockEntry,
           isPaid,
+          blockName,
+          blockPrice,
         });
       });
     });
@@ -537,9 +570,13 @@ export default function BillingPage() {
                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
                               Einzel
                             </span>
-                          ) : (
+                          ) : appointment.priceEntryType === 'group' ? (
                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
                               Gruppe
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300">
+                              Block-Unterricht
                             </span>
                           )}
                         </td>
@@ -566,7 +603,17 @@ export default function BillingPage() {
                           )}
                         </td>
                         <td className="px-4 py-3 text-right text-sm font-medium text-gray-900 dark:text-white">
-                          {appointment.calculatedFee ? (
+                          {appointment.priceEntryType === 'block' ? (
+                            <>
+                              {appointment.blockName && (
+                                <span className="text-xs text-gray-500 dark:text-slate-400">
+                                  {appointment.blockName}
+                                </span>
+                              )}
+                              <br />
+                              €{appointment.blockPrice?.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
+                            </>
+                          ) : appointment.calculatedFee ? (
                             <>
                               €{appointment.calculatedFee.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               {!appointment.hasPrice && (

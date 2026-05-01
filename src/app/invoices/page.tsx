@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Invoices Page - Generate invoices and appointment previews for families
  */
 'use client';
@@ -139,14 +139,18 @@ function AppointmentPreviewTemplate({ preview }: { preview: AppointmentPreviewDa
                       <span className="inline-flex items-center gap-1">
                         <span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span> Gruppe
                       </span>
+                    ) : item.duration === 0 ? (
+                      <span className="inline-flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 bg-orange-500 rounded-full"></span> Block-Unterricht
+                      </span>
                     ) : (
                       <span className="inline-flex items-center gap-1">
                         <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span> Einzel
                       </span>
                     )}
                   </td>
-                  <td className="py-1.5 px-1.5 text-xs">{item.duration} Min</td>
-                  <td className="py-1.5 px-1.5 text-xs text-right">&euro;{item.unitPrice.toFixed(2)}</td>
+                  <td className="py-1.5 px-1.5 text-xs">{item.duration === 0 ? '-' : `${item.duration} Min`}</td>
+                  <td className="py-1.5 px-1.5 text-xs text-right">{item.unitPrice === 0 ? '-' : `€${item.unitPrice.toFixed(2)}`}</td>
                   <td className="py-1.5 px-1.5 text-xs text-right font-semibold">&euro;{item.totalPrice.toFixed(2)}</td>
                 </tr>
               ))
@@ -321,6 +325,10 @@ export default function InvoicesPage() {
     if (!data) return [];
     const items: InvoiceItem[] = [];
     const seen = new Set<string>();
+    
+    // Track block pricing per student to avoid duplicates
+    const blockItemsSeen = new Set<string>();
+    
     filteredAppointments.forEach(appointment => {
       appointment.studentIds.forEach(studentId => {
         if (selectedStudentIds.length > 0 && !selectedStudentIds.includes(studentId)) return;
@@ -329,8 +337,50 @@ export default function InvoicesPage() {
         seen.add(key);
         const student = data.students.find(s => s.id === studentId);
         const lessonType = appointment.studentIds.length > 1 ? 'group' : 'individual';
+        
+        // Check if student has block pricing for this date
+        let blockEntry: PriceEntry | undefined;
+        for (const entry of data.priceEntries || []) {
+          if (entry.type === 'block' && 
+              entry.studentIds && entry.studentIds.includes(studentId) &&
+              entry.blockStartDate && entry.blockEndDate) {
+            const appointmentDate = new Date(appointment.date);
+            const blockStart = new Date(entry.blockStartDate);
+            const blockEnd = new Date(entry.blockEndDate);
+            if (appointmentDate >= blockStart && appointmentDate <= blockEnd) {
+              blockEntry = entry;
+              break;
+            }
+          }
+        }
+        
+        // If student has block pricing, add block item (only once per student per block)
+        if (blockEntry) {
+          const blockKey = `${studentId}-${blockEntry.id}`;
+          if (!blockItemsSeen.has(blockKey)) {
+            blockItemsSeen.add(blockKey);
+            const paymentStatus = (data?.paymentStatuses || []).find(s => s.appointmentId === appointment.id && s.studentId === studentId);
+            items.push({
+              appointmentId: appointment.id,
+              date: appointment.date,
+              studentName: student ? `${student.firstName} ${student.lastName || ''}`.trim() : 'Unknown',
+              lessonType: 'individual' as const,
+              status: 'attended' as const,
+              hourlyRate: 0,
+              description: blockEntry.blockName || 'Block-Unterricht',
+              unitPrice: blockEntry.blockPrice || 0,
+              quantity: 1,
+              totalPrice: blockEntry.blockPrice || 0,
+              isPaid: paymentStatus?.isPaid || false,
+            });
+          }
+          return; // Skip individual appointment items for block pricing
+        }
+        
+        // Standard pricing logic
         let priceEntry: PriceEntry | undefined;
         for (const entry of data.priceEntries || []) {
+          if (entry.type === 'block') continue; // Skip block entries for standard pricing
           if (new Date(appointment.date) >= new Date(entry.validFrom) && entry.studentIds && entry.studentIds.includes(studentId)) {
             const validTo = entry.validTo ? new Date(entry.validTo) : null;
             if (!validTo || new Date(appointment.date) <= validTo) { priceEntry = entry; break; }
@@ -338,6 +388,7 @@ export default function InvoicesPage() {
         }
         if (!priceEntry) {
           for (const entry of data.priceEntries || []) {
+            if (entry.type === 'block') continue; // Skip block entries for standard pricing
             if (new Date(appointment.date) >= new Date(entry.validFrom) && (!entry.studentIds || entry.studentIds.length === 0)) {
               const validTo = entry.validTo ? new Date(entry.validTo) : null;
               if (!validTo || new Date(appointment.date) <= validTo) { priceEntry = entry; break; }
@@ -377,6 +428,10 @@ export default function InvoicesPage() {
     if (!data) return [];
     const items: AppointmentPreviewItem[] = [];
     const seen = new Set<string>();
+    
+    // Track block pricing per student to avoid duplicates
+    const blockItemsSeen = new Set<string>();
+    
     plannedAppointments.forEach(appointment => {
       appointment.studentIds.forEach(studentId => {
         if (selectedStudentIds.length > 0 && !selectedStudentIds.includes(studentId)) return;
@@ -385,8 +440,47 @@ export default function InvoicesPage() {
         seen.add(key);
         const student = data.students.find(s => s.id === studentId);
         const lessonType = appointment.studentIds.length > 1 ? 'group' : 'individual';
+        
+        // Check if student has block pricing for this date
+        let blockEntry: PriceEntry | undefined;
+        for (const entry of data.priceEntries || []) {
+          if (entry.type === 'block' && 
+              entry.studentIds && entry.studentIds.includes(studentId) &&
+              entry.blockStartDate && entry.blockEndDate) {
+            const appointmentDate = new Date(appointment.date);
+            const blockStart = new Date(entry.blockStartDate);
+            const blockEnd = new Date(entry.blockEndDate);
+            if (appointmentDate >= blockStart && appointmentDate <= blockEnd) {
+              blockEntry = entry;
+              break;
+            }
+          }
+        }
+        
+        // If student has block pricing, add block item (only once per student per block)
+        if (blockEntry) {
+          const blockKey = `${studentId}-${blockEntry.id}`;
+          if (!blockItemsSeen.has(blockKey)) {
+            blockItemsSeen.add(blockKey);
+            items.push({
+              appointmentId: appointment.id,
+              date: appointment.date,
+              time: appointment.time || '--:--',
+              studentName: student ? `${student.firstName} ${student.lastName || ''}`.trim() : 'Unknown',
+              lessonType: 'individual' as const,
+              duration: 0,
+              status: appointment.status,
+              unitPrice: blockEntry.blockPrice || 0,
+              totalPrice: blockEntry.blockPrice || 0,
+            });
+          }
+          return; // Skip individual appointment items for block pricing
+        }
+        
+        // Standard pricing logic
         let priceEntry: PriceEntry | undefined;
         for (const entry of data.priceEntries || []) {
+          if (entry.type === 'block') continue; // Skip block entries for standard pricing
           if (new Date(appointment.date) >= new Date(entry.validFrom) && entry.studentIds && entry.studentIds.includes(studentId)) {
             const validTo = entry.validTo ? new Date(entry.validTo) : null;
             if (!validTo || new Date(appointment.date) <= validTo) { priceEntry = entry; break; }
@@ -394,6 +488,7 @@ export default function InvoicesPage() {
         }
         if (!priceEntry) {
           for (const entry of data.priceEntries || []) {
+            if (entry.type === 'block') continue; // Skip block entries for standard pricing
             if (new Date(appointment.date) >= new Date(entry.validFrom) && (!entry.studentIds || entry.studentIds.length === 0)) {
               const validTo = entry.validTo ? new Date(entry.validTo) : null;
               if (!validTo || new Date(appointment.date) <= validTo) { priceEntry = entry; break; }
