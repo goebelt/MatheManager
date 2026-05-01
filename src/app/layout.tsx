@@ -6,6 +6,7 @@
 'use client';
 
 import { Navigation } from '@/components/Navigation';
+import { Analytics } from '@vercel/analytics/next';
 import './globals.css';
 
 export default function RootLayout({
@@ -38,6 +39,7 @@ export default function RootLayout({
             </p>
           </div>
         </footer>
+        <Analytics />
       </body>
     </html>
   )
