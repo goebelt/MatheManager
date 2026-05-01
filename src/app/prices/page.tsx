@@ -158,7 +158,7 @@ export default function PricesPage() {
           ? {
               ...entry,
               name: formName || undefined,
-              type: 'standard',
+              type: 'standard' as const,
               studentIds: formIsDefault ? [] : formStudentIds,
               individual60: parseFloat(formIndividual60),
               individual90: parseFloat(formIndividual90),
@@ -188,7 +188,7 @@ export default function PricesPage() {
           ? {
               ...entry,
               name: formName || undefined,
-              type: 'block',
+              type: 'block' as const,
               studentIds: formStudentIds,
               blockName: formBlockName,
               blockPrice: parseFloat(formBlockPrice),
