@@ -506,22 +506,22 @@ export default function BillingPage() {
         {/* Earnings Breakdown */}
         {!loading && data && (
           <div className="grid gap-4 mb-6">
-            <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-slate-700/30 rounded-lg border border-gray-200 dark:border-slate-600">
+            <div className="flex justify-between items-center p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
               <div>
-                <p className="text-sm text-gray-500 dark:text-slate-400">Einzelstunden Honorar</p>
+                <p className="text-sm text-green-600 dark:text-green-400">Einzelstunden Honorar</p>
               </div>
               <div className="text-right">
-                <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                <p className="text-lg font-semibold text-green-700 dark:text-green-300">
                   {individualEarnings.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}
                 </p>
               </div>
             </div>
-            <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-slate-700/30 rounded-lg border border-gray-200 dark:border-slate-600">
+            <div className="flex justify-between items-center p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
               <div>
-                <p className="text-sm text-gray-500 dark:text-slate-400">Gruppenstunden Honorar</p>
+                <p className="text-sm text-purple-600 dark:text-purple-400">Gruppenstunden Honorar</p>
               </div>
               <div className="text-right">
-                <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                <p className="text-lg font-semibold text-purple-700 dark:text-purple-300">
                   {groupEarnings.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}
                 </p>
               </div>
