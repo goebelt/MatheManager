@@ -65,6 +65,7 @@ export function autoPlanStudents(
   weeks: number
 ): Appointment[] {
   const newAppointments: Appointment[] = [];
+  const processedGroupAppointments = new Set<string>(); // Track group appointments to avoid duplicates
 
   students.forEach(student => {
     if (student.inactive) return; // Skip inactive students
@@ -86,19 +87,116 @@ export function autoPlanStudents(
           }
 
           const dateStr = formatDateLocal(appointmentDate);
-          const existing = existingAppointments.find(
-            a => a.date === dateStr && a.studentIds.includes(student.id)
-          );
-          if (existing) continue;
-
-          newAppointments.push({
-            id: `auto-${Date.now()}-${week}-${student.id}-${schedule.dayOfWeek}`,
-            studentIds: [student.id],
-            date: dateStr,
-            time: schedule.time,
-            duration: student.defaultDuration,
-            status: 'planned',
-          });
+          
+          // Check if this is a group appointment
+          if (schedule.isGroupAppointment && schedule.groupWithStudentId) {
+            // Create a unique key for this group appointment
+            const groupKey = `${dateStr}-${schedule.time}-${schedule.dayOfWeek}`;
+            
+            // Only create the appointment once (for the first student in the group)
+            if (!processedGroupAppointments.has(groupKey)) {
+              processedGroupAppointments.add(groupKey);
+              
+              // Check if a group appointment already exists for both students on this date/time
+              const existingGroupAppointment = existingAppointments.find(
+                a => a.date === dateStr && a.time === schedule.time &&
+                   a.studentIds.includes(student.id) &&
+                   schedule.groupWithStudentId && a.studentIds.includes(schedule.groupWithStudentId)
+              );
+              
+              if (existingGroupAppointment) {
+                // Group appointment already exists, skip
+                continue;
+              }
+              
+              // Check if an individual appointment already exists for either student on this date/time
+              const existingIndividualAppointment = existingAppointments.find(
+                a => a.date === dateStr && a.time === schedule.time &&
+                   (a.studentIds.includes(student.id) || a.studentIds.includes(schedule.groupWithStudentId!)) &&
+                   a.studentIds.length === 1
+              );
+              
+              if (existingIndividualAppointment) {
+                // Individual appointment already exists for one of the students, skip
+                continue;
+              }
+              
+              // Find the other student in the group
+              const otherStudent = students.find(s => s.id === schedule.groupWithStudentId);
+              if (otherStudent) {
+                // Check if the other student is inactive
+                if (otherStudent.inactive) {
+                  // Other student is inactive, create individual appointment for this student
+                  newAppointments.push({
+                    id: `auto-${Date.now()}-${week}-${student.id}-${schedule.dayOfWeek}`,
+                    studentIds: [student.id],
+                    date: dateStr,
+                    time: schedule.time,
+                    duration: student.defaultDuration,
+                    status: 'planned',
+                  });
+                } else {
+                  // Check if the other student also has this preferred schedule
+                  const otherStudentHasSchedule = otherStudent.preferredSchedule?.some(
+                    os => os.dayOfWeek === schedule.dayOfWeek && os.time === schedule.time
+                  );
+                  
+                  if (otherStudentHasSchedule) {
+                    // Create a group appointment with both students
+                    newAppointments.push({
+                      id: `auto-${Date.now()}-${week}-${student.id}-${schedule.dayOfWeek}-group`,
+                      studentIds: [student.id, otherStudent.id],
+                      date: dateStr,
+                      time: schedule.time,
+                      duration: Math.max(student.defaultDuration, otherStudent.defaultDuration), // Use the longer duration
+                      status: 'planned',
+                    });
+                  } else {
+                    // Other student does not have matching schedule, create individual appointment for this student
+                    newAppointments.push({
+                      id: `auto-${Date.now()}-${week}-${student.id}-${schedule.dayOfWeek}`,
+                      studentIds: [student.id],
+                      date: dateStr,
+                      time: schedule.time,
+                      duration: student.defaultDuration,
+                      status: 'planned',
+                    });
+                  }
+                }
+              }
+            }
+            // Skip individual appointment creation for this student (group appointment handles it)
+            continue;
+          } else {
+            // Check if this student is part of a group appointment (existing or newly created)
+            const isPartOfGroupAppointment = [
+              ...existingAppointments,
+              ...newAppointments
+            ].some(
+              a => a.date === dateStr && a.time === schedule.time && a.studentIds.includes(student.id) && a.studentIds.length > 1
+            );
+            
+            if (isPartOfGroupAppointment) {
+              // Student is already part of a group appointment, skip
+              continue;
+            }
+            
+            // Check if individual appointment already exists
+            const existing = existingAppointments.find(
+              a => a.date === dateStr && a.studentIds.includes(student.id)
+            );
+            if (existing) continue;
+            
+            // Create individual appointment
+            newAppointments.push({
+              id: `auto-${Date.now()}-${week}-${student.id}-${schedule.dayOfWeek}`,
+              studentIds: [student.id],
+              date: dateStr,
+              time: schedule.time,
+              duration: student.defaultDuration,
+              status: 'planned',
+            });
+          }
         }
       });
     } else {
@@ -131,6 +229,20 @@ export function autoPlanStudents(
         }
 
         const dateStr = formatDateLocal(appointmentDate);
+        
+        // Check if this student is part of a group appointment (existing or newly created)
+        const isPartOfGroupAppointment = [
+          ...existingAppointments,
+          ...newAppointments
+        ].some(
+          a => a.date === dateStr && a.studentIds.includes(student.id) && a.studentIds.length > 1
+        );
+        
+        if (isPartOfGroupAppointment) {
+          // Student is already part of a group appointment, skip
+          continue;
+        }
+        
         const existing = existingAppointments.find(
           a => a.date === dateStr && a.studentIds.includes(student.id)
         );

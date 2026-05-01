@@ -30,7 +30,7 @@ export interface InvoiceData {
     appointmentId?: string;
     date: string;
     studentName?: string;
-    lessonType?: 'individual' | 'group';
+    lessonType?: 'individual' | 'group' | 'block';
     status?: 'attended' | 'canceled_paid' | 'canceled_free' | 'planned';
     hourlyRate?: number;
     description: string;
@@ -178,7 +178,7 @@ export function InvoiceTemplate({
               invoice.items.map((item, index) => (
                 <tr key={index} className="border-b border-dotted border-black hover:bg-blue-50 transition-colors print-break-avoid">
                   <td className="py-1 px-1.5 text-xs text-gray-600">
-                    {formatDate(item.date)}
+                    {item.lessonType === 'block' ? '-' : formatDate(item.date)}
                   </td>
                   <td className="py-1 px-1.5 text-xs font-medium">{item.studentName || '-'}</td>
                   <td className="py-1 px-1.5 text-xs">
@@ -186,6 +186,14 @@ export function InvoiceTemplate({
                       <span className="inline-flex items-center gap-1">
                         <span className="w-1 h-1 bg-blue-500 rounded-full"></span>
                         Gruppenunterricht
+                      </span>
+                    ) : item.lessonType === 'block' ? (
+                      <span className="inline-flex items-center gap-1">
+                        <span className="w-1 h-1 bg-orange-500 rounded-full"></span>
+                        Block-Unterricht
+                        {item.description && (
+                          <span className="text-orange-600 font-medium">({item.description})</span>
+                        )}
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1">
@@ -195,7 +203,7 @@ export function InvoiceTemplate({
                     )}
                   </td>
                   <td className="py-1 px-1.5 text-xs">
-                    {item.status === 'attended' ? (
+                    {item.lessonType === 'block' ? '-' : item.status === 'attended' ? (
                       <span className="inline-flex items-center gap-1 text-green-600">
                         <Check size={10} />
                         Besucht
@@ -221,7 +229,7 @@ export function InvoiceTemplate({
                     &euro;{item.totalPrice.toFixed(2)}
                   </td>
                   <td className="py-1 px-1.5 text-center text-xs">
-                    {item.isPaid ? (
+                    {item.lessonType === 'block' ? '-' : item.isPaid ? (
                       <span className="inline-flex items-center gap-1 text-green-600">
                         <Check size={10} />
                         Ja

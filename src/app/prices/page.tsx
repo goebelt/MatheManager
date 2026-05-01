@@ -1,11 +1,11 @@
 /**
- * Price Management Page - Manage price entries for individual and group lessons
+ * Price Management Page - Manage price entries for individual, group, and block lessons
  * Edit form expands inline under the corresponding entry card
  */
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Euro, Calendar, Plus, Edit2, Trash2, Search, Check, User, X, Loader2 } from 'lucide-react';
+import { Euro, Calendar, Plus, Edit2, Trash2, Search, Check, User, X, Loader2, Package } from 'lucide-react';
 import type { PriceEntry, DataContainer, Student } from '@/types';
 
 export default function PricesPage() {
@@ -17,11 +17,16 @@ export default function PricesPage() {
 
   // Form state
   const [formName, setFormName] = useState('');
+  const [formType, setFormType] = useState<'standard' | 'block'>('standard');
   const [formStudentIds, setFormStudentIds] = useState<string[]>([]);
   const [formIndividual60, setFormIndividual60] = useState('');
   const [formIndividual90, setFormIndividual90] = useState('');
   const [formGroup60, setFormGroup60] = useState('');
   const [formGroup90, setFormGroup90] = useState('');
+  const [formBlockName, setFormBlockName] = useState('');
+  const [formBlockPrice, setFormBlockPrice] = useState('');
+  const [formBlockStartDate, setFormBlockStartDate] = useState('');
+  const [formBlockEndDate, setFormBlockEndDate] = useState('');
   const [formValidFrom, setFormValidFrom] = useState('');
   const [formValidTo, setFormValidTo] = useState('');
   const [formIsDefault, setFormIsDefault] = useState(false);
@@ -78,71 +83,131 @@ export default function PricesPage() {
   };
 
   const handleAdd = () => {
-    if (formIsDefault) {
-      if (!formIndividual60 || !formIndividual90 || !formGroup60 || !formGroup90 || !formValidFrom) {
-        alert('Bitte alle Preise und Gültigkeitszeitraum angeben'); return;
+    if (formType === 'standard') {
+      if (formIsDefault) {
+        if (!formIndividual60 || !formIndividual90 || !formGroup60 || !formGroup90 || !formValidFrom) {
+          alert('Bitte alle Preise und Gültigkeitszeitraum angeben'); return;
+        }
+      } else {
+        if (formStudentIds.length === 0 || !formIndividual60 || !formIndividual90 || !formGroup60 || !formGroup90 || !formValidFrom) {
+          alert('Bitte mindestens einen Schüler, alle Preise und Gültigkeitszeitraum angeben'); return;
+        }
       }
+      const newEntry: PriceEntry = {
+        id: `price-${Date.now()}`,
+        name: formName || undefined,
+        type: 'standard',
+        studentIds: formIsDefault ? [] : formStudentIds,
+        individual60: parseFloat(formIndividual60),
+        individual90: parseFloat(formIndividual90),
+        group60: parseFloat(formGroup60),
+        group90: parseFloat(formGroup90),
+        validFrom: formValidFrom,
+        validTo: formValidTo || undefined,
+        isDefault: formIsDefault,
+      };
+      const updatedData: DataContainer = data || {
+        families: [], students: [], priceEntries: [], appointments: [], lastUpdated: new Date().toISOString(),
+      };
+      updatedData.priceEntries = [...(updatedData.priceEntries || []), newEntry];
+      updatedData.lastUpdated = new Date().toISOString();
+      saveData(updatedData);
+      resetForm(); setShowAddForm(false);
+      alert('Preisregelung wurde erstellt!');
     } else {
-      if (formStudentIds.length === 0 || !formIndividual60 || !formIndividual90 || !formGroup60 || !formGroup90 || !formValidFrom) {
-        alert('Bitte mindestens einen Schüler, alle Preise und Gültigkeitszeitraum angeben'); return;
+      // Block pricing
+      if (formStudentIds.length === 0 || !formBlockName || !formBlockPrice || !formBlockStartDate || !formBlockEndDate) {
+        alert('Bitte mindestens einen Schüler, Block-Name, Block-Preis und Block-Zeitraum angeben'); return;
       }
+      const newEntry: PriceEntry = {
+        id: `price-${Date.now()}`,
+        name: formName || undefined,
+        type: 'block',
+        studentIds: formStudentIds,
+        blockName: formBlockName,
+        blockPrice: parseFloat(formBlockPrice),
+        blockStartDate: formBlockStartDate,
+        blockEndDate: formBlockEndDate,
+        validFrom: formBlockStartDate,
+        validTo: formBlockEndDate,
+      };
+      const updatedData: DataContainer = data || {
+        families: [], students: [], priceEntries: [], appointments: [], lastUpdated: new Date().toISOString(),
+      };
+      updatedData.priceEntries = [...(updatedData.priceEntries || []), newEntry];
+      updatedData.lastUpdated = new Date().toISOString();
+      saveData(updatedData);
+      resetForm(); setShowAddForm(false);
+      alert('Block-Unterricht wurde erstellt!');
     }
-    const newEntry: PriceEntry = {
-      id: `price-${Date.now()}`,
-      name: formName || undefined,
-      studentIds: formIsDefault ? [] : formStudentIds,
-      individual60: parseFloat(formIndividual60),
-      individual90: parseFloat(formIndividual90),
-      group60: parseFloat(formGroup60),
-      group90: parseFloat(formGroup90),
-      validFrom: formValidFrom,
-      validTo: formValidTo || undefined,
-      isDefault: formIsDefault,
-    };
-    const updatedData: DataContainer = data || {
-      families: [], students: [], priceEntries: [], appointments: [], lastUpdated: new Date().toISOString(),
-    };
-    updatedData.priceEntries = [...(updatedData.priceEntries || []), newEntry];
-    updatedData.lastUpdated = new Date().toISOString();
-    saveData(updatedData);
-    resetForm(); setShowAddForm(false);
-    alert('Preisregelung wurde erstellt!');
   };
 
   const handleUpdate = () => {
-    if (formIsDefault) {
-      if (!formIndividual60 || !formIndividual90 || !formGroup60 || !formGroup90 || !formValidFrom || !editingId) {
-        alert('Bitte alle Preise und Gültigkeitszeitraum angeben'); return;
+    if (formType === 'standard') {
+      if (formIsDefault) {
+        if (!formIndividual60 || !formIndividual90 || !formGroup60 || !formGroup90 || !formValidFrom || !editingId) {
+          alert('Bitte alle Preise und Gültigkeitszeitraum angeben'); return;
+        }
+      } else {
+        if (formStudentIds.length === 0 || !formIndividual60 || !formIndividual90 || !formGroup60 || !formGroup90 || !formValidFrom || !editingId) {
+          alert('Bitte mindestens einen Schüler, alle Preise und Gültigkeitszeitraum angeben'); return;
+        }
       }
+      const updatedEntries = (data?.priceEntries || []).map(entry =>
+        entry.id === editingId
+          ? {
+              ...entry,
+              name: formName || undefined,
+              type: 'standard' as const,
+              studentIds: formIsDefault ? [] : formStudentIds,
+              individual60: parseFloat(formIndividual60),
+              individual90: parseFloat(formIndividual90),
+              group60: parseFloat(formGroup60),
+              group90: parseFloat(formGroup90),
+              validFrom: formValidFrom,
+              validTo: formValidTo || undefined,
+              isDefault: formIsDefault,
+            }
+          : entry
+      );
+      const updatedData: DataContainer = data || {
+        families: [], students: [], priceEntries: [], appointments: [], lastUpdated: new Date().toISOString(),
+      };
+      updatedData.priceEntries = updatedEntries;
+      updatedData.lastUpdated = new Date().toISOString();
+      saveData(updatedData);
+      setEditingId(null); resetForm();
+      alert('Preisregelung wurde aktualisiert!');
     } else {
-      if (formStudentIds.length === 0 || !formIndividual60 || !formIndividual90 || !formGroup60 || !formGroup90 || !formValidFrom || !editingId) {
-        alert('Bitte mindestens einen Schüler, alle Preise und Gültigkeitszeitraum angeben'); return;
+      // Block pricing
+      if (formStudentIds.length === 0 || !formBlockName || !formBlockPrice || !formBlockStartDate || !formBlockEndDate || !editingId) {
+        alert('Bitte mindestens einen Schüler, Block-Name, Block-Preis und Block-Zeitraum angeben'); return;
       }
+      const updatedEntries = (data?.priceEntries || []).map(entry =>
+        entry.id === editingId
+          ? {
+              ...entry,
+              name: formName || undefined,
+              type: 'block' as const,
+              studentIds: formStudentIds,
+              blockName: formBlockName,
+              blockPrice: parseFloat(formBlockPrice),
+              blockStartDate: formBlockStartDate,
+              blockEndDate: formBlockEndDate,
+              validFrom: formBlockStartDate,
+              validTo: formBlockEndDate,
+            }
+          : entry
+      );
+      const updatedData: DataContainer = data || {
+        families: [], students: [], priceEntries: [], appointments: [], lastUpdated: new Date().toISOString(),
+      };
+      updatedData.priceEntries = updatedEntries;
+      updatedData.lastUpdated = new Date().toISOString();
+      saveData(updatedData);
+      setEditingId(null); resetForm();
+      alert('Block-Unterricht wurde aktualisiert!');
     }
-    const updatedEntries = (data?.priceEntries || []).map(entry =>
-      entry.id === editingId
-        ? {
-            ...entry,
-            name: formName || undefined,
-            studentIds: formIsDefault ? [] : formStudentIds,
-            individual60: parseFloat(formIndividual60),
-            individual90: parseFloat(formIndividual90),
-            group60: parseFloat(formGroup60),
-            group90: parseFloat(formGroup90),
-            validFrom: formValidFrom,
-            validTo: formValidTo || undefined,
-            isDefault: formIsDefault,
-          }
-        : entry
-    );
-    const updatedData: DataContainer = data || {
-      families: [], students: [], priceEntries: [], appointments: [], lastUpdated: new Date().toISOString(),
-    };
-    updatedData.priceEntries = updatedEntries;
-    updatedData.lastUpdated = new Date().toISOString();
-    saveData(updatedData);
-    setEditingId(null); resetForm();
-    alert('Preisregelung wurde aktualisiert!');
   };
 
   const handleDelete = (id: string) => {
@@ -158,11 +223,16 @@ export default function PricesPage() {
 
   const handleEdit = (entry: PriceEntry) => {
     setFormName(entry.name || '');
+    setFormType(entry.type || 'standard');
     setFormStudentIds(entry.studentIds || []);
     setFormIndividual60(entry.individual60?.toString() || '');
     setFormIndividual90(entry.individual90?.toString() || '');
     setFormGroup60(entry.group60?.toString() || '');
     setFormGroup90(entry.group90?.toString() || '');
+    setFormBlockName(entry.blockName || '');
+    setFormBlockPrice(entry.blockPrice?.toString() || '');
+    setFormBlockStartDate(entry.blockStartDate || '');
+    setFormBlockEndDate(entry.blockEndDate || '');
     setFormValidFrom(entry.validFrom);
     setFormValidTo(entry.validTo || '');
     setFormIsDefault(entry.isDefault || false);
@@ -171,9 +241,11 @@ export default function PricesPage() {
   };
 
   const resetForm = () => {
-    setFormName(''); setFormStudentIds([]);
+    setFormName(''); setFormType('standard'); setFormStudentIds([]);
     setFormIndividual60(''); setFormIndividual90('');
     setFormGroup60(''); setFormGroup90('');
+    setFormBlockName(''); setFormBlockPrice('');
+    setFormBlockStartDate(''); setFormBlockEndDate('');
     setFormValidFrom(''); setFormValidTo('');
     setFormIsDefault(false);
   };
@@ -311,7 +383,7 @@ export default function PricesPage() {
                 <Euro className="w-6 h-6 text-green-600" /> Preisverwaltung
               </h1>
               <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
-                Verwalte feste Preise für Einzel- und Gruppenstunden (60 und 90 Minuten)
+                Verwalte feste Preise für Einzel-, Gruppenstunden und Block-Unterricht
               </p>
             </div>
             <button onClick={() => { resetForm(); setShowAddForm(true); setEditingId(null); }}
@@ -342,6 +414,10 @@ export default function PricesPage() {
               <span className="font-semibold">{(data?.priceEntries || []).filter(e => e.isDefault).length}</span>{' '}
               <span className="text-gray-500 dark:text-slate-400">Standardpreise</span>
             </div>
+            <div className="px-3 py-1.5 bg-purple-100 dark:bg-purple-900/30 rounded-lg text-sm">
+              <span className="font-semibold">{(data?.priceEntries || []).filter(e => e.type === 'block').length}</span>{' '}
+              <span className="text-purple-700 dark:text-purple-300">Block-Unterrichte</span>
+            </div>
           </div>
         </div>
       </header>
@@ -360,30 +436,91 @@ export default function PricesPage() {
                   className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500" />
               </div>
               <div className="sm:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Schüler *</label>
-                {renderStudentSelector()}
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Art der Preisregelung *</label>
+                <div className="flex gap-4">
+                  <button
+                    type="button"
+                    onClick={() => setFormType('standard')}
+                    className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
+                      formType === 'standard'
+                        ? 'bg-green-600 text-white'
+                        : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'
+                    }`}
+                  >
+                    Standardpreise
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormType('block')}
+                    className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
+                      formType === 'block'
+                        ? 'bg-purple-600 text-white'
+                        : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'
+                    }`}
+                  >
+                    Block-Unterricht
+                  </button>
+                </div>
               </div>
-              <div className="sm:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Preise *</label>
-                {renderPriceFields()}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Gültig ab *</label>
-                <input type="date" value={formValidFrom} onChange={e => setFormValidFrom(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Gültig bis (optional)</label>
-                <input type="date" value={formValidTo} onChange={e => setFormValidTo(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500" />
-              </div>
-              <div className="sm:col-span-2 flex items-center gap-2">
-                <input type="checkbox" id="isDefault" checked={formIsDefault} onChange={e => setFormIsDefault(e.target.checked)}
-                  className="w-4 h-4 text-green-600 rounded focus:ring-green-500" />
-                <label htmlFor="isDefault" className="text-sm text-gray-700 dark:text-slate-300 cursor-pointer">
-                  Diesen Preis als Standardpreis für alle Schüler ohne eigenen Eintrag verwenden
-                </label>
-              </div>
+              {formType === 'standard' ? (
+                <>
+                  <div className="sm:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Schüler *</label>
+                    {renderStudentSelector()}
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Preise *</label>
+                    {renderPriceFields()}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Gültig ab *</label>
+                    <input type="date" value={formValidFrom} onChange={e => setFormValidFrom(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Gültig bis (optional)</label>
+                    <input type="date" value={formValidTo} onChange={e => setFormValidTo(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500" />
+                  </div>
+                  <div className="sm:col-span-2 flex items-center gap-2">
+                    <input type="checkbox" id="isDefault" checked={formIsDefault} onChange={e => setFormIsDefault(e.target.checked)}
+                      className="w-4 h-4 text-green-600 rounded focus:ring-green-500" />
+                    <label htmlFor="isDefault" className="text-sm text-gray-700 dark:text-slate-300 cursor-pointer">
+                      Diesen Preis als Standardpreis für alle Schüler ohne eigenen Eintrag verwenden
+                    </label>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="sm:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Schüler *</label>
+                    {renderStudentSelector()}
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Block-Name *</label>
+                    <input type="text" value={formBlockName} onChange={e => setFormBlockName(e.target.value)} placeholder="z.B. Abiturprogramm"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500" />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Block-Preis *</label>
+                    <div className="relative">
+                      <input type="number" value={formBlockPrice} onChange={e => setFormBlockPrice(e.target.value)} placeholder="z.B. 450" min="0" step="0.01"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500" />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">€</span>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Block-Startdatum *</label>
+                    <input type="date" value={formBlockStartDate} onChange={e => setFormBlockStartDate(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Block-Enddatum *</label>
+                    <input type="date" value={formBlockEndDate} onChange={e => setFormBlockEndDate(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500" />
+                  </div>
+                </>
+              )}
             </div>
             <div className="flex justify-end gap-2 mt-6">
               <button onClick={() => { setShowAddForm(false); resetForm(); }}
@@ -391,7 +528,11 @@ export default function PricesPage() {
               >
                 Abbrechen
               </button>
-              <button onClick={handleAdd} disabled={!formIndividual60 || !formIndividual90 || !formGroup60 || !formGroup90 || !formValidFrom}
+              <button onClick={handleAdd} disabled={
+                formType === 'standard'
+                  ? (!formIndividual60 || !formIndividual90 || !formGroup60 || !formGroup90 || !formValidFrom)
+                  : (!formBlockName || !formBlockPrice || !formBlockStartDate || !formBlockEndDate)
+              }
                 className="px-4 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Speichern
@@ -405,7 +546,7 @@ export default function PricesPage() {
           <div className="text-center py-16">
             <Euro className="w-16 h-16 text-gray-300 dark:text-slate-600 mx-auto mb-4" />
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Noch keine Preisregelungen</h2>
-            <p className="text-gray-500 dark:text-slate-400 mb-6">Erstelle deine erste Preisregelung mit festen Preisen für die 4 Kombinationen.</p>
+            <p className="text-gray-500 dark:text-slate-400 mb-6">Erstelle deine erste Preisregelung mit festen Preisen für die 4 Kombinationen oder einen Block-Unterricht.</p>
             <button onClick={() => { resetForm(); setShowAddForm(true); setEditingId(null); }}
               className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors"
             >
@@ -422,12 +563,19 @@ export default function PricesPage() {
                   {/* Entry Header */}
                   <div className="px-4 py-3 bg-gray-50 dark:bg-slate-700/50 border-b border-gray-200 dark:border-slate-700 flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center text-green-600">
-                        <Euro size={20} />
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                        entry.type === 'block' ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600' : 'bg-green-100 dark:bg-green-900/30 text-green-600'
+                      }`}>
+                        {entry.type === 'block' ? <Package size={20} /> : <Euro size={20} />}
                       </div>
                       <div>
                         <h3 className="font-semibold text-gray-900 dark:text-white">
-                          {entry.isDefault ? (
+                          {entry.type === 'block' ? (
+                            <span className="flex items-center gap-2">
+                              <span className="text-xs px-2 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-full">Block-Unterricht</span>
+                              {entry.blockName || 'Unbenannt'}
+                            </span>
+                          ) : entry.isDefault ? (
                             <span className="flex items-center gap-2">
                               <span className="text-xs px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full">Standardpreis</span>
                               {entry.name || ''}
@@ -439,22 +587,38 @@ export default function PricesPage() {
                           )}
                         </h3>
                         <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-slate-400 flex-wrap">
-                          <span className="px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-700">
-                            60&apos; Einzel: €{entry.individual60?.toFixed(2) || '0.00'}
-                          </span>
-                          <span className="px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-700">
-                            90&apos; Einzel: €{entry.individual90?.toFixed(2) || '0.00'}
-                          </span>
-                          <span className="px-2 py-1 rounded-full text-xs bg-purple-100 text-purple-700">
-                            60&apos; Gruppe: €{entry.group60?.toFixed(2) || '0.00'}
-                          </span>
-                          <span className="px-2 py-1 rounded-full text-xs bg-purple-100 text-purple-700">
-                            90&apos; Gruppe: €{entry.group90?.toFixed(2) || '0.00'}
-                          </span>
-                          {entry.name && !entry.isDefault && (
+                          {entry.type === 'block' ? (
                             <>
-                              <span>·</span>
-                              <span>{entry.name}</span>
+                              <span className="px-2 py-1 rounded-full text-xs bg-purple-100 text-purple-700">
+                                {entry.blockName}
+                              </span>
+                              <span className="px-2 py-1 rounded-full text-xs bg-purple-100 text-purple-700">
+                                €{entry.blockPrice?.toFixed(2) || '0.00'}
+                              </span>
+                              <span className="px-2 py-1 rounded-full text-xs bg-purple-100 text-purple-700">
+                                {new Date(entry.blockStartDate || '').toLocaleDateString('de-DE')} - {new Date(entry.blockEndDate || '').toLocaleDateString('de-DE')}
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <span className="px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-700">
+                                60' Einzel: €{entry.individual60?.toFixed(2) || '0.00'}
+                              </span>
+                              <span className="px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-700">
+                                90' Einzel: €{entry.individual90?.toFixed(2) || '0.00'}
+                              </span>
+                              <span className="px-2 py-1 rounded-full text-xs bg-purple-100 text-purple-700">
+                                60' Gruppe: €{entry.group60?.toFixed(2) || '0.00'}
+                              </span>
+                              <span className="px-2 py-1 rounded-full text-xs bg-purple-100 text-purple-700">
+                                90' Gruppe: €{entry.group90?.toFixed(2) || '0.00'}
+                              </span>
+                              {entry.name && !entry.isDefault && (
+                                <>
+                                  <span>·</span>
+                                  <span>{entry.name}</span>
+                                </>
+                              )}
                             </>
                           )}
                         </div>
@@ -480,8 +644,16 @@ export default function PricesPage() {
                       <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-slate-400">
                         <Calendar size={16} />
                         <span>
-                          Gültig ab: {new Date(entry.validFrom).toLocaleDateString('de-DE')}
-                          {entry.validTo && ` bis ${new Date(entry.validTo).toLocaleDateString('de-DE')}`}
+                          {entry.type === 'block' ? (
+                            <>
+                              Block-Zeitraum: {new Date(entry.blockStartDate || '').toLocaleDateString('de-DE')} bis {new Date(entry.blockEndDate || '').toLocaleDateString('de-DE')}
+                            </>
+                          ) : (
+                            <>
+                              Gültig ab: {new Date(entry.validFrom).toLocaleDateString('de-DE')}
+                              {entry.validTo && ` bis ${new Date(entry.validTo).toLocaleDateString('de-DE')}`}
+                            </>
+                          )}
                         </span>
                       </div>
                     </div>
@@ -498,34 +670,99 @@ export default function PricesPage() {
                             className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
                         </div>
                         <div className="sm:col-span-2">
-                          <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Schüler *</label>
-                          {renderStudentSelector()}
+                          <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Art der Preisregelung *</label>
+                          <div className="flex gap-4">
+                            <button
+                              type="button"
+                              onClick={() => setFormType('standard')}
+                              className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
+                                formType === 'standard'
+                                  ? 'bg-green-600 text-white'
+                                  : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'
+                              }`}
+                            >
+                              Standardpreise
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setFormType('block')}
+                              className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
+                                formType === 'block'
+                                  ? 'bg-purple-600 text-white'
+                                  : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'
+                              }`}
+                            >
+                              Block-Unterricht
+                            </button>
+                          </div>
                         </div>
-                        <div className="sm:col-span-2">
-                          <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Preise *</label>
-                          {renderPriceFields()}
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Gültig ab *</label>
-                          <input type="date" value={formValidFrom} onChange={e => setFormValidFrom(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Gültig bis (optional)</label>
-                          <input type="date" value={formValidTo} onChange={e => setFormValidTo(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
-                        </div>
-                        <div className="sm:col-span-2 flex items-center gap-2">
-                          <input type="checkbox" id={`isDefault-${entry.id}`} checked={formIsDefault} onChange={e => setFormIsDefault(e.target.checked)}
-                            className="w-4 h-4 text-green-600 rounded focus:ring-green-500" />
-                          <label htmlFor={`isDefault-${entry.id}`} className="text-sm text-gray-700 dark:text-slate-300 cursor-pointer">
-                            Standardpreis für alle Schüler ohne eigenen Eintrag
-                          </label>
-                        </div>
+                        {formType === 'standard' ? (
+                          <>
+                            <div className="sm:col-span-2">
+                              <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Schüler *</label>
+                              {renderStudentSelector()}
+                            </div>
+                            <div className="sm:col-span-2">
+                              <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Preise *</label>
+                              {renderPriceFields()}
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Gültig ab *</label>
+                              <input type="date" value={formValidFrom} onChange={e => setFormValidFrom(e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Gültig bis (optional)</label>
+                              <input type="date" value={formValidTo} onChange={e => setFormValidTo(e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+                            </div>
+                            <div className="sm:col-span-2 flex items-center gap-2">
+                              <input type="checkbox" id={`isDefault-${entry.id}`} checked={formIsDefault} onChange={e => setFormIsDefault(e.target.checked)}
+                                className="w-4 h-4 text-green-600 rounded focus:ring-green-500" />
+                              <label htmlFor={`isDefault-${entry.id}`} className="text-sm text-gray-700 dark:text-slate-300 cursor-pointer">
+                                Standardpreis für alle Schüler ohne eigenen Eintrag
+                              </label>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="sm:col-span-2">
+                              <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Schüler *</label>
+                              {renderStudentSelector()}
+                            </div>
+                            <div className="sm:col-span-2">
+                              <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Block-Name *</label>
+                              <input type="text" value={formBlockName} onChange={e => setFormBlockName(e.target.value)} placeholder="z.B. Abiturprogramm"
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+                            </div>
+                            <div className="sm:col-span-2">
+                              <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Block-Preis *</label>
+                              <div className="relative">
+                                <input type="number" value={formBlockPrice} onChange={e => setFormBlockPrice(e.target.value)} placeholder="z.B. 450" min="0" step="0.01"
+                                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">€</span>
+                              </div>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Block-Startdatum *</label>
+                              <input type="date" value={formBlockStartDate} onChange={e => setFormBlockStartDate(e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Block-Enddatum *</label>
+                              <input type="date" value={formBlockEndDate} onChange={e => setFormBlockEndDate(e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+                            </div>
+                          </>
+                        )}
                       </div>
                       <div className="flex gap-2 mt-4">
                         <button onClick={handleUpdate}
-                          disabled={!formIndividual60 || !formIndividual90 || !formGroup60 || !formGroup90 || !formValidFrom}
+                          disabled={
+                            formType === 'standard'
+                              ? (!formIndividual60 || !formIndividual90 || !formGroup60 || !formGroup90 || !formValidFrom)
+                              : (!formBlockName || !formBlockPrice || !formBlockStartDate || !formBlockEndDate)
+                          }
                           className="px-3 py-1.5 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           Speichern

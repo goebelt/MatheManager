@@ -50,6 +50,13 @@ Next.js App zur Verwaltung von Mathe-Nachhilfe mit Tailwind CSS. Verwalten Sie F
 - Flexible Preiseinträge mit Start-/Enddatum
 - Individuelle Preisgestaltung pro Schüler/Familie
 - Name-Feld für Preisregelungen
+- **Block-Unterricht**: Festpreis für einen bestimmten Zeitraum (kein Stundensatz)
+  - Block-Name (z.B. "Abiturprogramm")
+  - Block-Preis (z.B. 450 Euro)
+  - Block-Zeitraum (Start- und Enddatum)
+  - Schüler, die einem Block-Unterricht zugeordnet sind, fallen in diesem Zeitraum unter keine Einzelpreisregelungen oder Standardpreisregelungen
+  - Auf der Rechnung wird nur der Gesamtpreis für den Block-Unterricht und dessen definierter Name aufgeführt (Bsp. "Maria Meier, Abiturprogramm 450 Euro")
+  - Termine, die in der Zeit einer zugeordneten Block-Unterrichtsphase abgesagt werden, müssen auch nicht teilweise bezahlt werden und werden auch nicht einzeln auf der Rechnung ausgewiesen
 
 ### Schüler
 - Verwaltung aller Schüler
@@ -58,6 +65,13 @@ Next.js App zur Verwaltung von Mathe-Nachhilfe mit Tailwind CSS. Verwalten Sie F
 - **Aktiv/Inaktiv-Flag**: Inaktive Schüler werden bei Auto-Planung übersprungen
 - Inaktive Schüler werden ausgegraut dargestellt (durchgestrichener Name, „Inaktiv"-Badge)
 - Toggle-Button zum Aktivieren/Deaktivieren pro Schüler
+- **Bevorzugte Termine**: Wochentag, Uhrzeit und Rhythmus pro Schüler konfigurierbar
+- **Gruppentermine**: Bevorzugte Termine können als Gruppentermine markiert werden
+  - Checkbox „Gruppentermin“ zum Markieren
+  - Filterbares Dropdown zur Auswahl des Partner-Schülers (nach Name oder Familie)
+  - Gruppentermine werden lila gekennzeichnet mit Partner-Name
+  - Bei der Auto-Planung werden Gruppentermine mit beiden Schülern erstellt
+  - Vermeidung von Duplikaten: Kein neuer Termin, wenn Gruppentermin bereits vorhanden
 
 ### Familien
 - Verwaltung von Familien
@@ -94,10 +108,10 @@ Das Projekt nutzt **Jest** + **ts-jest** + **React Testing Library** für automa
 
 | Phase | Bereich | Tests | Was getestet wird |
 |-------|---------|-------|-------------------|
-| **P0** | `lib/billing`, `lib/storage`, `types/dashboardTypes` | 50 | Honorarberechnung, localStorage, Rhythmus-Woche |
-| **P1** | `lib/scheduling`, `lib/dateFilters`, `lib/invoiceUtils` | 49 | Termin-Logik, Slot-Generierung, Pausenblocker, Datumsfilter, Rechnungsutils |
+| **P0** | `lib/billing`, `lib/storage`, `types/dashboardTypes` | 63 | Honorarberechnung, localStorage, Rhythmus-Woche, Block-Preise |
+| **P1** | `lib/scheduling`, `lib/dateFilters`, `lib/invoiceUtils` | 92 | Termin-Logik, Slot-Generierung, Pausenblocker, Datumsfilter, Rechnungsutils, Gruppentermine |
 | **P3** | `components/*` | 70 | UI-Rendering: InvoiceTemplate, AppointmentCard (Zeitanzeige), DayView, Navigation |
-| | **Gesamt** | **169** | |
+| | **Gesamt** | **225** | |
 
 ```bash
 npm test              # Alle Tests
@@ -109,7 +123,78 @@ npm run test:coverage # Mit Coverage-Report
 - **Business-Logik** ist in `src/lib/` Module extrahiert → reine Funktionen, keine React-Mocks nötig
 - **UI-Tests** nutzen `@testing-library/react` mit jsdom-Umgebung
 - **Datum-Handling** verwendet immer lokale Zeitzone (`new Date(y,m,d)`) um UTC-Offset-Bugs zu vermeiden
-- **Scheduling-Tests** decken ab: Slot-Generierung, Pausenlogik, Mittagsblocker, Auto-Planung, Inaktiv-Überspringung, Zeit-Konvertierung
+- **Scheduling-Tests** decken ab: Slot-Generierung, Pausenlogik, Mittagsblocker, Auto-Planung, Inaktiv-Überspringung, Zeit-Konvertierung, Gruppentermine
+- **Gruppentermin-Tests** decken ab: Erstellung von Gruppenterminen, Vermeidung von Duplikaten, Verwendung der längeren Dauer, Erkennung von Partner-Schülern, Biweekly-Rhythmus, Inaktive Partner, Mehrere bevorzugte Termine pro Schüler, Existierende individuelle Termine
+
+## Technische Details
+
+### Gruppentermin-Implementierung
+
+Die Gruppentermin-Funktionalität ist in folgenden Dateien implementiert:
+
+- **`src/types/index.ts`**: Erweitert `PreferredSchedule` mit `isGroupAppointment` und `groupWithStudentId`
+- **`src/lib/scheduling.ts`**: Aktualisiert `autoPlanStudents` Funktion zur Erstellung von Gruppenterminen
+- **`src/app/students/page.tsx`**: UI-Komponenten für Gruppentermin-Einrichtung und Filterung
+
+### API-Referenz
+
+#### PreferredSchedule
+
+```typescript
+interface PreferredSchedule {
+  dayOfWeek: number;           // 1 = Montag, 7 = Sonntag
+  time: string;                // Format: "HH:MM"
+  rhythm: 'weekly' | 'biweekly';
+  isGroupAppointment?: boolean;      // true = Gruppentermin
+  groupWithStudentId?: string;       // ID des Partner-Schülers
+}
+```
+
+#### Appointment
+
+```typescript
+interface Appointment {
+  id: string;
+  studentIds: string[];       // Array von Schüler-IDs (1 oder 2)
+  date: string;               // Format: "YYYY-MM-DD"
+  time: string;               // Format: "HH:MM"
+  duration: number;           // Dauer in Minuten
+  status: 'planned' | 'attended' | 'canceled' | 'missed';
+}
+```
+
+### Logik-Fluss
+
+1. **Auto-Planung**: Für jeden Schüler wird geprüft, ob bevorzugte Termine existieren
+2. **Gruppentermin-Erkennung**: Wenn `isGroupAppointment` true ist, wird nach einem Partner-Schüler gesucht
+3. **Partner-Prüfung**: Es wird geprüft, ob der Partner-Schüler denselben bevorzugten Termin hat
+4. **Termin-Erstellung**: Wenn beide Schüler übereinstimmen, wird ein Gruppentermin erstellt
+5. **Duplikat-Vermeidung**: Es wird geprüft, ob bereits ein Termin für beide Schüler existiert
+6. **Fallback**: Wenn kein Matching gefunden wird, wird ein individueller Termin erstellt
+
+### Bekannte Einschränkungen
+
+- Gruppentermine sind aktuell auf **2 Schüler** beschränkt
+- Die Checkbox „Gruppentermin“ muss nur bei einem der beiden Schüler aktiviert werden
+- Der Partner-Schüler muss im Dropdown ausgewählt werden (keine freie Eingabe)
+- Gruppentermine werden nur bei der Auto-Planung erstellt, nicht bei manueller Termin-Erstellung
+
+### Zukünftige Verbesserungen
+
+- [ ] Unterstützung für mehr als 2 Schüler pro Gruppentermin
+- [ ] Manuelle Erstellung von Gruppenterminen
+- [ ] Visuelle Darstellung von Gruppenterminen im Kalender
+- [ ] Konflikt-Erkennung für Gruppentermine
+- [ ] Automatische Partner-Vorschläge basierend auf ähnlichen Zeitplänen
+
+## Test-Abdeckung
+
+| Phase | Bereich | Tests | Was getestet wird |
+|-------|---------|-------|-------------------|
+| **P0** | `lib/billing`, `lib/storage`, `types/dashboardTypes` | 50 | Honorarberechnung, localStorage, Rhythmus-Woche |
+| **P1** | `lib/scheduling`, `lib/dateFilters`, `lib/invoiceUtils` | 92 | Termin-Logik, Slot-Generierung, Pausenblocker, Datumsfilter, Rechnungsutils, Gruppentermine |
+| **P3** | `components/*` | 70 | UI-Rendering: InvoiceTemplate, AppointmentCard (Zeitanzeige), DayView, Navigation |
+| | **Gesamt** | **212** | |
 
 ## 🛠️ Technologie-Stack
 
@@ -174,8 +259,83 @@ MatheManager/
 
 ## 📋 Wichtige Regeln
 
-### Gruppenstunden
+## Gruppentermine
+
+### Was sind Gruppentermine?
+
+Gruppentermine erlauben es, zwei Schüler für denselben Termin zu planen. Dies ist nützlich für:
+
+- Partnerarbeit oder gemeinsame Lernsessions
+- Kleingruppen-Unterricht
+- Spezielle Förderprogramme
+
+### Einrichtung
+
+1. Gehe zur Schüler-Verwaltung
+2. Wähle einen Schüler aus oder erstelle einen neuen
+3. Scrolle zu „Bevorzugte Termine“
+4. Klicke auf „Bevorzugten Termin hinzufügen“
+5. Wähle Wochentag, Uhrzeit und Rhythmus
+6. **Aktiviere die Checkbox „Gruppentermin“**
+7. Wähle im Dropdown den Partner-Schüler aus
+8. Klicke auf „Speichern“
+
+### Funktionsweise
+
+- **Automatische Planung**: Bei der Auto-Planung werden Gruppentermine automatisch erstellt, wenn beide Schüler denselben bevorzugten Termin haben
+- **Dauer**: Die Dauer des Gruppentermins entspricht der längeren Dauer der beiden Schüler
+- **Duplikat-Vermeidung**: Es wird kein neuer Termin erstellt, wenn bereits ein Gruppentermin für beide Schüler existiert
+- **Inaktive Schüler**: Wenn der Partner-Schüler inaktiv ist, wird stattdessen ein individueller Termin erstellt
+- **Kein Matching**: Wenn der Partner-Schüler keinen passenden bevorzugten Termin hat, wird ein individueller Termin erstellt
+
+### UI-Kennzeichnung
+
+- Gruppentermine werden **lila** gekennzeichnet
+- Der Name des Partner-Schülers wird angezeigt
+- In der Terminübersicht werden beide Schüler angezeigt
+
+### Beispiele
+
+#### Beispiel 1: Einfacher Gruppentermin
+
+- Schüler A: Bevorzugter Termin Montag 14:00, Gruppentermin mit Schüler B
+- Schüler B: Bevorzugter Termin Montag 14:00
+- Ergebnis: Ein Gruppentermin mit beiden Schülern wird erstellt
+
+#### Beispiel 2: Kein Matching
+
+- Schüler A: Bevorzugter Termin Montag 14:00, Gruppentermin mit Schüler B
+- Schüler B: Bevorzugter Termin Dienstag 14:00
+- Ergebnis: Ein individueller Termin für Schüler A wird erstellt
+
+#### Beispiel 3: Inaktiver Partner
+
+- Schüler A: Bevorzugter Termin Montag 14:00, Gruppentermin mit Schüler B
+- Schüler B: Inaktiv, Bevorzugter Termin Montag 14:00
+- Ergebnis: Ein individueller Termin für Schüler A wird erstellt
+
+#### Beispiel 4: Verschiedene Dauer
+
+- Schüler A: Bevorzugter Termin Montag 14:00, Dauer 60 Minuten, Gruppentermin mit Schüler B
+- Schüler B: Bevorzugter Termin Montag 14:00, Dauer 90 Minuten
+- Ergebnis: Ein Gruppentermin mit 90 Minuten Dauer wird erstellt
+
+### Wichtige Hinweise
+
+- Gruppentermine werden nur erstellt, wenn **beide** Schüler denselben bevorzugten Termin haben (gleicher Wochentag und Uhrzeit)
+- Die Checkbox „Gruppentermin“ muss nur bei einem der beiden Schüler aktiviert werden
+- Der Partner-Schüler muss im Dropdown ausgewählt werden
+- Das Dropdown ist filterbar – du kannst nach Name oder Familie suchen
+- Bei der Abrechnung zahlen beide Schüler den Gruppenpreis (siehe Projekt-Regeln)
+
+## Gruppenstunden
 - Bei Gruppenstunden muss jeder Schüler den Gruppenpreis bezahlen (gilt immer für dieses Projekt)
+- **Gruppentermine bei bevorzugten Terminen**:
+  - Bevorzugte Termine können als Gruppentermine markiert werden
+  - Partner-Schüler wird über filterbares Dropdown ausgewählt
+  - Bei der Auto-Planung werden Gruppentermine mit beiden Schülern erstellt
+  - Vermeidung von Duplikaten: Kein neuer Termin, wenn Gruppentermin bereits vorhanden
+  - Dauer: Die längere Dauer der beiden Schüler wird verwendet
 
 ### Platzhalter-Slots (generateTimeSlots)
 - **Zwischen Platzhaltern**: 10-Min-Pause (breakMinutes)

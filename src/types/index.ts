@@ -26,17 +26,26 @@ export interface PreferredSchedule {
   dayOfWeek: number; // 1 = Montag, 2 = Dienstag, ..., 7 = Sonntag (ISO-8601)
   time: string; // Format: "HH:MM" z.B. "14:00"
   rhythm: 'weekly' | 'biweekly'; // Rhythmus für diesen bevorzugten Termin
+  isGroupAppointment?: boolean; // Ob dieser Termin als Gruppentermin markiert ist
+  groupWithStudentId?: string; // ID des Schülers, mit dem dieser Termin geteilt wird (wenn isGroupAppointment=true)
 }
 
 export interface PriceEntry {
   id: string;
   name?: string; // Name der Preisregelung
   studentIds: string[]; // Mehrere Schüler können zugeordnet werden (leeres Array = Standardpreis)
-  // Feste Preise für die 4 Kombinationen
-  individual60: number; // Preis für 60 Minuten Einzelunterricht
-  individual90: number; // Preis für 90 Minuten Gruppenunterricht
-  group60: number; // Preis für 60 Minuten Gruppenunterricht
-  group90: number; // Preis für 90 Minuten Gruppenunterricht
+  type: 'standard' | 'block'; // Art der Preisregelung
+  // Standard-Preise (nur für type='standard')
+  individual60?: number; // Preis für 60 Minuten Einzelunterricht
+  individual90?: number; // Preis für 90 Minuten Einzelunterricht
+  group60?: number; // Preis für 60 Minuten Gruppenunterricht
+  group90?: number; // Preis für 90 Minuten Gruppenunterricht
+  // Block-Unterricht (nur für type='block')
+  blockName?: string; // Name des Block-Unterrichts (z.B. "Abiturprogramm")
+  blockPrice?: number; // Festpreis für den gesamten Block
+  blockStartDate?: string; // Startdatum des Blocks (ISO Date)
+  blockEndDate?: string; // Enddatum des Blocks (ISO Date)
+  // Gültigkeitszeitraum
   validFrom: string; // ISO Date
   validTo?: string | null; // ISO Date, null = ongoing
   isDefault?: boolean; // Standardpreis für alle ohne eigenen Preiseintrag
@@ -114,7 +123,7 @@ export interface InvoiceItem {
   appointmentId: string;
   date: string;
   studentName: string;
-  lessonType: 'individual' | 'group';
+  lessonType: 'individual' | 'group' | 'block';
   status: 'attended' | 'canceled_paid' | 'canceled_free' | 'planned';
   hourlyRate: number;
   description: string;
