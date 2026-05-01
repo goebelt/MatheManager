@@ -5,7 +5,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { DollarSign, Calendar, User, Filter, ArrowUpRight, Loader2, X, Check } from 'lucide-react';
+import { DollarSign, Calendar, User, Filter, ArrowUpRight, Loader2, X, Check, Clock } from 'lucide-react';
 import type { Appointment, Student, PriceEntry, DataContainer, PaymentStatus } from '@/types';
 import { calculateAppointmentFee } from '@/lib/billing';
 import { filterAppointmentsByDate } from '@/lib/dateFilters';
@@ -278,6 +278,10 @@ export default function BillingPage() {
 
   const appointmentCount = filteredAppointments.length;
   const freeFallCount = filteredAppointments.filter(a => a.status === 'canceled_free').length;
+const totalTeachingMinutes = filteredAppointments.reduce((sum, app) => sum + (app.duration || 0), 0);
+const teachingHours = Math.floor(totalTeachingMinutes / 60);
+const teachingRemainderMinutes = totalTeachingMinutes % 60;
+const teachingTimeFormatted = `${String(teachingHours).padStart(2, '0')}:${String(teachingRemainderMinutes).padStart(2, '0')}`;
 
   if (loading) {
     return (
@@ -474,7 +478,7 @@ export default function BillingPage() {
       <main className="max-w-5xl mx-auto px-4 py-6">
         {/* Summary Cards */}
         {!loading && (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5 mb-6">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-6 mb-6">
             <SummaryCard
               label="Termine"
               value={appointmentCount.toString()}
@@ -499,6 +503,11 @@ export default function BillingPage() {
               label="Ausfälle (frei)"
               value={freeFallCount.toString()}
               icon={<Filter className="w-5 h-5 text-gray-400" />}
+            />
+            <SummaryCard
+              label="Unterrichtszeit"
+              value={teachingTimeFormatted}
+              icon={<Clock className="w-5 h-5 text-teal-600" />}
             />
           </div>
         )}
