@@ -221,7 +221,7 @@ export default function BillingPage() {
 
         if (blockEntry) {
           displayType = 'block';
-          displayFee = blockEntry.blockPrice || 0;
+          displayFee = 0; // Show 0 in honorar column for block appointments
           blockName = blockEntry.blockName;
           blockPrice = blockEntry.blockPrice;
         }
@@ -245,10 +245,6 @@ export default function BillingPage() {
   }, [filteredAppointments, data, selectedStudentIds]);
 
   // Calculate totals
-  const totalEarnings = useMemo(() => {
-    return appointmentsWithFees.reduce((sum, app) => sum + (app.calculatedFee || 0), 0);
-  }, [appointmentsWithFees]);
-
   const individualEarnings = useMemo(() => {
     return appointmentsWithFees.filter(a => a.priceEntryType === 'individual').reduce(
       (sum, app) => sum + (app.calculatedFee || 0), 0
@@ -260,6 +256,25 @@ export default function BillingPage() {
       (sum, app) => sum + (app.calculatedFee || 0), 0
     );
   }, [appointmentsWithFees]);
+
+  // Calculate block earnings - only once per student per block
+  const blockEarnings = useMemo(() => {
+    const seen = new Set<string>(); // Track student-block combinations
+    return appointmentsWithFees.reduce((sum, app) => {
+      if (app.priceEntryType === 'block' && app.blockPrice) {
+        const key = `${app.studentId}-${app.blockName}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          return sum + app.blockPrice;
+        }
+      }
+      return sum;
+    }, 0);
+  }, [appointmentsWithFees]);
+
+  const totalEarnings = useMemo(() => {
+    return individualEarnings + groupEarnings + blockEarnings;
+  }, [individualEarnings, groupEarnings, blockEarnings]);
 
   const appointmentCount = filteredAppointments.length;
   const freeFallCount = filteredAppointments.filter(a => a.status === 'canceled_free').length;
@@ -459,7 +474,7 @@ export default function BillingPage() {
       <main className="max-w-5xl mx-auto px-4 py-6">
         {/* Summary Cards */}
         {!loading && (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5 mb-6">
             <SummaryCard
               label="Termine"
               value={appointmentCount.toString()}
@@ -474,6 +489,11 @@ export default function BillingPage() {
               label="Gruppentermine"
               value={appointmentsWithFees.filter(a => a.priceEntryType === 'group').length.toString()}
               icon={<DollarSign className="w-5 h-5 text-green-600" />}
+            />
+            <SummaryCard
+              label="Block-Unterricht"
+              value={appointmentsWithFees.filter(a => a.priceEntryType === 'block').length.toString()}
+              icon={<DollarSign className="w-5 h-5 text-orange-600" />}
             />
             <SummaryCard
               label="Ausfälle (frei)"
@@ -506,6 +526,18 @@ export default function BillingPage() {
                 </p>
               </div>
             </div>
+            {blockEarnings > 0 && (
+              <div className="flex justify-between items-center p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg border border-orange-200 dark:border-orange-800">
+                <div>
+                  <p className="text-sm text-orange-600 dark:text-orange-400">Block-Unterricht Honorar</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-lg font-semibold text-orange-700 dark:text-orange-300">
+                    {blockEarnings.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -604,15 +636,7 @@ export default function BillingPage() {
                         </td>
                         <td className="px-4 py-3 text-right text-sm font-medium text-gray-900 dark:text-white">
                           {appointment.priceEntryType === 'block' ? (
-                            <>
-                              {appointment.blockName && (
-                                <span className="text-xs text-gray-500 dark:text-slate-400">
-                                  {appointment.blockName}
-                                </span>
-                              )}
-                              <br />
-                              €{appointment.blockPrice?.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
-                            </>
+                            <span className="text-gray-400">-</span>
                           ) : appointment.calculatedFee ? (
                             <>
                               €{appointment.calculatedFee.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
