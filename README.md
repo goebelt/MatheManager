@@ -1,6 +1,6 @@
 ﻿﻿# MatheManager
 
-**[🌐 Live Demo](https://mathe-manager.netlify.app/)**
+**[🌐 Live Demo](https://mathe-manager.vercel.app/)**
 
 Next.js App zur Verwaltung von Mathe-Nachhilfe mit Tailwind CSS. Verwalten Sie Familien, Schüler, Termine und Preise – alles in einer übersichtlichen Oberfläche.
 
