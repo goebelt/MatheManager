@@ -21,11 +21,12 @@ export interface AppointmentPreviewItem {
   date: string;
   time: string;
   studentName: string;
-  lessonType: 'individual' | 'group';
+  lessonType: 'individual' | 'group' | 'block';
   duration: number;
   status: Appointment['status'];
   unitPrice: number;
   totalPrice: number;
+  blockName?: string; // Block name for block lesson type
 }
 
 export interface AppointmentPreviewData {
@@ -139,19 +140,22 @@ function AppointmentPreviewTemplate({ preview }: { preview: AppointmentPreviewDa
                       <span className="inline-flex items-center gap-1">
                         <span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span> Gruppe
                       </span>
-                    ) : item.duration === 0 ? (
+                    ) : item.lessonType === 'block' ? (
                       <span className="inline-flex items-center gap-1">
                         <span className="w-1.5 h-1.5 bg-orange-500 rounded-full"></span> Block-Unterricht
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1">
+                      {item.blockName && (
+                        <span className="text-orange-600 font-medium">({item.blockName})</span>
+                      )}
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1">
                         <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span> Einzel
                       </span>
                     )}
                   </td>
-                  <td className="py-1.5 px-1.5 text-xs">{item.duration === 0 ? '-' : `${item.duration} Min`}</td>
-                  <td className="py-1.5 px-1.5 text-xs text-right">{item.unitPrice === 0 ? '-' : `€${item.unitPrice.toFixed(2)}`}</td>
-                  <td className="py-1.5 px-1.5 text-xs text-right font-semibold">&euro;{item.totalPrice.toFixed(2)}</td>
+                  <td className="py-1.5 px-1.5 text-xs">{item.lessonType === 'block' ? '-' : (item.duration === 0 ? '-' : `${item.duration} Min`)}</td>
+                  <td className="py-1.5 px-1.5 text-xs text-right">{item.lessonType === 'block' ? '-' : (item.unitPrice === 0 ? '-' : `€${item.unitPrice.toFixed(2)}`)}</td>
+                  <td className="py-1.5 px-1.5 text-xs text-right font-semibold">{item.lessonType === 'block' ? '-' : `€${item.totalPrice.toFixed(2)}`}</td>
                 </tr>
               ))
             ) : (
@@ -362,9 +366,9 @@ export default function InvoicesPage() {
             const paymentStatus = (data?.paymentStatuses || []).find(s => s.appointmentId === appointment.id && s.studentId === studentId);
             items.push({
               appointmentId: appointment.id,
-              date: appointment.date,
+              date: blockEntry.blockName || 'Block-Unterricht', // Use block name instead of date
               studentName: student ? `${student.firstName} ${student.lastName || ''}`.trim() : 'Unknown',
-              lessonType: 'individual' as const,
+              lessonType: 'block',
               status: 'attended' as const,
               hourlyRate: 0,
               description: blockEntry.blockName || 'Block-Unterricht',
@@ -457,24 +461,21 @@ export default function InvoicesPage() {
           }
         }
         
-        // If student has block pricing, add block item (only once per student per block)
+        // If student has block pricing, list each appointment individually with block label
         if (blockEntry) {
-          const blockKey = `${studentId}-${blockEntry.id}`;
-          if (!blockItemsSeen.has(blockKey)) {
-            blockItemsSeen.add(blockKey);
-            items.push({
-              appointmentId: appointment.id,
-              date: appointment.date,
-              time: appointment.time || '--:--',
-              studentName: student ? `${student.firstName} ${student.lastName || ''}`.trim() : 'Unknown',
-              lessonType: 'individual' as const,
-              duration: 0,
-              status: appointment.status,
-              unitPrice: blockEntry.blockPrice || 0,
-              totalPrice: blockEntry.blockPrice || 0,
-            });
-          }
-          return; // Skip individual appointment items for block pricing
+          items.push({
+            appointmentId: appointment.id,
+            date: appointment.date,
+            time: appointment.time || '--:--',
+            studentName: student ? `${student.firstName} ${student.lastName || ''}`.trim() : 'Unknown',
+            lessonType: 'block',
+            duration: appointment.duration,
+            status: appointment.status,
+            unitPrice: 0, // Show as "-" in preview
+            totalPrice: 0, // Show as "-" in preview; excluded from total
+            blockName: blockEntry.blockName || 'Block-Unterricht',
+          });
+          return; // Skip standard pricing for block appointments
         }
         
         // Standard pricing logic
@@ -569,7 +570,8 @@ export default function InvoicesPage() {
     const firstStudentId = plannedAppointments[0]?.studentIds[0];
     const student = firstStudentId ? data.students.find(s => s.id === firstStudentId) : null;
     const family = student ? data.families.find(f => f.id === student.familyId) : null;
-    const total = previewItems.reduce((sum, item) => sum + item.totalPrice, 0);
+    // Total excludes block pricing items (they are listed individually but not summed)
+  const total = previewItems.reduce((sum, item) => item.lessonType === 'block' ? sum : sum + item.totalPrice, 0);
     setPreviewData({
       issuedBy: {
         name: data.invoiceSettings?.businessName || 'MatheManager',

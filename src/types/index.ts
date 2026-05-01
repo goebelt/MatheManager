@@ -123,7 +123,7 @@ export interface InvoiceItem {
   appointmentId: string;
   date: string;
   studentName: string;
-  lessonType: 'individual' | 'group';
+  lessonType: 'individual' | 'group' | 'block';
   status: 'attended' | 'canceled_paid' | 'canceled_free' | 'planned';
   hourlyRate: number;
   description: string;

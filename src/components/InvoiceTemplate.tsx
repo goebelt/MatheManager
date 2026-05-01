@@ -30,7 +30,7 @@ export interface InvoiceData {
     appointmentId?: string;
     date: string;
     studentName?: string;
-    lessonType?: 'individual' | 'group';
+    lessonType?: 'individual' | 'group' | 'block';
     status?: 'attended' | 'canceled_paid' | 'canceled_free' | 'planned';
     hourlyRate?: number;
     description: string;
@@ -186,6 +186,11 @@ export function InvoiceTemplate({
                       <span className="inline-flex items-center gap-1">
                         <span className="w-1 h-1 bg-blue-500 rounded-full"></span>
                         Gruppenunterricht
+                      </span>
+                    ) : item.lessonType === 'block' ? (
+                      <span className="inline-flex items-center gap-1">
+                        <span className="w-1 h-1 bg-orange-500 rounded-full"></span>
+                        Block-Unterricht
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1">
