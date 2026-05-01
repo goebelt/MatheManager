@@ -200,4 +200,76 @@ describe('InvoiceTemplate', () => {
     render(<InvoiceTemplate invoice={SAMPLE_INVOICE} />);
     expect(screen.getByText('030-123456')).toBeInTheDocument();
   });
+
+  describe('Block-Unterricht items', () => {
+    it('renders block lesson type with block name', () => {
+      const invoice: InvoiceData = {
+        ...SAMPLE_INVOICE,
+        items: [{
+          appointmentId: 'b1',
+          date: '-',
+          studentName: 'Max Müller',
+          lessonType: 'block',
+          status: 'attended',
+          description: 'Abiturprogramm',
+          unitPrice: 450,
+          quantity: 1,
+          totalPrice: 450,
+          isPaid: false,
+        }],
+        subtotal: 450,
+        total: 450,
+      };
+      render(<InvoiceTemplate invoice={invoice} />);
+      expect(screen.getByText('Block-Unterricht')).toBeInTheDocument();
+      expect(screen.getByText('(Abiturprogramm)')).toBeInTheDocument();
+    });
+
+    it('renders dash for date on block items', () => {
+      const invoice: InvoiceData = {
+        ...SAMPLE_INVOICE,
+        items: [{
+          appointmentId: 'b2',
+          date: '-',
+          studentName: 'Anna Müller',
+          lessonType: 'block',
+          status: 'attended',
+          description: 'Abiturprogramm',
+          unitPrice: 450,
+          quantity: 1,
+          totalPrice: 450,
+          isPaid: true,
+        }],
+        subtotal: 450,
+        total: 450,
+      };
+      render(<InvoiceTemplate invoice={invoice} />);
+      // Block items show '-' for date, status, and paid columns
+      const dashes = screen.getAllByText('-');
+      expect(dashes.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('renders block price as total price', () => {
+      const invoice: InvoiceData = {
+        ...SAMPLE_INVOICE,
+        items: [{
+          appointmentId: 'b3',
+          date: '-',
+          studentName: 'Max Müller',
+          lessonType: 'block',
+          status: 'attended',
+          description: 'Abiturprogramm',
+          unitPrice: 450,
+          quantity: 1,
+          totalPrice: 450,
+          isPaid: false,
+        }],
+        subtotal: 450,
+        total: 450,
+      };
+      render(<InvoiceTemplate invoice={invoice} />);
+      const amounts = screen.getAllByText(/€450\.00/);
+      expect(amounts.length).toBeGreaterThanOrEqual(1);
+    });
+  });
 });
