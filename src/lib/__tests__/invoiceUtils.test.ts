@@ -3,6 +3,7 @@ import {
   formatInvoiceNumber,
   calculateDueDate,
   calculateInvoiceTotals,
+  buildInvoiceDataForFamily,
 } from '../invoiceUtils';
 
 // ─── formatInvoiceNumber ─────────────────────────────────────────────────────
@@ -94,5 +95,146 @@ describe('calculateInvoiceTotals', () => {
     expect(result.subtotal).toBe(100);
     expect(result.taxAmount).toBe(19);
     expect(result.total).toBe(119);
+  });
+});
+
+// ─── buildInvoiceDataForFamily ──────────────────────────────────────────────────
+
+describe('buildInvoiceDataForFamily', () => {
+  const mockIssuedBy = {
+    name: 'Max Mustermann',
+    street: 'Musterstraße 1',
+    zipCode: '12345',
+    city: 'Musterstadt',
+    email: 'max@example.com',
+    phone: '0123456789',
+    vatId: 'DE123456789',
+    iban: 'DE89370400440532013000',
+  };
+
+  const mockAppointmentItems = [
+    {
+      id: 'app1',
+      date: '2026-01-15',
+      studentId: 'st1',
+      studentName: 'Anna Müller',
+      lessonType: 'individual' as const,
+      status: 'attended' as const,
+      description: 'Einzelunterricht (besucht)',
+      totalPrice: 45,
+      isPaid: false,
+    },
+    {
+      id: 'app2',
+      date: '2026-01-22',
+      studentId: 'st1',
+      studentName: 'Anna Müller',
+      lessonType: 'individual' as const,
+      status: 'attended' as const,
+      description: 'Einzelunterricht (besucht)',
+      totalPrice: 45,
+      isPaid: false,
+    },
+    {
+      id: 'app3',
+      date: '2026-01-19',
+      studentId: 'st2',
+      studentName: 'Ben Müller',
+      lessonType: 'group' as const,
+      status: 'attended' as const,
+      description: 'Gruppenunterricht (besucht)',
+      totalPrice: 35,
+      isPaid: true,
+    },
+  ];
+
+  it('builds a complete invoice for a family with multiple students', () => {
+    const invoice = buildInvoiceDataForFamily(
+      'fam1',
+      'Familie Müller',
+      'Müllerweg 5',
+      ['st1', 'st2'],
+      mockAppointmentItems,
+      mockIssuedBy,
+      '2026/00005',
+      new Date(2026, 0, 31),
+      14
+    );
+
+    expect(invoice.invoiceNumber).toBe('2026/00005');
+    expect(invoice.issuedBy.name).toBe('Max Mustermann');
+    expect(invoice.billedTo.name).toBe('Familie Müller');
+    expect(invoice.billedTo.street).toBe('Müllerweg 5');
+    expect(invoice.items).toHaveLength(3);
+    expect(invoice.subtotal).toBe(125);
+    expect(invoice.taxRate).toBe(0);
+    expect(invoice.taxAmount).toBe(0);
+    expect(invoice.total).toBe(125);
+  });
+
+  it('calculates due date correctly with custom payment terms', () => {
+    const invoiceDate = new Date(2026, 0, 15); // Jan 15, 2026
+    const invoice = buildInvoiceDataForFamily(
+      'fam1',
+      'Familie Müller',
+      undefined,
+      ['st1'],
+      [mockAppointmentItems[0]],
+      mockIssuedBy,
+      '2026/00001',
+      invoiceDate,
+      30
+    );
+
+    expect(invoice.invoiceDate).toBe(invoiceDate.toISOString());
+    const dueDate = new Date(invoiceDate);
+    dueDate.setDate(dueDate.getDate() + 30);
+    expect(new Date(invoice.dueDate).toDateString()).toBe(dueDate.toDateString());
+  });
+
+  it('handles empty appointments (generates invoice with 0 total)', () => {
+    const invoice = buildInvoiceDataForFamily(
+      'fam1',
+      'Familie Müller',
+      'Müllerweg 5',
+      ['st1'],
+      [],
+      mockIssuedBy,
+      '2026/00001',
+      new Date(),
+      14
+    );
+
+    expect(invoice.items).toHaveLength(0);
+    expect(invoice.subtotal).toBe(0);
+    expect(invoice.total).toBe(0);
+  });
+
+  it('maps all appointment fields correctly into invoice items', () => {
+    const invoice = buildInvoiceDataForFamily(
+      'fam1',
+      'Familie Müller',
+      undefined,
+      ['st1'],
+      [mockAppointmentItems[0]],
+      mockIssuedBy,
+      '2026/00001',
+      new Date(),
+      14
+    );
+
+    expect(invoice.items[0]).toEqual({
+      appointmentId: 'app1',
+      date: '2026-01-15',
+      studentName: 'Anna Müller',
+      lessonType: 'individual',
+      status: 'attended',
+      hourlyRate: 0,
+      description: 'Einzelunterricht (besucht)',
+      unitPrice: 45,
+      quantity: 1,
+      totalPrice: 45,
+      isPaid: false,
+    });
   });
 });

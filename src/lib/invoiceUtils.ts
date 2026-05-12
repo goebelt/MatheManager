@@ -2,6 +2,69 @@
  * Invoice utilities – extracted from invoices page for testability
  */
 
+import type { InvoiceData } from '@/components/InvoiceTemplate';
+
+/**
+ * Build a complete InvoiceData object for one family.
+ * All appointments for students belonging to the given family are grouped into one invoice.
+ */
+export function buildInvoiceDataForFamily(
+  familyId: string,
+  familyName: string,
+  familyAddress: string | undefined,
+  studentIdsInFamily: string[],
+  appointmentsForFamily: Array<{
+    id: string;
+    date: string;
+    studentId: string;
+    studentName: string;
+    lessonType: 'individual' | 'group' | 'block';
+    status: 'attended' | 'canceled_paid' | 'canceled_free' | 'planned';
+    description: string;
+    totalPrice: number;
+    isPaid: boolean;
+  }>,
+  issuedBy: InvoiceData['issuedBy'],
+  invoiceNumber: string,
+  invoiceDate: Date,
+  paymentTerms: number
+): InvoiceData {
+  const { subtotal, taxAmount, total } = calculateInvoiceTotals(
+    appointmentsForFamily.map(a => ({ totalPrice: a.totalPrice }))
+  );
+  const dueDate = calculateDueDate(invoiceDate, paymentTerms);
+
+  return {
+    invoiceNumber,
+    invoiceDate: invoiceDate.toISOString(),
+    dueDate: dueDate.toISOString(),
+    issuedBy,
+    billedTo: {
+      name: familyName,
+      street: familyAddress,
+      zipCode: undefined,
+      city: undefined,
+    },
+    items: appointmentsForFamily.map(a => ({
+      appointmentId: a.id,
+      date: a.date,
+      studentName: a.studentName,
+      lessonType: a.lessonType,
+      status: a.status,
+      hourlyRate: 0,
+      description: a.description,
+      unitPrice: a.totalPrice,
+      quantity: 1,
+      totalPrice: a.totalPrice,
+      isPaid: a.isPaid,
+    })),
+    subtotal,
+    taxRate: 0,
+    taxAmount,
+    total,
+  };
+}
+
 /**
  * Format invoice number as YYYY/NNNNN
  * @param year - e.g. 2026

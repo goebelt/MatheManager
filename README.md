@@ -44,6 +44,12 @@ Next.js App zur Verwaltung von Mathe-Nachhilfe mit Tailwind CSS. Verwalten Sie F
   - Blaues Farbschema zur Unterscheidung von Rechnungen
   - Druck-/PDF-fähig via `AppointmentPreviewTemplate` mit `@media print` CSS
 - **Einstellungen** um eigene Firmendaten einzugeben (Name, Adresse, Steuernummer)
+- **Serienrechnung**: Mehrere Familien gleichzeitig als einzelne PDF-Dateien herunterladen
+  - Familien-Multiauswahl im Filter-Bereich (grüne Beschriftung "für Serienrechnung")
+  - Klick auf "Serienrechnung"-Button öffnet für jede ausgewählte Familie ein Browser-Fenster
+    mit druckfertiger Rechnung (Save-as-PDF über den Browser-Dialog)
+  - Rechnungsnummern werden automatisch pro Familie vergeben und im localStorage hochgezählt
+  - Berücksichtigt denselben Datumsfilter wie die normale Rechnungsstellung
 
 ### Preise
 - **Standardpreise** für Einzel- und Gruppenstunden (gilt für alle ohne eigenen Eintrag)

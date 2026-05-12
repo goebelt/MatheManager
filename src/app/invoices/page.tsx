@@ -6,11 +6,11 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
   Printer, User, Calendar, DollarSign, Building2, FileText,
-  Check, X, Clock, Eye, Download,
+  Check, X, Clock, Eye, Download, Files,
 } from 'lucide-react';
 import type { DataContainer, InvoiceItem, Family, Student, PriceEntry, Appointment } from '@/types';
 import { calculateAppointmentFee } from '@/lib/billing';
-import { formatInvoiceNumber, calculateDueDate, calculateInvoiceTotals } from '@/lib/invoiceUtils';
+import { formatInvoiceNumber, calculateDueDate, calculateInvoiceTotals, buildInvoiceDataForFamily } from '@/lib/invoiceUtils';
 import { filterAppointmentsByDate } from '@/lib/dateFilters';
 import { InvoiceTemplate, type InvoiceData } from '@/components/InvoiceTemplate';
 
@@ -243,6 +243,11 @@ export default function InvoicesPage() {
   const [studentDropdownOpen, setStudentDropdownOpen] = useState(false);
   const [studentFilter, setStudentFilter] = useState('');
 
+  // Family multi-select for Serienrechnung
+  const [selectedFamilyIds, setSelectedFamilyIds] = useState<string[]>([]);
+  const [familyDropdownOpen, setFamilyDropdownOpen] = useState(false);
+  const [familyFilter, setFamilyFilter] = useState('');
+
   useEffect(() => {
     loadData();
     const interval = setInterval(loadData, 30000);
@@ -256,12 +261,16 @@ export default function InvoicesPage() {
         setStudentDropdownOpen(false);
         setStudentFilter('');
       }
+      if (!target.closest('.family-dropdown-container')) {
+        setFamilyDropdownOpen(false);
+        setFamilyFilter('');
+      }
     };
-    if (studentDropdownOpen) {
+    if (studentDropdownOpen || familyDropdownOpen) {
       document.addEventListener('mousedown', handleClickOutside);
       return () => document.removeEventListener('mousedown', handleClickOutside);
     }
-  }, [studentDropdownOpen]);
+  }, [studentDropdownOpen, familyDropdownOpen]);
 
   const loadData = () => {
     setLoading(true);
@@ -286,6 +295,304 @@ export default function InvoicesPage() {
       const familyName = getFamilyForStudent(student.id).toLowerCase();
       return fullName.includes(filter) || familyName.includes(filter);
     });
+  };
+
+  const getFilteredFamilies = (): Family[] => {
+    const filter = familyFilter.toLowerCase();
+    return (data?.families || []).filter(family =>
+      family.name.toLowerCase().includes(filter)
+    );
+  };
+
+  // ── Build invoice items for a specific family (used by batch + single invoice) ──
+  const buildFamilyAppointmentItems = (
+    familyId: string,
+    appointments: Appointment[]
+  ): Array<{
+    id: string; date: string; studentId: string; studentName: string;
+    lessonType: 'individual' | 'group' | 'block';
+    status: 'attended' | 'canceled_paid' | 'canceled_free' | 'planned';
+    description: string; totalPrice: number; isPaid: boolean;
+  }> => {
+    const studentsInFamily = (data?.students || []).filter(s => s.familyId === familyId);
+    const studentIdsInFamily = new Set(studentsInFamily.map(s => s.id));
+
+    // Filter appointments for this family's students
+    const familyAppointments = appointments.filter(app =>
+      app.studentIds.some(id => studentIdsInFamily.has(id))
+    );
+
+    const items: Array<{
+      id: string; date: string; studentId: string; studentName: string;
+      lessonType: 'individual' | 'group' | 'block';
+      status: 'attended' | 'canceled_paid' | 'canceled_free' | 'planned';
+      description: string; totalPrice: number; isPaid: boolean;
+    }> = [];
+    const seen = new Set<string>();
+
+    // Track block pricing per student to avoid duplicates
+    const blockItemsSeen = new Set<string>();
+
+    familyAppointments.forEach(appointment => {
+      appointment.studentIds.forEach(studentId => {
+        if (!studentIdsInFamily.has(studentId)) return;
+        const key = `${appointment.id}-${studentId}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+
+        const student = (data?.students || []).find(s => s.id === studentId);
+        const lessonType = appointment.studentIds.length > 1 ? 'group' : 'individual';
+
+        // Check block pricing
+        let blockEntry: PriceEntry | undefined;
+        for (const entry of data?.priceEntries || []) {
+          if (entry.type === 'block' &&
+              entry.studentIds && entry.studentIds.includes(studentId) &&
+              entry.blockStartDate && entry.blockEndDate) {
+            const appointmentDate = new Date(appointment.date);
+            const blockStart = new Date(entry.blockStartDate);
+            const blockEnd = new Date(entry.blockEndDate);
+            if (appointmentDate >= blockStart && appointmentDate <= blockEnd) {
+              blockEntry = entry;
+              break;
+            }
+          }
+        }
+
+        if (blockEntry) {
+          const blockKey = `${studentId}-${blockEntry.id}`;
+          if (!blockItemsSeen.has(blockKey)) {
+            blockItemsSeen.add(blockKey);
+            const paymentStatus = (data?.paymentStatuses || []).find(
+              s => s.appointmentId === appointment.id && s.studentId === studentId
+            );
+            items.push({
+              id: appointment.id,
+              date: blockEntry.blockName || 'Block-Unterricht',
+              studentId,
+              studentName: student ? `${student.firstName} ${student.lastName || ''}`.trim() : 'Unknown',
+              lessonType: 'block',
+              status: 'attended',
+              description: blockEntry.blockName || 'Block-Unterricht',
+              totalPrice: blockEntry.blockPrice || 0,
+              isPaid: paymentStatus?.isPaid || false,
+            });
+          }
+          return;
+        }
+
+        // Standard pricing
+        let fee = calculateAppointmentFee(appointment, studentId, data?.priceEntries || []);
+        if (appointment.status === 'canceled_free') fee = 0;
+        const paymentStatus = (data?.paymentStatuses || []).find(
+          s => s.appointmentId === appointment.id && s.studentId === studentId
+        );
+        let description = lessonType === 'group' ? 'Gruppenunterricht' : 'Einzelunterricht';
+        if (appointment.status === 'attended') description += ' (besucht)';
+        else if (appointment.status === 'canceled_paid') description += ' (ausgefallen, 50%)';
+        else if (appointment.status === 'canceled_free') description += ' (ausgefallen, kostenlos)';
+        else if (appointment.status === 'planned') description += ' (geplant)';
+
+        items.push({
+          id: appointment.id, date: appointment.date, studentId,
+          studentName: student ? `${student.firstName} ${student.lastName || ''}`.trim() : 'Unknown',
+          lessonType, status: appointment.status as 'attended' | 'canceled_paid' | 'canceled_free' | 'planned',
+          description, totalPrice: fee, isPaid: paymentStatus?.isPaid || false,
+        });
+      });
+    });
+
+    // Sort by date
+    items.sort((a, b) => a.date.localeCompare(b.date));
+    return items;
+  };
+
+  // ── Serienrechnung: generate & print one PDF per selected family ──
+  const handleBatchInvoice = async () => {
+    if (!data || selectedFamilyIds.length === 0) return;
+
+    const familiesToProcess = selectedFamilyIds
+      .map(id => (data.families || []).find(f => f.id === id))
+      .filter(Boolean) as Family[];
+
+    const invoiceDate = new Date();
+    const paymentTerms = data.invoiceSettings?.paymentTerms || 14;
+    const issuedBy: InvoiceData['issuedBy'] = {
+      name: data.invoiceSettings?.businessName || 'MatheManager',
+      street: data.invoiceSettings?.street,
+      zipCode: data.invoiceSettings?.zipCode,
+      city: data.invoiceSettings?.city,
+      email: data.invoiceSettings?.email,
+      phone: data.invoiceSettings?.phone,
+      vatId: data.invoiceSettings?.vatId,
+      iban: data.invoiceSettings?.iban,
+    };
+    const currentYear = new Date().getFullYear();
+    let sequenceNumber = data.invoiceSettings?.invoiceNumberStart || 1;
+
+    for (const family of familiesToProcess) {
+      const appointmentItems = buildFamilyAppointmentItems(family.id, filteredAppointments);
+      if (appointmentItems.length === 0) {
+        // Skip families with no appointments in range, but still increment counter
+        sequenceNumber++;
+        continue;
+      }
+
+      const invoiceNumber = formatInvoiceNumber(currentYear, sequenceNumber);
+      sequenceNumber++;
+
+      const invoiceDataForFamily = buildInvoiceDataForFamily(
+        family.id,
+        family.name,
+        family.address,
+        (data?.students || []).filter(s => s.familyId === family.id).map(s => s.id),
+        appointmentItems,
+        issuedBy,
+        invoiceNumber,
+        invoiceDate,
+        paymentTerms
+      );
+
+      // Update invoice number counter in localStorage
+      const updatedData = {
+        ...data,
+        invoiceSettings: {
+          ...data.invoiceSettings,
+          businessName: data.invoiceSettings?.businessName || '',
+          street: data.invoiceSettings?.street || '',
+          zipCode: data.invoiceSettings?.zipCode || '',
+          city: data.invoiceSettings?.city || '',
+          email: data.invoiceSettings?.email,
+          phone: data.invoiceSettings?.phone,
+          vatId: data.invoiceSettings?.vatId,
+          taxId: data.invoiceSettings?.taxId,
+          bankName: data.invoiceSettings?.bankName,
+          iban: data.invoiceSettings?.iban,
+          bankBic: data.invoiceSettings?.bankBic,
+          paymentTerms: data.invoiceSettings?.paymentTerms || 14,
+          hourlyRate: data.invoiceSettings?.hourlyRate || 0,
+          lessonType: data.invoiceSettings?.lessonType || 'individual',
+          invoiceNumberStart: sequenceNumber,
+        },
+        lastUpdated: new Date().toISOString(),
+      };
+      localStorage.setItem('mathe_manager_data', JSON.stringify(updatedData));
+      setData(updatedData);
+
+      // Render invoice in a hidden printable div and trigger print dialog
+      const printWindow = window.open('', '_blank', 'width=800,height=600');
+      if (!printWindow) {
+        alert('Bitte Pop-ups erlauben für den PDF-Download.');
+        continue;
+      }
+
+      // We pass `showDownloadButton: false` because we auto-trigger print
+      const printContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Rechnung ${family.name} - ${invoiceNumber}</title>
+          <style>
+            @media print {
+              @page { size: A4; margin: 10mm; }
+            }
+            * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          </style>
+        </head>
+        <body>
+          <div id="invoice-root"></div>
+          <script>
+            // Inline React-less InvoiceTemplate equivalent for print window
+            // We rebuild a minimal printable HTML here
+            const invoice = ${JSON.stringify(invoiceDataForFamily)};
+            const formatDate = (ds) => new Date(ds).toLocaleDateString('de-DE', { year: 'numeric', month: '2-digit', day: '2-digit' });
+            const subtotal = invoice.items.reduce((s, i) => s + i.totalPrice, 0);
+            const rows = invoice.items.map(item => \`
+              <tr style="border-bottom: 1px dotted #999;">
+                <td style="padding:4px 6px;font-size:12px;">\${item.lessonType === 'block' ? '-' : formatDate(item.date)}</td>
+                <td style="padding:4px 6px;font-size:12px;">\${item.studentName || '-'}</td>
+                <td style="padding:4px 6px;font-size:12px;">\${item.lessonType === 'group' ? 'Gruppenunterricht' : item.lessonType === 'block' ? 'Block-Unterricht' : 'Einzelunterricht'}</td>
+                <td style="padding:4px 6px;font-size:12px;">\${item.status === 'attended' ? 'Besucht' : item.status === 'canceled_paid' ? 'Bezahlt ausgefallen' : item.status === 'canceled_free' ? 'Kostenlos ausgefallen' : 'Geplant'}</td>
+                <td style="padding:4px 6px;font-size:12px;text-align:right;font-weight:600;">€\${item.totalPrice.toFixed(2)}</td>
+                <td style="padding:4px 6px;font-size:12px;text-align:center;">\${item.lessonType === 'block' ? '-' : item.isPaid ? '✓ Ja' : '✗ Nein'}</td>
+              </tr>\`).join('');
+
+            document.getElementById('invoice-root').innerHTML = \`
+            <div style="font-family:Arial,sans-serif;max-width:210mm;margin:0 auto;padding:10mm;box-sizing:border-box;">
+              <header style="margin-bottom:16px;padding-bottom:12px;border-bottom:4px solid #000;">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+                  <div>
+                    <h1 style="font-size:20px;font-weight:900;letter-spacing:0.1em;margin:0 0 4px;">\${invoice.issuedBy.name || 'MatheManager'}</h1>
+                    \${invoice.issuedBy.street ? \`<p style="font-size:11px;font-weight:600;text-transform:uppercase;margin:0;">\${invoice.issuedBy.street}</p>\` : ''}
+                    \${invoice.issuedBy.zipCode || invoice.issuedBy.city ? \`<p style="font-size:11px;font-weight:600;text-transform:uppercase;margin:0;">\${invoice.issuedBy.zipCode || ''} \${invoice.issuedBy.city || ''}</p>\` : ''}
+                    \${invoice.issuedBy.email ? \`<p style="font-size:11px;margin:4px 0 0;">\${invoice.issuedBy.email}</p>\` : ''}
+                    \${invoice.issuedBy.phone ? \`<p style="font-size:11px;margin:2px 0 0;">\${invoice.issuedBy.phone}</p>\` : ''}
+                  </div>
+                  <div style="text-align:right;">
+                    <h2 style="font-size:20px;font-weight:900;letter-spacing:0.1em;margin:0 0 4px;">RECHNUNG</h2>
+                    <p style="font-size:13px;font-weight:600;">\${formatDate(invoice.invoiceDate)}</p>
+                    <p style="font-size:11px;color:#666;margin-top:4px;">Rechnungsnummer: \${invoice.invoiceNumber}</p>
+                  </div>
+                </div>
+                <div style="margin-top:12px;padding-top:8px;border-top:2px dashed #000;">
+                  <p style="font-size:10px;font-weight:700;text-transform:uppercase;margin:0 0 4px;">Rechnung an:</p>
+                  <p style="font-size:14px;font-weight:700;margin:0;">\${invoice.billedTo.name}</p>
+                  \${invoice.billedTo.street ? \`<p style="font-size:11px;margin:2px 0 0;">\${invoice.billedTo.street}</p>\` : ''}
+                </div>
+              </header>
+              <table style="width:100%;border-collapse:collapse;border:2px solid #000;margin-bottom:16px;">
+                <thead>
+                  <tr style="background:#f0f0f0;border-bottom:3px solid #000;">
+                    <th style="text-align:left;padding:4px 6px;font-size:10px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;">Datum</th>
+                    <th style="text-align:left;padding:4px 6px;font-size:10px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;">Schüler</th>
+                    <th style="text-align:left;padding:4px 6px;font-size:10px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;">Typ</th>
+                    <th style="text-align:left;padding:4px 6px;font-size:10px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;">Status</th>
+                    <th style="text-align:right;padding:4px 6px;font-size:10px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;">Gesamtpreis</th>
+                    <th style="text-align:center;padding:4px 6px;font-size:10px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;">Bezahlt</th>
+                  </tr>
+                </thead>
+                <tbody>\${rows}</tbody>
+              </table>
+              <div style="display:flex;justify-content:flex-end;">
+                <div style="width:45%;">
+                  <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dotted #999;">
+                    <span style="font-size:11px;color:#666;">Zwischensumme (netto)</span>
+                    <span style="font-size:11px;font-weight:600;">€\${subtotal.toFixed(2)}</span>
+                  </div>
+                  <div style="display:flex;justify-content:space-between;padding:8px 0;border-top:3px solid #000;margin-top:4px;">
+                    <span style="font-size:14px;font-weight:700;">Gesamtbetrag</span>
+                    <span style="font-size:14px;font-weight:700;">€\${invoice.total.toFixed(2)}</span>
+                  </div>
+                  <p style="text-align:center;font-size:10px;color:#666;font-style:italic;margin-top:8px;">
+                    Gemäß §4 Nr. 21 bin ich von der Umsatzsteuer befreit.
+                  </p>
+                  <div style="margin-top:8px;padding:8px;background:#f5f5f5;border:1px solid #ccc;border-radius:4px;">
+                    <p style="font-size:11px;font-weight:600;color:#333;margin:0 0 4px;">Zahlungsbedingungen:</p>
+                    <p style="font-size:11px;color:#666;margin:0;">Fällig bis: \${formatDate(invoice.dueDate)}</p>
+                    \${invoice.issuedBy.iban ? \`<p style="font-size:11px;color:#666;margin:4px 0 0;">IBAN: \${invoice.issuedBy.iban}</p>\` : ''}
+                  </div>
+                </div>
+              </div>
+              <div style="margin-top:16px;padding-top:8px;border-top:1px solid #ccc;text-align:center;">
+                <p style="font-size:10px;color:#999;">Vielen Dank für die gute Zusammenarbeit!</p>
+              </div>
+            </div>
+            \`;
+            // Auto-trigger print dialog
+            window.addEventListener('load', () => { window.print(); });
+          </script>
+        </body>
+        </html>
+      `;
+
+      printWindow.document.write(printContent);
+      printWindow.document.close();
+      // Give the window time to render before printing
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+
+    // Reset family selection after processing
+    setSelectedFamilyIds([]);
   };
 
   // ── Filtered appointments for INVOICE (exclude planned) ──
@@ -621,6 +928,10 @@ export default function InvoicesPage() {
                 className="inline-flex items-center gap-2 px-4 py-2 bg-black text-white font-medium rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                 <Printer size={16} /> Rechnung erstellen
               </button>
+              <button onClick={handleBatchInvoice} disabled={selectedFamilyIds.length === 0}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                <Files size={16} /> Serienrechnung
+              </button>
             </div>
           </div>
         </div>
@@ -632,7 +943,7 @@ export default function InvoicesPage() {
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2 pb-2 border-b border-gray-100 dark:border-slate-700">
             <FileText size={18} /> Filter
           </h2>
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="student-dropdown-container">
               <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Schüler</label>
               <div className="relative">
@@ -667,6 +978,46 @@ export default function InvoicesPage() {
                 )}
               </div>
             </div>
+
+            {/* Family multi-select for Serienrechnung */}
+            <div className="family-dropdown-container">
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                Familien <span className="text-green-700 dark:text-green-400 text-xs">(für Serienrechnung)</span>
+              </label>
+              <div className="relative">
+                <button type="button" onClick={() => setFamilyDropdownOpen(!familyDropdownOpen)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-left focus:outline-none focus:ring-2 focus:ring-green-500">
+                  {selectedFamilyIds.length === 0
+                    ? <span className="text-gray-500">Alle Familien</span>
+                    : <span>{selectedFamilyIds.length} Familie(n) ausgewählt</span>
+                  }
+                </button>
+                {familyDropdownOpen && (
+                  <div className="absolute z-10 w-full mt-1 bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                    <input type="text" placeholder="Familie suchen..." value={familyFilter}
+                      onChange={e => setFamilyFilter(e.target.value)}
+                      className="w-full px-3 py-2 border-b border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none" />
+                    {getFilteredFamilies().map(family => {
+                      const isSelected = selectedFamilyIds.includes(family.id);
+                      return (
+                        <button key={family.id} type="button"
+                          onClick={() => {
+                            if (isSelected) setSelectedFamilyIds(prev => prev.filter(id => id !== family.id));
+                            else setSelectedFamilyIds(prev => [...prev, family.id]);
+                          }}
+                          className={`w-full px-3 py-2 text-left flex items-center justify-between hover:bg-gray-100 dark:hover:bg-slate-600 ${isSelected ? 'bg-green-50 dark:bg-green-900/20' : ''}`}>
+                          <span>{family.name}</span>
+                          {isSelected && <Check size={16} className="text-green-600" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div></div>
+            <div></div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Von</label>
               <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
@@ -680,6 +1031,7 @@ export default function InvoicesPage() {
           </div>
           <div className="mt-4 text-sm text-gray-500 dark:text-slate-400">
             {filteredAppointments.length} abgerechnete Termin(e) • {plannedAppointments.length} geplante Termin(e)
+            {selectedFamilyIds.length > 0 && <span className="ml-2 text-green-600 dark:text-green-400">• {selectedFamilyIds.length} Familie(n) für Serienrechnung ausgewählt</span>}
           </div>
         </div>
       </main>
