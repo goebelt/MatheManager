@@ -1,13 +1,15 @@
 /**
  * generatePdf.ts – browser-only helper to render a DOM element to PDF
- * and trigger a browser download dialog (Save As).
+ * and open it in a new browser tab for viewing/saving.
  *
  * Uses jsPDF + html2canvas, with a critical workaround:
  * html2canvas 1.x has a known bug where Range.setEnd is called with
  * an offset larger than the text node's length, causing IndexSizeError.
  *
- * We fix this by temporarily monkey-patching Range.prototype.setEnd
- * to clamp the offset to the node's actual length.
+ * We fix this by monkey-patching Range.prototype.setEnd for the
+ * ENTIRE duration of the PDF generation process. The patch must
+ * stay active across all async operations (including microtasks
+ * that html2canvas schedules internally after the main promise resolves).
  */
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -36,14 +38,19 @@ export interface GeneratePdfOptions {
   html2canvasScale?: number;
 }
 
-/**
- * Install a temporary monkey-patch on Range.prototype.setEnd that
- * clamps the offset to the node's length. This prevents the
- * IndexSizeError that html2canvas triggers with stale text nodes.
- *
- * Returns a cleanup function that restores the original method.
- */
-function installRangePatch(): () => void {
+// ── Global Range.setEnd patch ──
+// We keep the patch installed permanently once any PDF generation
+// has been requested. This avoids timing issues where html2canvas
+// schedules microtasks that call setEnd after our cleanup runs.
+// The patch is harmless — it only clamps offsets that would otherwise
+// throw an IndexSizeError, with no visible effect on rendering.
+
+let _rangePatchInstalled = false;
+
+function ensureRangePatchInstalled(): void {
+  if (_rangePatchInstalled) return;
+  _rangePatchInstalled = true;
+
   const originalSetEnd = Range.prototype.setEnd;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -65,34 +72,21 @@ function installRangePatch(): () => void {
     }
     return originalSetEnd.call(this, node, safeOffset);
   };
-
-  return () => {
-    Range.prototype.setEnd = originalSetEnd;
-  };
 }
 
 /**
  * Open the PDF in a new browser tab so the user can view and save it.
- * We use a data URI so it works reliably even when popup blockers are active
- * (window.open from async code is often blocked, but a data URI in an
- * existing window is fine).
  */
 function openPdfInNewTab(
   pdfBlob: Blob,
   filename: string,
 ): void {
-  // Convert blob to data URL via FileReader (synchronous approaches
-  // don't work for large blobs, so we use the async reader)
   const reader = new FileReader();
   reader.onload = () => {
     const dataUrl = reader.result as string;
 
-    // Try opening a new window — this may be blocked by popup blockers
-    // since we're in an async context. Fall back to navigating the
-    // current tab if blocked.
     const newWindow = window.open('', '_blank');
     if (newWindow) {
-      // New tab opened successfully — write PDF viewer HTML into it
       newWindow.document.write(`
 <!DOCTYPE html>
 <html>
@@ -103,7 +97,7 @@ function openPdfInNewTab(
 </html>`);
       newWindow.document.close();
     } else {
-      // Popup blocked — open in current tab as fallback
+      // Popup blocked — fall back to download link
       const link = document.createElement('a');
       link.href = dataUrl;
       link.download = filename;
@@ -119,7 +113,8 @@ function openPdfInNewTab(
 }
 
 /**
- * Capture an element as canvas using html2canvas (with Range patch).
+ * Capture an element as canvas using html2canvas.
+ * NOTE: The Range.setEnd patch must be installed BEFORE calling this.
  */
 async function captureElement(
   element: HTMLElement,
@@ -146,8 +141,6 @@ async function captureElement(
     document.body.appendChild(element);
   }
 
-  const cleanupPatch = installRangePatch();
-
   try {
     const canvas = await _html2canvas(element, {
       scale,
@@ -157,8 +150,6 @@ async function captureElement(
     });
     return canvas;
   } finally {
-    cleanupPatch();
-
     if (wasHidden) {
       element.style.display = 'none';
     }
@@ -217,12 +208,13 @@ function addCanvasToPdf(
 }
 
 /**
- * Renders `element` as a PDF and triggers a browser Save As dialog.
+ * Renders `element` as a PDF and opens it in a new browser tab.
  */
 export async function generatePdfFromElement(
   element: HTMLElement,
   options: GeneratePdfOptions,
 ): Promise<void> {
+  ensureRangePatchInstalled();
   const { jsPDF } = await loadDeps();
 
   const margin = options.margin ?? [10, 10, 10, 10];
@@ -246,7 +238,7 @@ export async function generatePdfFromElement(
 
 /**
  * Generate a single PDF containing multiple elements (one per family).
- * Each element starts on a new page. Opens Save As dialog once.
+ * Each element starts on a new page. Opens in new tab once.
  */
 export async function generateBatchPdf(
   elements: { element: HTMLElement; cleanup?: () => void }[],
@@ -259,6 +251,7 @@ export async function generateBatchPdf(
     html2canvasScale?: number;
   },
 ): Promise<void> {
+  ensureRangePatchInstalled();
   const { jsPDF } = await loadDeps();
 
   const margin = options.margin ?? [10, 10, 10, 10];
