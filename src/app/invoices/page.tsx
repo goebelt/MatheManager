@@ -13,17 +13,7 @@ import { calculateAppointmentFee } from '@/lib/billing';
 import { formatInvoiceNumber, calculateDueDate, calculateInvoiceTotals, buildInvoiceDataForFamily } from '@/lib/invoiceUtils';
 import { filterAppointmentsByDate } from '@/lib/dateFilters';
 import { InvoiceTemplate, type InvoiceData } from '@/components/InvoiceTemplate';
-
-// html2pdf.js is browser-only – lazy-load to avoid SSR issues
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let _html2pdf: any = null;
-async function getHtml2Pdf() {
- if (!_html2pdf) {
- const mod = await import('html2pdf.js');
- _html2pdf = mod.default || mod;
- }
- return _html2pdf;
-}
+import { generatePdfFromElement } from '@/lib/generatePdf';
 
 export interface AppointmentPreviewItem {
   appointmentId: string;
@@ -73,14 +63,14 @@ function AppointmentPreviewTemplate({ preview }: { preview: AppointmentPreviewDa
  setIsGeneratingPdf(true);
  try {
  const filename = `Terminvorschau_${preview.billedTo.name || 'Unbekannt'}.pdf`;
- const html2pdf = await getHtml2Pdf();
- await html2pdf().set({
- margin: [10, 10, 10, 10],
+ await generatePdfFromElement(previewRef.current, {
  filename,
- image: { type: 'jpeg', quality: 0.98 },
- html2canvas: { scale: 2, useCORS: true },
- jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const },
- }).from(previewRef.current).save();
+ margin: [10, 10, 10, 10],
+ orientation: 'portrait',
+ format: 'a4',
+ imageQuality: 0.98,
+ html2canvasScale: 2,
+ });
  } catch (err) {
  console.error('PDF generation failed:', err);
  } finally {
@@ -513,7 +503,7 @@ export default function InvoicesPage() {
  localStorage.setItem('mathe_manager_data', JSON.stringify(updatedData));
  setData(updatedData);
 
- // Generate PDF via html2pdf.js from a temporary DOM element
+ // Generate PDF from a temporary DOM element
  const container = document.createElement('div');
  container.style.fontFamily = 'Arial, sans-serif';
  container.style.maxWidth = '210mm';
@@ -597,14 +587,14 @@ export default function InvoicesPage() {
 
  try {
  const filename = `Rechnung_${invoiceNumber}_${family.name}.pdf`;
- const html2pdf = await getHtml2Pdf();
- await html2pdf().set({
- margin: [10, 10, 10, 10],
+ await generatePdfFromElement(container, {
  filename,
- image: { type: 'jpeg', quality: 0.98 },
- html2canvas: { scale: 2, useCORS: true },
- jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const },
- }).from(container).save();
+ margin: [10, 10, 10, 10],
+ orientation: 'portrait',
+ format: 'a4',
+ imageQuality: 0.98,
+ html2canvasScale: 2,
+ });
  // Small delay between PDFs to avoid browser blocking simultaneous downloads
  await new Promise(resolve => setTimeout(resolve, 800));
  } catch (err) {

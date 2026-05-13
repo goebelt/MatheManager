@@ -6,17 +6,7 @@
 
 import { useState, useRef } from 'react';
 import { Download, Printer, Check, X, Loader2 } from 'lucide-react';
-
-// html2pdf.js is browser-only – lazy-load to avoid SSR issues
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let _html2pdf: any = null;
-async function getHtml2Pdf() {
- if (!_html2pdf) {
- const mod = await import('html2pdf.js');
- _html2pdf = mod.default || mod;
- }
- return _html2pdf;
-}
+import { generatePdfFromElement } from '@/lib/generatePdf';
 // Flexible invoice type that accepts both full Invoice and the lighter object from invoices page
 export interface InvoiceData {
   invoiceNumber: string;
@@ -87,20 +77,20 @@ export function InvoiceTemplate({
  setIsGeneratingPdf(true);
  try {
  const filename = `Rechnung_${invoice.invoiceNumber}_${invoice.billedTo.name || 'Unbekannt'}.pdf`;
- const html2pdf = await getHtml2Pdf();
- await html2pdf().set({
- margin: [10, 10, 10, 10],
+ await generatePdfFromElement(templateRef.current, {
  filename,
- image: { type: 'jpeg', quality: 0.98 },
- html2canvas: { scale: 2, useCORS: true },
- jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const },
- }).from(templateRef.current).save();
-    } catch (err) {
-      console.error('PDF generation failed:', err);
-    } finally {
-      setIsGeneratingPdf(false);
-    }
-  };
+ margin: [10, 10, 10, 10],
+ orientation: 'portrait',
+ format: 'a4',
+ imageQuality: 0.98,
+ html2canvasScale: 2,
+ });
+ } catch (err) {
+ console.error('PDF generation failed:', err);
+ } finally {
+ setIsGeneratingPdf(false);
+ }
+ };
 
  return (
  <div ref={templateRef} className="min-h-screen bg-white p-0 print:p-0 print:min-h-0">
