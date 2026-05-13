@@ -13,7 +13,7 @@ import { calculateAppointmentFee } from '@/lib/billing';
 import { formatInvoiceNumber, calculateDueDate, calculateInvoiceTotals, buildInvoiceDataForFamily } from '@/lib/invoiceUtils';
 import { filterAppointmentsByDate } from '@/lib/dateFilters';
 import { InvoiceTemplate, type InvoiceData } from '@/components/InvoiceTemplate';
-import { generatePdfFromElement } from '@/lib/generatePdf';
+import { generatePdfFromElement, generateBatchPdf } from '@/lib/generatePdf';
 
 export interface AppointmentPreviewItem {
   appointmentId: string;
@@ -430,53 +430,55 @@ export default function InvoicesPage() {
     return items;
   };
 
-  // ── Serienrechnung: generate & print one PDF per selected family ──
-  const handleBatchInvoice = async () => {
-    if (!data || selectedFamilyIds.length === 0) return;
+ // ── Serienrechnung: generate ONE PDF with all families (one page each) ──
+ const handleBatchInvoice = async () => {
+ if (!data || selectedFamilyIds.length === 0) return;
 
-    const familiesToProcess = selectedFamilyIds
-      .map(id => (data.families || []).find(f => f.id === id))
-      .filter(Boolean) as Family[];
+ const familiesToProcess = selectedFamilyIds
+ .map(id => (data.families || []).find(f => f.id === id))
+ .filter(Boolean) as Family[];
 
-    const invoiceDate = new Date();
-    const paymentTerms = data.invoiceSettings?.paymentTerms || 14;
-    const issuedBy: InvoiceData['issuedBy'] = {
-      name: data.invoiceSettings?.businessName || 'MatheManager',
-      street: data.invoiceSettings?.street,
-      zipCode: data.invoiceSettings?.zipCode,
-      city: data.invoiceSettings?.city,
-      email: data.invoiceSettings?.email,
-      phone: data.invoiceSettings?.phone,
-      vatId: data.invoiceSettings?.vatId,
-      iban: data.invoiceSettings?.iban,
-    };
-    const currentYear = new Date().getFullYear();
-    let sequenceNumber = data.invoiceSettings?.invoiceNumberStart || 1;
+ const invoiceDate = new Date();
+ const paymentTerms = data.invoiceSettings?.paymentTerms || 14;
+ const issuedBy: InvoiceData['issuedBy'] = {
+ name: data.invoiceSettings?.businessName || 'MatheManager',
+ street: data.invoiceSettings?.street,
+ zipCode: data.invoiceSettings?.zipCode,
+ city: data.invoiceSettings?.city,
+ email: data.invoiceSettings?.email,
+ phone: data.invoiceSettings?.phone,
+ vatId: data.invoiceSettings?.vatId,
+ iban: data.invoiceSettings?.iban,
+ };
+ const currentYear = new Date().getFullYear();
+ let sequenceNumber = data.invoiceSettings?.invoiceNumberStart || 1;
 
-    for (const family of familiesToProcess) {
-      const appointmentItems = buildFamilyAppointmentItems(family.id, filteredAppointments);
-      if (appointmentItems.length === 0) {
-        // Skip families with no appointments in range, but still increment counter
-        sequenceNumber++;
-        continue;
-      }
+ // Collect all elements to render into the batch PDF
+ const batchElements: { element: HTMLElement; cleanup: () => void }[] = [];
 
-      const invoiceNumber = formatInvoiceNumber(currentYear, sequenceNumber);
-      sequenceNumber++;
+ for (const family of familiesToProcess) {
+ const appointmentItems = buildFamilyAppointmentItems(family.id, filteredAppointments);
+ if (appointmentItems.length === 0) {
+ // Skip families with no appointments in range, but still increment counter
+ sequenceNumber++;
+ continue;
+ }
 
-      const invoiceDataForFamily = buildInvoiceDataForFamily(
-        family.id,
-        family.name,
-        family.address,
-        (data?.students || []).filter(s => s.familyId === family.id).map(s => s.id),
-        appointmentItems,
-        issuedBy,
-        invoiceNumber,
-        invoiceDate,
-        paymentTerms
-      );
+ const invoiceNumber = formatInvoiceNumber(currentYear, sequenceNumber);
+ sequenceNumber++;
 
-      // Update invoice number counter in localStorage
+ const invoiceDataForFamily = buildInvoiceDataForFamily(
+ family.id,
+ family.name,
+ family.address,
+ (data?.students || []).filter(s => s.familyId === family.id).map(s => s.id),
+ appointmentItems,
+ issuedBy,
+ invoiceNumber,
+ invoiceDate,
+ paymentTerms
+ );
+
  // Update invoice number counter in localStorage
  const updatedData = {
  ...data,
@@ -503,7 +505,7 @@ export default function InvoicesPage() {
  localStorage.setItem('mathe_manager_data', JSON.stringify(updatedData));
  setData(updatedData);
 
- // Generate PDF from a temporary DOM element
+ // Create a temporary DOM element for this invoice
  const container = document.createElement('div');
  container.style.fontFamily = 'Arial, sans-serif';
  container.style.maxWidth = '210mm';
@@ -584,29 +586,30 @@ export default function InvoicesPage() {
  </div>`;
 
  document.body.appendChild(container);
+ batchElements.push({ element: container, cleanup: () => document.body.removeChild(container) });
+ }
 
+ // Generate ONE combined PDF with all invoices
+ if (batchElements.length > 0) {
  try {
- const filename = `Rechnung_${invoiceNumber}_${family.name}.pdf`;
- await generatePdfFromElement(container, {
- filename,
+ await generateBatchPdf(batchElements, {
+ filename: `Serienrechnung_${new Date().toISOString().slice(0, 10)}.pdf`,
  margin: [10, 10, 10, 10],
  orientation: 'portrait',
  format: 'a4',
  imageQuality: 0.98,
  html2canvasScale: 2,
  });
- // Small delay between PDFs to avoid browser blocking simultaneous downloads
- await new Promise(resolve => setTimeout(resolve, 800));
  } catch (err) {
- console.error('PDF generation failed for family:', family.name, err);
- } finally {
- document.body.removeChild(container);
+ console.error('Batch PDF generation failed:', err);
+ // Clean up any remaining containers
+ batchElements.forEach(({ cleanup }) => { try { cleanup(); } catch {} });
  }
  }
 
-    // Reset family selection after processing
-    setSelectedFamilyIds([]);
-  };
+ // Reset family selection after processing
+ setSelectedFamilyIds([]);
+ };
 
   // ── Filtered appointments for INVOICE (exclude planned) ──
   const filteredAppointments = useMemo(() => {

@@ -75,21 +75,13 @@ function installRangePatch(): () => void {
 }
 
 /**
- * Renders `element` as a PDF and triggers a browser download.
- * Returns a promise that resolves when the download starts.
+ * Capture an element as canvas using html2canvas (with Range patch).
+ * Used internally by both single-PDF and batch-PDF flows.
  */
-export async function generatePdfFromElement(
+async function captureElement(
   element: HTMLElement,
-  options: GeneratePdfOptions,
-): Promise<void> {
-  const { jsPDF, html2canvas } = await loadDeps();
-
-  const margin = options.margin ?? [10, 10, 10, 10];
-  const mTop = Array.isArray(margin) ? margin[0] : margin;
-  const mRight = Array.isArray(margin) ? margin[1] : margin;
-  const mBottom = Array.isArray(margin) ? margin[2] : margin;
-  const mLeft = Array.isArray(margin) ? margin[3] : margin;
-
+  scale: number,
+): Promise<HTMLCanvasElement> {
   // Ensure the element is in the DOM and visible for html2canvas
   const wasHidden = element.style.display === 'none';
   const origPosition = element.style.position;
@@ -117,53 +109,16 @@ export async function generatePdfFromElement(
   const cleanupPatch = installRangePatch();
 
   try {
-    // 1. Capture the element as canvas via html2canvas
-    const canvas = await html2canvas(element, {
-      scale: options.html2canvasScale ?? 2,
+    const canvas = await _html2canvas(element, {
+      scale,
       useCORS: true,
       backgroundColor: '#ffffff',
       logging: false,
     });
-
-    // 2. Calculate PDF dimensions
-    const imgData = canvas.toDataURL('image/jpeg', options.imageQuality ?? 0.98);
-    const pdf = new jsPDF({
-      orientation: options.orientation ?? 'portrait',
-      unit: 'mm',
-      format: options.format ?? 'a4',
-    });
-
-    const pageWidth = pdf.internal.pageSize.getWidth();
-    const pageHeight = pdf.internal.pageSize.getHeight();
-    const contentWidth = pageWidth - mLeft - mRight;
-    const contentHeight = pageHeight - mTop - mBottom;
-
-    // Calculate the image height on the PDF based on the canvas aspect ratio
-    const imgWidth = contentWidth;
-    const imgHeight = (canvas.height * imgWidth) / canvas.width;
-
-    // 3. If content spans multiple pages, split across pages
-    let heightLeft = imgHeight;
-    let position = mTop;
-
-    // First page
-    pdf.addImage(imgData, 'JPEG', mLeft, position, imgWidth, imgHeight);
-    heightLeft -= contentHeight;
-
-    while (heightLeft > 0) {
-      position = position - contentHeight; // negative offset = scroll up
-      pdf.addPage();
-      pdf.addImage(imgData, 'JPEG', mLeft, position, imgWidth, imgHeight);
-      heightLeft -= contentHeight;
-    }
-
-    // 4. Trigger download
-    pdf.save(options.filename);
+    return canvas;
   } finally {
-    // Always clean up the patch
     cleanupPatch();
 
-    // Restore original styles
     if (wasHidden) {
       element.style.display = 'none';
     }
@@ -177,4 +132,118 @@ export async function generatePdfFromElement(
       element.style.opacity = origOpacity;
     }
   }
+}
+
+/**
+ * Add a canvas image to a jsPDF document, splitting across pages if needed.
+ */
+function addCanvasToPdf(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  pdf: any,
+  canvas: HTMLCanvasElement,
+  margin: [number, number, number, number],
+  imageQuality: number,
+  startOnNewPage: boolean,
+): void {
+  const [mTop, mRight, mBottom, mLeft] = margin;
+
+  const imgData = canvas.toDataURL('image/jpeg', imageQuality);
+
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+  const contentWidth = pageWidth - mLeft - mRight;
+  const contentHeight = pageHeight - mTop - mBottom;
+
+  const imgWidth = contentWidth;
+  const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+  if (startOnNewPage && pdf.internal.getNumberOfPages() > 0) {
+    pdf.addPage();
+  }
+
+  let heightLeft = imgHeight;
+  let position = mTop;
+  let isFirstPage = true;
+
+  while (heightLeft > 0) {
+    if (!isFirstPage) {
+      pdf.addPage();
+    }
+    pdf.addImage(imgData, 'JPEG', mLeft, position, imgWidth, imgHeight);
+    heightLeft -= contentHeight;
+    position = position - contentHeight;
+    isFirstPage = false;
+  }
+}
+
+/**
+ * Renders `element` as a PDF and triggers a browser download.
+ * Returns a promise that resolves when the download starts.
+ */
+export async function generatePdfFromElement(
+  element: HTMLElement,
+  options: GeneratePdfOptions,
+): Promise<void> {
+  const { jsPDF, html2canvas: _h2c } = await loadDeps();
+
+  const margin = options.margin ?? [10, 10, 10, 10];
+  const mArr: [number, number, number, number] = Array.isArray(margin)
+    ? [margin[0] ?? 10, margin[1] ?? 10, margin[2] ?? 10, margin[3] ?? 10]
+    : [margin, margin, margin, margin];
+
+  const pdf = new jsPDF({
+    orientation: options.orientation ?? 'portrait',
+    unit: 'mm',
+    format: options.format ?? 'a4',
+  });
+
+  const canvas = await captureElement(element, options.html2canvasScale ?? 2);
+
+  addCanvasToPdf(pdf, canvas, mArr, options.imageQuality ?? 0.98, false);
+
+  pdf.save(options.filename);
+}
+
+/**
+ * Generate a single PDF containing multiple elements (one per family).
+ * Each element starts on a new page. Only ONE download is triggered.
+ */
+export async function generateBatchPdf(
+  elements: { element: HTMLElement; cleanup?: () => void }[],
+  options: {
+    filename: string;
+    margin?: number | number[];
+    orientation?: 'portrait' | 'landscape';
+    format?: 'a4' | string;
+    imageQuality?: number;
+    html2canvasScale?: number;
+  },
+): Promise<void> {
+  const { jsPDF } = await loadDeps();
+
+  const margin = options.margin ?? [10, 10, 10, 10];
+  const mArr: [number, number, number, number] = Array.isArray(margin)
+    ? [margin[0] ?? 10, margin[1] ?? 10, margin[2] ?? 10, margin[3] ?? 10]
+    : [margin, margin, margin, margin];
+
+  const pdf = new jsPDF({
+    orientation: options.orientation ?? 'portrait',
+    unit: 'mm',
+    format: options.format ?? 'a4',
+  });
+
+  const scale = options.html2canvasScale ?? 2;
+  const quality = options.imageQuality ?? 0.98;
+
+  for (let i = 0; i < elements.length; i++) {
+    const { element, cleanup } = elements[i];
+    try {
+      const canvas = await captureElement(element, scale);
+      addCanvasToPdf(pdf, canvas, mArr, quality, i > 0);
+    } finally {
+      cleanup?.();
+    }
+  }
+
+  pdf.save(options.filename);
 }
