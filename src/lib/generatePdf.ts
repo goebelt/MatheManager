@@ -1,6 +1,6 @@
 /**
  * generatePdf.ts – browser-only helper to render a DOM element to PDF
- * and trigger a direct browser download (no popup, no print dialog).
+ * and trigger a browser download dialog (Save As).
  *
  * Uses jsPDF + html2canvas, with a critical workaround:
  * html2canvas 1.x has a known bug where Range.setEnd is called with
@@ -52,7 +52,6 @@ function installRangePatch(): () => void {
     offset: number,
     ...rest: unknown[]
   ) {
-    // Clamp offset to the node's actual length
     let safeOffset = offset;
     if (node && typeof (node as Text).length === 'number') {
       const maxOffset = (node as Text).length;
@@ -60,7 +59,6 @@ function installRangePatch(): () => void {
         safeOffset = maxOffset;
       }
     }
-    // Also handle the 3-arg overload: setEnd(node, offset, offsetEnd)
     if (rest.length > 0) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return (originalSetEnd as any).call(this, node, safeOffset, ...rest);
@@ -68,21 +66,44 @@ function installRangePatch(): () => void {
     return originalSetEnd.call(this, node, safeOffset);
   };
 
-  // Return cleanup function
   return () => {
     Range.prototype.setEnd = originalSetEnd;
   };
 }
 
 /**
+ * Trigger a "Save As" dialog by creating a Blob URL and opening it
+ * in a new tab. The browser will show its native download/save dialog.
+ */
+function triggerDownloadWithDialog(
+  pdfBlob: Blob,
+  filename: string,
+): void {
+  const blobUrl = URL.createObjectURL(pdfBlob);
+
+  // Create a temporary <a> element and click it.
+  // The 'download' attribute prompts the Save As dialog in most browsers.
+  const link = document.createElement('a');
+  link.href = blobUrl;
+  link.download = filename;
+  link.style.display = 'none';
+  document.body.appendChild(link);
+  link.click();
+
+  // Clean up after a short delay (must wait for download to initiate)
+  setTimeout(() => {
+    document.body.removeChild(link);
+    URL.revokeObjectURL(blobUrl);
+  }, 1000);
+}
+
+/**
  * Capture an element as canvas using html2canvas (with Range patch).
- * Used internally by both single-PDF and batch-PDF flows.
  */
 async function captureElement(
   element: HTMLElement,
   scale: number,
 ): Promise<HTMLCanvasElement> {
-  // Ensure the element is in the DOM and visible for html2canvas
   const wasHidden = element.style.display === 'none';
   const origPosition = element.style.position;
   const origLeft = element.style.left;
@@ -94,7 +115,6 @@ async function captureElement(
     element.style.display = '';
   }
 
-  // If the element is not in the document body, attach it temporarily
   const isAttached = document.body.contains(element);
   if (!isAttached) {
     element.style.position = 'absolute';
@@ -105,7 +125,6 @@ async function captureElement(
     document.body.appendChild(element);
   }
 
-  // Install the Range.setEnd patch for the duration of html2canvas
   const cleanupPatch = installRangePatch();
 
   try {
@@ -177,14 +196,13 @@ function addCanvasToPdf(
 }
 
 /**
- * Renders `element` as a PDF and triggers a browser download.
- * Returns a promise that resolves when the download starts.
+ * Renders `element` as a PDF and triggers a browser Save As dialog.
  */
 export async function generatePdfFromElement(
   element: HTMLElement,
   options: GeneratePdfOptions,
 ): Promise<void> {
-  const { jsPDF, html2canvas: _h2c } = await loadDeps();
+  const { jsPDF } = await loadDeps();
 
   const margin = options.margin ?? [10, 10, 10, 10];
   const mArr: [number, number, number, number] = Array.isArray(margin)
@@ -201,12 +219,13 @@ export async function generatePdfFromElement(
 
   addCanvasToPdf(pdf, canvas, mArr, options.imageQuality ?? 0.98, false);
 
-  pdf.save(options.filename);
+  const pdfBlob = pdf.output('blob');
+  triggerDownloadWithDialog(pdfBlob, options.filename);
 }
 
 /**
  * Generate a single PDF containing multiple elements (one per family).
- * Each element starts on a new page. Only ONE download is triggered.
+ * Each element starts on a new page. Opens Save As dialog once.
  */
 export async function generateBatchPdf(
   elements: { element: HTMLElement; cleanup?: () => void }[],
@@ -245,5 +264,6 @@ export async function generateBatchPdf(
     }
   }
 
-  pdf.save(options.filename);
+  const pdfBlob = pdf.output('blob');
+  triggerDownloadWithDialog(pdfBlob, options.filename);
 }
