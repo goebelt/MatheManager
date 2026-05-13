@@ -3,10 +3,10 @@
  */
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
-  Printer, User, Calendar, DollarSign, Building2, FileText,
-  Check, X, Clock, Eye, Download, Files,
+ Printer, User, Calendar, DollarSign, Building2, FileText,
+ Check, X, Clock, Eye, Download, Files, Loader2,
 } from 'lucide-react';
 import type { DataContainer, InvoiceItem, Family, Student, PriceEntry, Appointment } from '@/types';
 import { calculateAppointmentFee } from '@/lib/billing';
@@ -14,7 +14,16 @@ import { formatInvoiceNumber, calculateDueDate, calculateInvoiceTotals, buildInv
 import { filterAppointmentsByDate } from '@/lib/dateFilters';
 import { InvoiceTemplate, type InvoiceData } from '@/components/InvoiceTemplate';
 
-// ── Appointment Preview Data ──
+// html2pdf.js is browser-only – lazy-load to avoid SSR issues
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _html2pdf: any = null;
+async function getHtml2Pdf() {
+ if (!_html2pdf) {
+ const mod = await import('html2pdf.js');
+ _html2pdf = mod.default || mod;
+ }
+ return _html2pdf;
+}
 
 export interface AppointmentPreviewItem {
   appointmentId: string;
@@ -52,12 +61,35 @@ export interface AppointmentPreviewData {
 // ── Preview Template Component (used for both screen and print) ──
 
 function AppointmentPreviewTemplate({ preview }: { preview: AppointmentPreviewData }) {
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('de-DE', { year: 'numeric', month: '2-digit', day: '2-digit' });
-  };
+ const formatDate = (dateString: string) => {
+ return new Date(dateString).toLocaleDateString('de-DE', { year: 'numeric', month: '2-digit', day: '2-digit' });
+ };
 
-  return (
-    <div className="min-h-screen bg-white p-0 print:p-0 print:min-h-0">
+ const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+ const previewRef = useRef<HTMLDivElement>(null);
+
+ const handleDownloadPdf = async () => {
+ if (!previewRef.current || isGeneratingPdf) return;
+ setIsGeneratingPdf(true);
+ try {
+ const filename = `Terminvorschau_${preview.billedTo.name || 'Unbekannt'}.pdf`;
+ const html2pdf = await getHtml2Pdf();
+ await html2pdf().set({
+ margin: [10, 10, 10, 10],
+ filename,
+ image: { type: 'jpeg', quality: 0.98 },
+ html2canvas: { scale: 2, useCORS: true },
+ jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const },
+ }).from(previewRef.current).save();
+ } catch (err) {
+ console.error('PDF generation failed:', err);
+ } finally {
+ setIsGeneratingPdf(false);
+ }
+ };
+
+ return (
+ <div ref={previewRef} className="min-h-screen bg-white p-0 print:p-0 print:min-h-0">
       <style>{`
         @media print {
           @page { size: A4; margin: 10mm; padding: 0; }
@@ -192,17 +224,18 @@ function AppointmentPreviewTemplate({ preview }: { preview: AppointmentPreviewDa
               Die tatsächliche Abrechnung erfolgt nach Durchführung der Termine.
             </p>
           </div>
-          {/* Action buttons – hidden in print */}
-          <div className="flex gap-2 mt-3 print:hidden">
-            <button onClick={() => window.print()}
-              className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-700 text-white font-medium rounded-lg hover:bg-blue-800 transition-colors text-xs">
-              <Printer size={12} /> Drucken
-            </button>
-            <button onClick={() => window.print()}
-              className="flex-1 flex items-center justify-center gap-2 px-3 py-2 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors text-xs">
-              <Download size={12} /> PDF
-            </button>
-          </div>
+ {/* Action buttons – hidden in print */}
+ <div className="flex gap-2 mt-3 print:hidden">
+ <button onClick={handleDownloadPdf} disabled={isGeneratingPdf}
+ className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-700 text-white font-medium rounded-lg hover:bg-blue-800 transition-colors text-xs disabled:opacity-50 disabled:cursor-not-allowed">
+ {isGeneratingPdf ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+ {isGeneratingPdf ? 'PDF wird erstellt…' : 'PDF herunterladen'}
+ </button>
+ <button onClick={() => window.print()}
+ className="flex-1 flex items-center justify-center gap-2 px-3 py-2 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors text-xs">
+ <Printer size={12} /> Drucken
+ </button>
+ </div>
         </div>
       </div>
 
@@ -454,142 +487,132 @@ export default function InvoicesPage() {
       );
 
       // Update invoice number counter in localStorage
-      const updatedData = {
-        ...data,
-        invoiceSettings: {
-          ...data.invoiceSettings,
-          businessName: data.invoiceSettings?.businessName || '',
-          street: data.invoiceSettings?.street || '',
-          zipCode: data.invoiceSettings?.zipCode || '',
-          city: data.invoiceSettings?.city || '',
-          email: data.invoiceSettings?.email,
-          phone: data.invoiceSettings?.phone,
-          vatId: data.invoiceSettings?.vatId,
-          taxId: data.invoiceSettings?.taxId,
-          bankName: data.invoiceSettings?.bankName,
-          iban: data.invoiceSettings?.iban,
-          bankBic: data.invoiceSettings?.bankBic,
-          paymentTerms: data.invoiceSettings?.paymentTerms || 14,
-          hourlyRate: data.invoiceSettings?.hourlyRate || 0,
-          lessonType: data.invoiceSettings?.lessonType || 'individual',
-          invoiceNumberStart: sequenceNumber,
-        },
-        lastUpdated: new Date().toISOString(),
-      };
-      localStorage.setItem('mathe_manager_data', JSON.stringify(updatedData));
-      setData(updatedData);
+ // Update invoice number counter in localStorage
+ const updatedData = {
+ ...data,
+ invoiceSettings: {
+ ...data.invoiceSettings,
+ businessName: data.invoiceSettings?.businessName || '',
+ street: data.invoiceSettings?.street || '',
+ zipCode: data.invoiceSettings?.zipCode || '',
+ city: data.invoiceSettings?.city || '',
+ email: data.invoiceSettings?.email,
+ phone: data.invoiceSettings?.phone,
+ vatId: data.invoiceSettings?.vatId,
+ taxId: data.invoiceSettings?.taxId,
+ bankName: data.invoiceSettings?.bankName,
+ iban: data.invoiceSettings?.iban,
+ bankBic: data.invoiceSettings?.bankBic,
+ paymentTerms: data.invoiceSettings?.paymentTerms || 14,
+ hourlyRate: data.invoiceSettings?.hourlyRate || 0,
+ lessonType: data.invoiceSettings?.lessonType || 'individual',
+ invoiceNumberStart: sequenceNumber,
+ },
+ lastUpdated: new Date().toISOString(),
+ };
+ localStorage.setItem('mathe_manager_data', JSON.stringify(updatedData));
+ setData(updatedData);
 
-      // Render invoice in a hidden printable div and trigger print dialog
-      const printWindow = window.open('', '_blank', 'width=800,height=600');
-      if (!printWindow) {
-        alert('Bitte Pop-ups erlauben für den PDF-Download.');
-        continue;
-      }
+ // Generate PDF via html2pdf.js from a temporary DOM element
+ const container = document.createElement('div');
+ container.style.fontFamily = 'Arial, sans-serif';
+ container.style.maxWidth = '210mm';
+ container.style.padding = '10mm';
+ container.style.boxSizing = 'border-box';
+ container.style.background = '#fff';
+ container.style.color = '#000';
+ container.style.position = 'absolute';
+ container.style.left = '-9999px';
 
-      // We pass `showDownloadButton: false` because we auto-trigger print
-      const printContent = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>Rechnung ${family.name} - ${invoiceNumber}</title>
-          <style>
-            @media print {
-              @page { size: A4; margin: 10mm; }
-            }
-            * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-          </style>
-        </head>
-        <body>
-          <div id="invoice-root"></div>
-          <script>
-            // Inline React-less InvoiceTemplate equivalent for print window
-            // We rebuild a minimal printable HTML here
-            const invoice = ${JSON.stringify(invoiceDataForFamily)};
-            const formatDate = (ds) => new Date(ds).toLocaleDateString('de-DE', { year: 'numeric', month: '2-digit', day: '2-digit' });
-            const subtotal = invoice.items.reduce((s, i) => s + i.totalPrice, 0);
-            const rows = invoice.items.map(item => \`
-              <tr style="border-bottom: 1px dotted #999;">
-                <td style="padding:4px 6px;font-size:12px;">\${item.lessonType === 'block' ? '-' : formatDate(item.date)}</td>
-                <td style="padding:4px 6px;font-size:12px;">\${item.studentName || '-'}</td>
-                <td style="padding:4px 6px;font-size:12px;">\${item.lessonType === 'group' ? 'Gruppenunterricht' : item.lessonType === 'block' ? 'Block-Unterricht' : 'Einzelunterricht'}</td>
-                <td style="padding:4px 6px;font-size:12px;">\${item.status === 'attended' ? 'Besucht' : item.status === 'canceled_paid' ? 'Bezahlt ausgefallen' : item.status === 'canceled_free' ? 'Kostenlos ausgefallen' : 'Geplant'}</td>
-                <td style="padding:4px 6px;font-size:12px;text-align:right;font-weight:600;">€\${item.totalPrice.toFixed(2)}</td>
-                <td style="padding:4px 6px;font-size:12px;text-align:center;">\${item.lessonType === 'block' ? '-' : item.isPaid ? '✓ Ja' : '✗ Nein'}</td>
-              </tr>\`).join('');
+ const inv = invoiceDataForFamily;
+ const fmtDate = (ds: string) => new Date(ds).toLocaleDateString('de-DE', { year: 'numeric', month: '2-digit', day: '2-digit' });
+ const sub = inv.items.reduce((s: number, i: { totalPrice: number }) => s + i.totalPrice, 0);
 
-            document.getElementById('invoice-root').innerHTML = \`
-            <div style="font-family:Arial,sans-serif;max-width:210mm;margin:0 auto;padding:10mm;box-sizing:border-box;">
-              <header style="margin-bottom:16px;padding-bottom:12px;border-bottom:4px solid #000;">
-                <div style="display:flex;justify-content:space-between;align-items:flex-start;">
-                  <div>
-                    <h1 style="font-size:20px;font-weight:900;letter-spacing:0.1em;margin:0 0 4px;">\${invoice.issuedBy.name || 'MatheManager'}</h1>
-                    \${invoice.issuedBy.street ? \`<p style="font-size:11px;font-weight:600;text-transform:uppercase;margin:0;">\${invoice.issuedBy.street}</p>\` : ''}
-                    \${invoice.issuedBy.zipCode || invoice.issuedBy.city ? \`<p style="font-size:11px;font-weight:600;text-transform:uppercase;margin:0;">\${invoice.issuedBy.zipCode || ''} \${invoice.issuedBy.city || ''}</p>\` : ''}
-                    \${invoice.issuedBy.email ? \`<p style="font-size:11px;margin:4px 0 0;">\${invoice.issuedBy.email}</p>\` : ''}
-                    \${invoice.issuedBy.phone ? \`<p style="font-size:11px;margin:2px 0 0;">\${invoice.issuedBy.phone}</p>\` : ''}
-                  </div>
-                  <div style="text-align:right;">
-                    <h2 style="font-size:20px;font-weight:900;letter-spacing:0.1em;margin:0 0 4px;">RECHNUNG</h2>
-                    <p style="font-size:13px;font-weight:600;">\${formatDate(invoice.invoiceDate)}</p>
-                    <p style="font-size:11px;color:#666;margin-top:4px;">Rechnungsnummer: \${invoice.invoiceNumber}</p>
-                  </div>
-                </div>
-                <div style="margin-top:12px;padding-top:8px;border-top:2px dashed #000;">
-                  <p style="font-size:10px;font-weight:700;text-transform:uppercase;margin:0 0 4px;">Rechnung an:</p>
-                  <p style="font-size:14px;font-weight:700;margin:0;">\${invoice.billedTo.name}</p>
-                  \${invoice.billedTo.street ? \`<p style="font-size:11px;margin:2px 0 0;">\${invoice.billedTo.street}</p>\` : ''}
-                </div>
-              </header>
-              <table style="width:100%;border-collapse:collapse;border:2px solid #000;margin-bottom:16px;">
-                <thead>
-                  <tr style="background:#f0f0f0;border-bottom:3px solid #000;">
-                    <th style="text-align:left;padding:4px 6px;font-size:10px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;">Datum</th>
-                    <th style="text-align:left;padding:4px 6px;font-size:10px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;">Schüler</th>
-                    <th style="text-align:left;padding:4px 6px;font-size:10px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;">Typ</th>
-                    <th style="text-align:left;padding:4px 6px;font-size:10px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;">Status</th>
-                    <th style="text-align:right;padding:4px 6px;font-size:10px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;">Gesamtpreis</th>
-                    <th style="text-align:center;padding:4px 6px;font-size:10px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;">Bezahlt</th>
-                  </tr>
-                </thead>
-                <tbody>\${rows}</tbody>
-              </table>
-              <div style="display:flex;justify-content:flex-end;">
-                <div style="width:45%;">
-                  <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dotted #999;">
-                    <span style="font-size:11px;color:#666;">Zwischensumme (netto)</span>
-                    <span style="font-size:11px;font-weight:600;">€\${subtotal.toFixed(2)}</span>
-                  </div>
-                  <div style="display:flex;justify-content:space-between;padding:8px 0;border-top:3px solid #000;margin-top:4px;">
-                    <span style="font-size:14px;font-weight:700;">Gesamtbetrag</span>
-                    <span style="font-size:14px;font-weight:700;">€\${invoice.total.toFixed(2)}</span>
-                  </div>
-                  <p style="text-align:center;font-size:10px;color:#666;font-style:italic;margin-top:8px;">
-                    Gemäß §4 Nr. 21 bin ich von der Umsatzsteuer befreit.
-                  </p>
-                  <div style="margin-top:8px;padding:8px;background:#f5f5f5;border:1px solid #ccc;border-radius:4px;">
-                    <p style="font-size:11px;font-weight:600;color:#333;margin:0 0 4px;">Zahlungsbedingungen:</p>
-                    <p style="font-size:11px;color:#666;margin:0;">Fällig bis: \${formatDate(invoice.dueDate)}</p>
-                    \${invoice.issuedBy.iban ? \`<p style="font-size:11px;color:#666;margin:4px 0 0;">IBAN: \${invoice.issuedBy.iban}</p>\` : ''}
-                  </div>
-                </div>
-              </div>
-              <div style="margin-top:16px;padding-top:8px;border-top:1px solid #ccc;text-align:center;">
-                <p style="font-size:10px;color:#999;">Vielen Dank für die gute Zusammenarbeit!</p>
-              </div>
-            </div>
-            \`;
-            // Auto-trigger print dialog
-            window.addEventListener('load', () => { window.print(); });
-          </script>
-        </body>
-        </html>
-      `;
+ const rowsHtml = inv.items.map((item: { date: string; studentName?: string; lessonType?: string; status?: string; totalPrice: number; isPaid?: boolean; description?: string }) => {
+ const dateStr = item.lessonType === 'block' ? '-' : fmtDate(item.date);
+ const typeStr = item.lessonType === 'group' ? 'Gruppenunterricht' : item.lessonType === 'block' ? 'Block-Unterricht' : 'Einzelunterricht';
+ const statusStr = item.status === 'attended' ? 'Besucht' : item.status === 'canceled_paid' ? 'Bezahlt ausgefallen' : item.status === 'canceled_free' ? 'Kostenlos ausgefallen' : 'Geplant';
+ const paidStr = item.lessonType === 'block' ? '-' : item.isPaid ? '✓ Ja' : '✗ Nein';
+ return `<tr style="border-bottom:1px dotted #999"><td style="padding:4px 6px;font-size:12px">${dateStr}</td><td style="padding:4px 6px;font-size:12px">${item.studentName || '-'}</td><td style="padding:4px 6px;font-size:12px">${typeStr}</td><td style="padding:4px 6px;font-size:12px">${statusStr}</td><td style="padding:4px 6px;font-size:12px;text-align:right;font-weight:600">€${item.totalPrice.toFixed(2)}</td><td style="padding:4px 6px;font-size:12px;text-align:center">${paidStr}</td></tr>`;
+ }).join('');
 
-      printWindow.document.write(printContent);
-      printWindow.document.close();
-      // Give the window time to render before printing
-      await new Promise(resolve => setTimeout(resolve, 500));
-    }
+ container.innerHTML = `
+ <div style="margin-bottom:16px;padding-bottom:12px;border-bottom:4px solid #000">
+ <div style="display:flex;justify-content:space-between;align-items:flex-start">
+ <div>
+ <h1 style="font-size:20px;font-weight:900;letter-spacing:0.1em;margin:0 0 4px">${inv.issuedBy.name || 'MatheManager'}</h1>
+ ${inv.issuedBy.street ? `<p style="font-size:11px;font-weight:600;text-transform:uppercase;margin:0">${inv.issuedBy.street}</p>` : ''}
+ ${(inv.issuedBy.zipCode || inv.issuedBy.city) ? `<p style="font-size:11px;font-weight:600;text-transform:uppercase;margin:0">${inv.issuedBy.zipCode || ''} ${inv.issuedBy.city || ''}</p>` : ''}
+ ${inv.issuedBy.email ? `<p style="font-size:11px;margin:4px 0 0">${inv.issuedBy.email}</p>` : ''}
+ ${inv.issuedBy.phone ? `<p style="font-size:11px;margin:2px 0 0">${inv.issuedBy.phone}</p>` : ''}
+ </div>
+ <div style="text-align:right">
+ <h2 style="font-size:20px;font-weight:900;letter-spacing:0.1em;margin:0 0 4px">RECHNUNG</h2>
+ <p style="font-size:13px;font-weight:600">${fmtDate(inv.invoiceDate)}</p>
+ <p style="font-size:11px;color:#666;margin-top:4px">Rechnungsnummer: ${inv.invoiceNumber}</p>
+ </div>
+ </div>
+ <div style="margin-top:12px;padding-top:8px;border-top:2px dashed #000">
+ <p style="font-size:10px;font-weight:700;text-transform:uppercase;margin:0 0 4px">Rechnung an:</p>
+ <p style="font-size:14px;font-weight:700;margin:0">${inv.billedTo.name}</p>
+ ${inv.billedTo.street ? `<p style="font-size:11px;margin:2px 0 0">${inv.billedTo.street}</p>` : ''}
+ </div>
+ </div>
+ <table style="width:100%;border-collapse:collapse;border:2px solid #000;margin-bottom:16px">
+ <thead>
+ <tr style="background:#f0f0f0;border-bottom:3px solid #000">
+ <th style="text-align:left;padding:4px 6px;font-size:10px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase">Datum</th>
+ <th style="text-align:left;padding:4px 6px;font-size:10px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase">Schüler</th>
+ <th style="text-align:left;padding:4px 6px;font-size:10px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase">Typ</th>
+ <th style="text-align:left;padding:4px 6px;font-size:10px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase">Status</th>
+ <th style="text-align:right;padding:4px 6px;font-size:10px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase">Gesamtpreis</th>
+ <th style="text-align:center;padding:4px 6px;font-size:10px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase">Bezahlt</th>
+ </tr>
+ </thead>
+ <tbody>${rowsHtml}</tbody>
+ </table>
+ <div style="display:flex;justify-content:flex-end">
+ <div style="width:45%">
+ <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dotted #999">
+ <span style="font-size:11px;color:#666">Zwischensumme (netto)</span>
+ <span style="font-size:11px;font-weight:600">€${sub.toFixed(2)}</span>
+ </div>
+ <div style="display:flex;justify-content:space-between;padding:8px 0;border-top:3px solid #000;margin-top:4px">
+ <span style="font-size:14px;font-weight:700">Gesamtbetrag</span>
+ <span style="font-size:14px;font-weight:700">€${inv.total.toFixed(2)}</span>
+ </div>
+ <p style="text-align:center;font-size:10px;color:#666;font-style:italic;margin-top:8px">Gemäß §4 Nr. 21 bin ich von der Umsatzsteuer befreit.</p>
+ <div style="margin-top:8px;padding:8px;background:#f5f5f5;border:1px solid #ccc;border-radius:4px">
+ <p style="font-size:11px;font-weight:600;color:#333;margin:0 0 4px">Zahlungsbedingungen:</p>
+ <p style="font-size:11px;color:#666;margin:0">Fällig bis: ${fmtDate(inv.dueDate)}</p>
+ ${inv.issuedBy.iban ? `<p style="font-size:11px;color:#666;margin:4px 0 0">IBAN: ${inv.issuedBy.iban}</p>` : ''}
+ </div>
+ </div>
+ </div>
+ <div style="margin-top:16px;padding-top:8px;border-top:1px solid #ccc;text-align:center">
+ <p style="font-size:10px;color:#999">Vielen Dank für die gute Zusammenarbeit!</p>
+ </div>`;
+
+ document.body.appendChild(container);
+
+ try {
+ const filename = `Rechnung_${invoiceNumber}_${family.name}.pdf`;
+ const html2pdf = await getHtml2Pdf();
+ await html2pdf().set({
+ margin: [10, 10, 10, 10],
+ filename,
+ image: { type: 'jpeg', quality: 0.98 },
+ html2canvas: { scale: 2, useCORS: true },
+ jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const },
+ }).from(container).save();
+ // Small delay between PDFs to avoid browser blocking simultaneous downloads
+ await new Promise(resolve => setTimeout(resolve, 800));
+ } catch (err) {
+ console.error('PDF generation failed for family:', family.name, err);
+ } finally {
+ document.body.removeChild(container);
+ }
+ }
 
     // Reset family selection after processing
     setSelectedFamilyIds([]);
@@ -992,27 +1015,44 @@ export default function InvoicesPage() {
                     : <span>{selectedFamilyIds.length} Familie(n) ausgewählt</span>
                   }
                 </button>
-                {familyDropdownOpen && (
-                  <div className="absolute z-10 w-full mt-1 bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                    <input type="text" placeholder="Familie suchen..." value={familyFilter}
-                      onChange={e => setFamilyFilter(e.target.value)}
-                      className="w-full px-3 py-2 border-b border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none" />
-                    {getFilteredFamilies().map(family => {
-                      const isSelected = selectedFamilyIds.includes(family.id);
-                      return (
-                        <button key={family.id} type="button"
-                          onClick={() => {
-                            if (isSelected) setSelectedFamilyIds(prev => prev.filter(id => id !== family.id));
-                            else setSelectedFamilyIds(prev => [...prev, family.id]);
-                          }}
-                          className={`w-full px-3 py-2 text-left flex items-center justify-between hover:bg-gray-100 dark:hover:bg-slate-600 ${isSelected ? 'bg-green-50 dark:bg-green-900/20' : ''}`}>
-                          <span>{family.name}</span>
-                          {isSelected && <Check size={16} className="text-green-600" />}
-                        </button>
-                      );
-                    })}
+              {familyDropdownOpen && (
+                <div className="absolute z-10 w-full mt-1 bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg shadow-lg max-h-60 overflow-hidden flex flex-col">
+                  <input type="text" placeholder="Familie suchen..." value={familyFilter}
+                    onChange={e => setFamilyFilter(e.target.value)}
+                    className="w-full px-3 py-2 border-b border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none" />
+                  <div className="flex gap-1 px-2 py-1.5 border-b border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-600/50">
+                    <button type="button"
+                      onClick={() => {
+                        const allFilteredIds = getFilteredFamilies().map(f => f.id);
+                        setSelectedFamilyIds(prev => [...new Set([...prev, ...allFilteredIds])]);
+                      }}
+                      className="flex-1 px-2 py-1 text-xs font-medium text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/30 rounded hover:bg-green-100 dark:hover:bg-green-900/50 transition-colors">
+                      Alle auswählen
+                    </button>
+                    <button type="button"
+                      onClick={() => setSelectedFamilyIds([])}
+                      className="flex-1 px-2 py-1 text-xs font-medium text-gray-600 dark:text-slate-400 bg-gray-100 dark:bg-slate-600 rounded hover:bg-gray-200 dark:hover:bg-slate-500 transition-colors">
+                      Auswahl aufheben
+                    </button>
                   </div>
-                )}
+                  <div className="overflow-y-auto max-h-44">
+                  {getFilteredFamilies().map(family => {
+                    const isSelected = selectedFamilyIds.includes(family.id);
+                    return (
+                      <button key={family.id} type="button"
+                        onClick={() => {
+                          if (isSelected) setSelectedFamilyIds(prev => prev.filter(id => id !== family.id));
+                          else setSelectedFamilyIds(prev => [...prev, family.id]);
+                        }}
+                        className={`w-full px-3 py-2 text-left flex items-center justify-between hover:bg-gray-100 dark:hover:bg-slate-600 ${isSelected ? 'bg-green-50 dark:bg-green-900/20' : ''}`}>
+                        <span>{family.name}</span>
+                        {isSelected && <Check size={16} className="text-green-600" />}
+                      </button>
+                    );
+                  })}
+                  </div>
+                </div>
+              )}
               </div>
             </div>
 

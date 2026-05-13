@@ -4,7 +4,19 @@
 
 'use client';
 
-import { Download, Printer, Check, X } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { Download, Printer, Check, X, Loader2 } from 'lucide-react';
+
+// html2pdf.js is browser-only – lazy-load to avoid SSR issues
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _html2pdf: any = null;
+async function getHtml2Pdf() {
+ if (!_html2pdf) {
+ const mod = await import('html2pdf.js');
+ _html2pdf = mod.default || mod;
+ }
+ return _html2pdf;
+}
 // Flexible invoice type that accepts both full Invoice and the lighter object from invoices page
 export interface InvoiceData {
   invoiceNumber: string;
@@ -66,8 +78,32 @@ export function InvoiceTemplate({
   // Calculate subtotal
   const subtotal = invoice.items.reduce((sum, item) => sum + item.totalPrice, 0);
 
-  return (
-    <div className="min-h-screen bg-white p-0 print:p-0 print:min-h-0">
+  // PDF download state
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const templateRef = useRef<HTMLDivElement>(null);
+
+ const handleDownloadPdf = async () => {
+ if (!templateRef.current || isGeneratingPdf) return;
+ setIsGeneratingPdf(true);
+ try {
+ const filename = `Rechnung_${invoice.invoiceNumber}_${invoice.billedTo.name || 'Unbekannt'}.pdf`;
+ const html2pdf = await getHtml2Pdf();
+ await html2pdf().set({
+ margin: [10, 10, 10, 10],
+ filename,
+ image: { type: 'jpeg', quality: 0.98 },
+ html2canvas: { scale: 2, useCORS: true },
+ jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const },
+ }).from(templateRef.current).save();
+    } catch (err) {
+      console.error('PDF generation failed:', err);
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
+
+ return (
+ <div ref={templateRef} className="min-h-screen bg-white p-0 print:p-0 print:min-h-0">
       <style>{`
         @media print {
           @page {
@@ -284,27 +320,26 @@ export function InvoiceTemplate({
             )}
           </div>
 
-          {/* Action buttons */}
-          <div className="flex gap-2 mt-3 print:hidden">
-            {onPrint && (
-              <button
-                onClick={onPrint}
-                className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-black text-white font-medium rounded-lg hover:bg-gray-800 transition-colors text-xs"
-              >
-                <Printer size={12} />
-                Drucken
-              </button>
-            )}
-            {typeof window !== 'undefined' && (
-              <button
-                onClick={() => window.print()}
-                className="flex-1 flex items-center justify-center gap-2 px-3 py-2 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors text-xs"
-              >
-                <Printer size={12} />
-                PDF
-              </button>
-            )}
-          </div>
+      {/* Action buttons */}
+      <div className="flex gap-2 mt-3 print:hidden">
+        {onPrint && (
+          <button
+            onClick={onPrint}
+            className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-black text-white font-medium rounded-lg hover:bg-gray-800 transition-colors text-xs"
+          >
+            <Printer size={12} />
+            Drucken
+          </button>
+        )}
+        <button
+          onClick={handleDownloadPdf}
+          disabled={isGeneratingPdf}
+          className="flex-1 flex items-center justify-center gap-2 px-3 py-2 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isGeneratingPdf ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+          {isGeneratingPdf ? 'PDF wird erstellt…' : 'PDF herunterladen'}
+        </button>
+      </div>
         </div>
       </div>
 
