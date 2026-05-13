@@ -72,29 +72,50 @@ function installRangePatch(): () => void {
 }
 
 /**
- * Trigger a "Save As" dialog by creating a Blob URL and opening it
- * in a new tab. The browser will show its native download/save dialog.
+ * Open the PDF in a new browser tab so the user can view and save it.
+ * We use a data URI so it works reliably even when popup blockers are active
+ * (window.open from async code is often blocked, but a data URI in an
+ * existing window is fine).
  */
-function triggerDownloadWithDialog(
+function openPdfInNewTab(
   pdfBlob: Blob,
   filename: string,
 ): void {
-  const blobUrl = URL.createObjectURL(pdfBlob);
+  // Convert blob to data URL via FileReader (synchronous approaches
+  // don't work for large blobs, so we use the async reader)
+  const reader = new FileReader();
+  reader.onload = () => {
+    const dataUrl = reader.result as string;
 
-  // Create a temporary <a> element and click it.
-  // The 'download' attribute prompts the Save As dialog in most browsers.
-  const link = document.createElement('a');
-  link.href = blobUrl;
-  link.download = filename;
-  link.style.display = 'none';
-  document.body.appendChild(link);
-  link.click();
-
-  // Clean up after a short delay (must wait for download to initiate)
-  setTimeout(() => {
-    document.body.removeChild(link);
-    URL.revokeObjectURL(blobUrl);
-  }, 1000);
+    // Try opening a new window — this may be blocked by popup blockers
+    // since we're in an async context. Fall back to navigating the
+    // current tab if blocked.
+    const newWindow = window.open('', '_blank');
+    if (newWindow) {
+      // New tab opened successfully — write PDF viewer HTML into it
+      newWindow.document.write(`
+<!DOCTYPE html>
+<html>
+<head><title>${filename}</title></head>
+<body style="margin:0;padding:0">
+<iframe src="${dataUrl}" style="width:100%;height:100vh;border:none"></iframe>
+</body>
+</html>`);
+      newWindow.document.close();
+    } else {
+      // Popup blocked — open in current tab as fallback
+      const link = document.createElement('a');
+      link.href = dataUrl;
+      link.download = filename;
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        document.body.removeChild(link);
+      }, 500);
+    }
+  };
+  reader.readAsDataURL(pdfBlob);
 }
 
 /**
@@ -220,7 +241,7 @@ export async function generatePdfFromElement(
   addCanvasToPdf(pdf, canvas, mArr, options.imageQuality ?? 0.98, false);
 
   const pdfBlob = pdf.output('blob');
-  triggerDownloadWithDialog(pdfBlob, options.filename);
+  openPdfInNewTab(pdfBlob, options.filename);
 }
 
 /**
@@ -265,5 +286,5 @@ export async function generateBatchPdf(
   }
 
   const pdfBlob = pdf.output('blob');
-  triggerDownloadWithDialog(pdfBlob, options.filename);
+  openPdfInNewTab(pdfBlob, options.filename);
 }
