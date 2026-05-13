@@ -2,12 +2,14 @@
  * generatePdf.ts – browser-only helper to render a DOM element to PDF
  * and trigger a direct browser download (no popup, no print dialog).
  *
- * Uses jsPDF + html2canvas with workarounds for common bugs:
- * - IndexSizeError in Range.setEnd during DOM cloning (html2canvas #2699)
- * - Missing rendering of elements not visible in viewport
+ * Uses jsPDF + html2canvas, with a critical workaround:
+ * html2canvas 1.x has a known bug where Range.setEnd is called with
+ * an offset larger than the text node's length, causing IndexSizeError.
+ *
+ * We fix this by temporarily monkey-patching Range.prototype.setEnd
+ * to clamp the offset to the node's actual length.
  */
 
-// These libraries are browser-only → use dynamic import
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let _jsPDF: any = null;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -35,29 +37,41 @@ export interface GeneratePdfOptions {
 }
 
 /**
- * Workaround for html2canvas IndexSizeError:
- * Walk the cloned DOM and normalize all text nodes so their
- * length matches what html2canvas expects when setting Range offsets.
+ * Install a temporary monkey-patch on Range.prototype.setEnd that
+ * clamps the offset to the node's length. This prevents the
+ * IndexSizeError that html2canvas triggers with stale text nodes.
+ *
+ * Returns a cleanup function that restores the original method.
  */
-function sanitizeClonedDom(doc: Document) {
-  const walker = doc.createTreeWalker(
-    doc.body,
-    NodeFilter.SHOW_TEXT,
-    null,
-  );
-  const textNodes: Text[] = [];
-  let node: Node | null;
-  while ((node = walker.nextNode())) {
-    textNodes.push(node as Text);
-  }
-  // Normalize text content — trim trailing whitespace and ensure consistency
-  for (const textNode of textNodes) {
-    const parent = textNode.parentNode;
-    if (!parent) continue;
-    // Replace the text node with a fresh one (avoids stale Range references)
-    const fresh = doc.createTextNode(textNode.textContent || '');
-    parent.replaceChild(fresh, textNode);
-  }
+function installRangePatch(): () => void {
+  const originalSetEnd = Range.prototype.setEnd;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (Range.prototype as any).setEnd = function (
+    node: Node,
+    offset: number,
+    ...rest: unknown[]
+  ) {
+    // Clamp offset to the node's actual length
+    let safeOffset = offset;
+    if (node && typeof (node as Text).length === 'number') {
+      const maxOffset = (node as Text).length;
+      if (offset > maxOffset) {
+        safeOffset = maxOffset;
+      }
+    }
+    // Also handle the 3-arg overload: setEnd(node, offset, offsetEnd)
+    if (rest.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (originalSetEnd as any).call(this, node, safeOffset, ...rest);
+    }
+    return originalSetEnd.call(this, node, safeOffset);
+  };
+
+  // Return cleanup function
+  return () => {
+    Range.prototype.setEnd = originalSetEnd;
+  };
 }
 
 /**
@@ -99,6 +113,9 @@ export async function generatePdfFromElement(
     document.body.appendChild(element);
   }
 
+  // Install the Range.setEnd patch for the duration of html2canvas
+  const cleanupPatch = installRangePatch();
+
   try {
     // 1. Capture the element as canvas via html2canvas
     const canvas = await html2canvas(element, {
@@ -106,17 +123,6 @@ export async function generatePdfFromElement(
       useCORS: true,
       backgroundColor: '#ffffff',
       logging: false,
-      onclone: (clonedDoc: Document, _clonedElement: HTMLElement) => {
-        // Sanitize the cloned DOM to prevent IndexSizeError
-        sanitizeClonedDom(clonedDoc);
-        // Ensure the cloned element is visible
-        _clonedElement.style.display = '';
-        _clonedElement.style.position = 'absolute';
-        _clonedElement.style.left = '0';
-        _clonedElement.style.top = '0';
-        _clonedElement.style.opacity = '1';
-        _clonedElement.style.zIndex = '-1';
-      },
     });
 
     // 2. Calculate PDF dimensions
@@ -139,7 +145,6 @@ export async function generatePdfFromElement(
     // 3. If content spans multiple pages, split across pages
     let heightLeft = imgHeight;
     let position = mTop;
-    let page = 1;
 
     // First page
     pdf.addImage(imgData, 'JPEG', mLeft, position, imgWidth, imgHeight);
@@ -150,12 +155,14 @@ export async function generatePdfFromElement(
       pdf.addPage();
       pdf.addImage(imgData, 'JPEG', mLeft, position, imgWidth, imgHeight);
       heightLeft -= contentHeight;
-      page++;
     }
 
     // 4. Trigger download
     pdf.save(options.filename);
   } finally {
+    // Always clean up the patch
+    cleanupPatch();
+
     // Restore original styles
     if (wasHidden) {
       element.style.display = 'none';
