@@ -2,31 +2,29 @@
  * generatePdf.ts – browser-only helper to render a DOM element to PDF
  * and open it in a new browser tab for viewing/saving.
  *
- * Uses jsPDF + html2canvas, with a critical workaround:
- * html2canvas 1.x has a known bug where Range.setEnd is called with
- * an offset larger than the text node's length, causing IndexSizeError.
+ * Uses jsPDF + SVG foreignObject approach instead of html2canvas.
+ * html2canvas 1.x has an unfixable bug where Range.setEnd is called
+ * with offsets larger than the text node's length. Since html2canvas
+ * bundles its own reference to Range.prototype.setEnd, monkey-patching
+ * the prototype does not help.
  *
- * We fix this by monkey-patching Range.prototype.setEnd for the
- * ENTIRE duration of the PDF generation process. The patch must
- * stay active across all async operations (including microtasks
- * that html2canvas schedules internally after the main promise resolves).
+ * The SVG foreignObject approach:
+ * 1. Serialize the element's HTML to an XML string
+ * 2. Wrap it in an SVG <foreignObject>
+ * 3. Create an Image from the SVG data URI
+ * 4. Draw the Image onto a Canvas
+ * 5. Use the Canvas image in jsPDF
  */
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let _jsPDF: any = null;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let _html2canvas: any = null;
 
-async function loadDeps() {
+async function loadJsPDF() {
   if (!_jsPDF) {
     const mod = await import('jspdf');
     _jsPDF = mod.default || mod;
   }
-  if (!_html2canvas) {
-    const mod = await import('html2canvas');
-    _html2canvas = mod.default || mod;
-  }
-  return { jsPDF: _jsPDF, html2canvas: _html2canvas };
+  return _jsPDF;
 }
 
 export interface GeneratePdfOptions {
@@ -35,43 +33,134 @@ export interface GeneratePdfOptions {
   orientation?: 'portrait' | 'landscape';
   format?: 'a4' | string;
   imageQuality?: number; // 0–1
-  html2canvasScale?: number;
+  scale?: number; // pixel scale factor (default 2)
 }
 
-// ── Global Range.setEnd patch ──
-// We keep the patch installed permanently once any PDF generation
-// has been requested. This avoids timing issues where html2canvas
-// schedules microtasks that call setEnd after our cleanup runs.
-// The patch is harmless — it only clamps offsets that would otherwise
-// throw an IndexSizeError, with no visible effect on rendering.
+/**
+ * Capture a DOM element as a canvas using the SVG foreignObject approach.
+ * This avoids html2canvas and its Range.setEnd bug entirely.
+ */
+async function captureElementViaSvg(
+  element: HTMLElement,
+  scale: number,
+): Promise<HTMLCanvasElement> {
+  // Ensure the element is visible and in the DOM
+  const wasHidden = element.style.display === 'none';
+  const origPosition = element.style.position;
+  const origLeft = element.style.left;
+  const origTop = element.style.top;
+  const origZIndex = element.style.zIndex;
+  const origOpacity = element.style.opacity;
 
-let _rangePatchInstalled = false;
+  if (wasHidden) {
+    element.style.display = '';
+  }
 
-function ensureRangePatchInstalled(): void {
-  if (_rangePatchInstalled) return;
-  _rangePatchInstalled = true;
+  const isAttached = document.body.contains(element);
+  if (!isAttached) {
+    element.style.position = 'absolute';
+    element.style.left = '-99999px';
+    element.style.top = '0';
+    element.style.zIndex = '-1';
+    element.style.opacity = '1';
+    document.body.appendChild(element);
+  }
 
-  const originalSetEnd = Range.prototype.setEnd;
+  try {
+    // Get the element's actual rendered dimensions
+    const rect = element.getBoundingClientRect();
+    const width = rect.width;
+    const height = rect.height;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (Range.prototype as any).setEnd = function (
-    node: Node,
-    offset: number,
-    ...rest: unknown[]
-  ) {
-    let safeOffset = offset;
-    if (node && typeof (node as Text).length === 'number') {
-      const maxOffset = (node as Text).length;
-      if (offset > maxOffset) {
-        safeOffset = maxOffset;
+    // Compute all inline styles from the element and its ancestors
+    // so the foreignObject rendering matches the page styles
+    const styles = collectStyles(element);
+
+    // Serialize the element's HTML
+    const html = new XMLSerializer().serializeToString(element);
+
+    // Build the SVG with foreignObject
+    const svgStr = `
+<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
+  <foreignObject width="100%" height="100%">
+    <div xmlns="http://www.w3.org/1999/xhtml" style="width:${width}px;height:${height}px;">
+      <style>${styles}</style>
+      ${html}
+    </div>
+  </foreignObject>
+</svg>`;
+
+    // Encode to data URI
+    const svgBlob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(svgBlob);
+
+    // Load into an Image, then draw to canvas
+    const canvas = await new Promise<HTMLCanvasElement>((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const c = document.createElement('canvas');
+        c.width = width * scale;
+        c.height = height * scale;
+        const ctx = c.getContext('2d')!;
+        ctx.scale(scale, scale);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(img, 0, 0, width, height);
+        URL.revokeObjectURL(url);
+        resolve(c);
+      };
+      img.onerror = (e) => {
+        URL.revokeObjectURL(url);
+        reject(new Error('SVG foreignObject rendering failed: ' + e));
+      };
+      img.src = url;
+    });
+
+    return canvas;
+  } finally {
+    if (wasHidden) {
+      element.style.display = 'none';
+    }
+    if (!isAttached) {
+      document.body.removeChild(element);
+    } else {
+      element.style.position = origPosition;
+      element.style.left = origLeft;
+      element.style.top = origTop;
+      element.style.zIndex = origZIndex;
+      element.style.opacity = origOpacity;
+    }
+  }
+}
+
+/**
+ * Collect all relevant CSS styles from the document's stylesheets
+ * so the SVG foreignObject rendering can use them.
+ */
+function collectStyles(element: HTMLElement): string {
+  const sheets = document.styleSheets;
+  let css = '';
+
+  for (let i = 0; i < sheets.length; i++) {
+    try {
+      const rules = sheets[i].cssRules || sheets[i].rules;
+      for (let j = 0; j < rules.length; j++) {
+        const rule = rules[j] as CSSRule;
+        if (rule && rule.cssText) {
+          // Skip @font-face and @keyframes that reference external URLs
+          // (they can cause the SVG to fail to render)
+          if (rule.cssText.includes('@font-face') && rule.cssText.includes('url(')) {
+            continue;
+          }
+          css += rule.cssText + '\n';
+        }
       }
+    } catch {
+      // Cross-origin stylesheets throw SecurityError — skip them
     }
-    if (rest.length > 0) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return (originalSetEnd as any).call(this, node, safeOffset, ...rest);
-    }
-    return originalSetEnd.call(this, node, safeOffset);
-  };
+  }
+
+  return css;
 }
 
 /**
@@ -110,59 +199,6 @@ function openPdfInNewTab(
     }
   };
   reader.readAsDataURL(pdfBlob);
-}
-
-/**
- * Capture an element as canvas using html2canvas.
- * NOTE: The Range.setEnd patch must be installed BEFORE calling this.
- */
-async function captureElement(
-  element: HTMLElement,
-  scale: number,
-): Promise<HTMLCanvasElement> {
-  const wasHidden = element.style.display === 'none';
-  const origPosition = element.style.position;
-  const origLeft = element.style.left;
-  const origTop = element.style.top;
-  const origZIndex = element.style.zIndex;
-  const origOpacity = element.style.opacity;
-
-  if (wasHidden) {
-    element.style.display = '';
-  }
-
-  const isAttached = document.body.contains(element);
-  if (!isAttached) {
-    element.style.position = 'absolute';
-    element.style.left = '-99999px';
-    element.style.top = '0';
-    element.style.zIndex = '-1';
-    element.style.opacity = '1';
-    document.body.appendChild(element);
-  }
-
-  try {
-    const canvas = await _html2canvas(element, {
-      scale,
-      useCORS: true,
-      backgroundColor: '#ffffff',
-      logging: false,
-    });
-    return canvas;
-  } finally {
-    if (wasHidden) {
-      element.style.display = 'none';
-    }
-    if (!isAttached) {
-      document.body.removeChild(element);
-    } else {
-      element.style.position = origPosition;
-      element.style.left = origLeft;
-      element.style.top = origTop;
-      element.style.zIndex = origZIndex;
-      element.style.opacity = origOpacity;
-    }
-  }
 }
 
 /**
@@ -214,8 +250,7 @@ export async function generatePdfFromElement(
   element: HTMLElement,
   options: GeneratePdfOptions,
 ): Promise<void> {
-  ensureRangePatchInstalled();
-  const { jsPDF } = await loadDeps();
+  const jsPDF = await loadJsPDF();
 
   const margin = options.margin ?? [10, 10, 10, 10];
   const mArr: [number, number, number, number] = Array.isArray(margin)
@@ -228,8 +263,7 @@ export async function generatePdfFromElement(
     format: options.format ?? 'a4',
   });
 
-  const canvas = await captureElement(element, options.html2canvasScale ?? 2);
-
+  const canvas = await captureElementViaSvg(element, options.scale ?? 2);
   addCanvasToPdf(pdf, canvas, mArr, options.imageQuality ?? 0.98, false);
 
   const pdfBlob = pdf.output('blob');
@@ -248,11 +282,10 @@ export async function generateBatchPdf(
     orientation?: 'portrait' | 'landscape';
     format?: 'a4' | string;
     imageQuality?: number;
-    html2canvasScale?: number;
+    scale?: number;
   },
 ): Promise<void> {
-  ensureRangePatchInstalled();
-  const { jsPDF } = await loadDeps();
+  const jsPDF = await loadJsPDF();
 
   const margin = options.margin ?? [10, 10, 10, 10];
   const mArr: [number, number, number, number] = Array.isArray(margin)
@@ -265,13 +298,13 @@ export async function generateBatchPdf(
     format: options.format ?? 'a4',
   });
 
-  const scale = options.html2canvasScale ?? 2;
+  const scale = options.scale ?? 2;
   const quality = options.imageQuality ?? 0.98;
 
   for (let i = 0; i < elements.length; i++) {
     const { element, cleanup } = elements[i];
     try {
-      const canvas = await captureElement(element, scale);
+      const canvas = await captureElementViaSvg(element, scale);
       addCanvasToPdf(pdf, canvas, mArr, quality, i > 0);
     } finally {
       cleanup?.();

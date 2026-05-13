@@ -83,7 +83,7 @@ export function InvoiceTemplate({
  orientation: 'portrait',
  format: 'a4',
  imageQuality: 0.98,
- html2canvasScale: 2,
+    scale: 2,
  });
  } catch (err) {
  console.error('PDF generation failed:', err);

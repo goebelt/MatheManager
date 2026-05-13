@@ -69,7 +69,7 @@ function AppointmentPreviewTemplate({ preview }: { preview: AppointmentPreviewDa
  orientation: 'portrait',
  format: 'a4',
  imageQuality: 0.98,
- html2canvasScale: 2,
+ scale: 2,
  });
  } catch (err) {
  console.error('PDF generation failed:', err);
@@ -598,7 +598,7 @@ export default function InvoicesPage() {
  orientation: 'portrait',
  format: 'a4',
  imageQuality: 0.98,
- html2canvasScale: 2,
+ scale: 2,
  });
  } catch (err) {
  console.error('Batch PDF generation failed:', err);
