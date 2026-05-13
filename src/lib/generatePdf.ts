@@ -3,17 +3,21 @@
  * and open it in a new browser tab for viewing/saving.
  *
  * Uses jsPDF + SVG foreignObject approach instead of html2canvas.
- * html2canvas 1.x has an unfixable bug where Range.setEnd is called
- * with offsets larger than the text node's length. Since html2canvas
- * bundles its own reference to Range.prototype.setEnd, monkey-patching
- * the prototype does not help.
+ * html2canvas has an unfixable Range.setEnd bug (bundles its own
+ * reference to the native method, making prototype patching useless).
  *
  * The SVG foreignObject approach:
- * 1. Serialize the element's HTML to an XML string
+ * 1. Clone the element and inline all computed styles
  * 2. Wrap it in an SVG <foreignObject>
- * 3. Create an Image from the SVG data URI
+ * 3. Create an Image from the SVG data URI (using Blob URL to avoid
+ *    tainted canvas from data URI restrictions in some browsers)
  * 4. Draw the Image onto a Canvas
  * 5. Use the Canvas image in jsPDF
+ *
+ * Key: We use a Blob URL (not a data URI) for the SVG image source,
+ * which avoids the "tainted canvas" SecurityError. We also strip
+ * any external resource references (images, fonts) from the SVG
+ * to prevent cross-origin tainting.
  */
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -37,14 +41,84 @@ export interface GeneratePdfOptions {
 }
 
 /**
+ * Recursively inline all computed styles onto each element in a clone.
+ * This produces a self-contained DOM that doesn't rely on external stylesheets.
+ */
+function inlineStyles(source: Element, target: Element): void {
+  const computed = window.getComputedStyle(source);
+  let cssText = '';
+
+  for (let i = 0; i < computed.length; i++) {
+    const prop = computed[i];
+    const val = computed.getPropertyValue(prop);
+    cssText += `${prop}:${val};`;
+  }
+
+  (target as HTMLElement).style.cssText = cssText;
+
+  // Recurse into children
+  const sourceChildren = source.children;
+  const targetChildren = target.children;
+  for (let i = 0; i < sourceChildren.length && i < targetChildren.length; i++) {
+    inlineStyles(sourceChildren[i], targetChildren[i]);
+  }
+}
+
+/**
+ * Serialize a DOM element to a self-contained XHTML string
+ * with all styles inlined and no external resource references.
+ */
+function elementToXhtml(element: HTMLElement): string {
+  // Deep clone the element
+  const clone = element.cloneNode(true) as HTMLElement;
+
+  // Inline all computed styles recursively
+  inlineStyles(element, clone);
+
+  // Remove any elements that reference external resources (img, svg use, etc.)
+  const imgs = clone.querySelectorAll('img');
+  imgs.forEach((img) => {
+    // Convert images to data URIs or remove them
+    // For safety, we replace with a placeholder
+    (img as HTMLElement).style.display = 'none';
+  });
+
+  // Remove any external font references or url() in inline styles
+  // that could taint the canvas (keep only local data: URIs)
+  const allElements = clone.querySelectorAll('*');
+  allElements.forEach((el) => {
+    const htmlEl = el as HTMLElement;
+    if (htmlEl.style && htmlEl.style.cssText) {
+      // Remove any url() references that aren't data: URIs
+      htmlEl.style.cssText = htmlEl.style.cssText.replace(
+        /url\((?!['"]?data:)[^)]*\)/gi,
+        'none'
+      );
+    }
+  });
+
+  // Serialize to XHTML (required for SVG foreignObject)
+  const serializer = new XMLSerializer();
+  let xhtml = serializer.serializeToString(clone);
+
+  // Fix common serialization issues:
+  // XMLSerializer may produce HTML namespace issues
+  xhtml = xhtml.replace(/\sxmlns="http:\/\/www\.w3\.org\/1999\/xhtml"/g, '');
+  // Ensure self-closing tags work in XHTML
+  xhtml = xhtml.replace(/<br>/g, '<br/>');
+  xhtml = xhtml.replace(/<hr>/g, '<hr/>');
+
+  return xhtml;
+}
+
+/**
  * Capture a DOM element as a canvas using the SVG foreignObject approach.
- * This avoids html2canvas and its Range.setEnd bug entirely.
  */
 async function captureElementViaSvg(
   element: HTMLElement,
   scale: number,
 ): Promise<HTMLCanvasElement> {
-  // Ensure the element is visible and in the DOM
+  // Ensure the element is visible and in the DOM for accurate dimensions
   const wasHidden = element.style.display === 'none';
   const origPosition = element.style.position;
   const origLeft = element.style.left;
@@ -69,34 +143,29 @@ async function captureElementViaSvg(
   try {
     // Get the element's actual rendered dimensions
     const rect = element.getBoundingClientRect();
-    const width = rect.width;
-    const height = rect.height;
+    const width = Math.ceil(rect.width);
+    const height = Math.ceil(rect.height);
 
-    // Compute all inline styles from the element and its ancestors
-    // so the foreignObject rendering matches the page styles
-    const styles = collectStyles(element);
-
-    // Serialize the element's HTML
-    const html = new XMLSerializer().serializeToString(element);
+    // Serialize the element to self-contained XHTML
+    const xhtml = elementToXhtml(element);
 
     // Build the SVG with foreignObject
-    const svgStr = `
-<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
+    // We use a Blob URL (not data:) to avoid tainted canvas issues
+    const svgStr = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
   <foreignObject width="100%" height="100%">
-    <div xmlns="http://www.w3.org/1999/xhtml" style="width:${width}px;height:${height}px;">
-      <style>${styles}</style>
-      ${html}
+    <div xmlns="http://www.w3.org/1999/xhtml" style="width:${width}px;height:${height}px;background:#fff;">
+      ${xhtml}
     </div>
   </foreignObject>
 </svg>`;
 
-    // Encode to data URI
     const svgBlob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
     const url = URL.createObjectURL(svgBlob);
 
     // Load into an Image, then draw to canvas
     const canvas = await new Promise<HTMLCanvasElement>((resolve, reject) => {
       const img = new Image();
+      img.crossOrigin = 'anonymous';
       img.onload = () => {
         const c = document.createElement('canvas');
         c.width = width * scale;
@@ -131,36 +200,6 @@ async function captureElementViaSvg(
       element.style.opacity = origOpacity;
     }
   }
-}
-
-/**
- * Collect all relevant CSS styles from the document's stylesheets
- * so the SVG foreignObject rendering can use them.
- */
-function collectStyles(element: HTMLElement): string {
-  const sheets = document.styleSheets;
-  let css = '';
-
-  for (let i = 0; i < sheets.length; i++) {
-    try {
-      const rules = sheets[i].cssRules || sheets[i].rules;
-      for (let j = 0; j < rules.length; j++) {
-        const rule = rules[j] as CSSRule;
-        if (rule && rule.cssText) {
-          // Skip @font-face and @keyframes that reference external URLs
-          // (they can cause the SVG to fail to render)
-          if (rule.cssText.includes('@font-face') && rule.cssText.includes('url(')) {
-            continue;
-          }
-          css += rule.cssText + '\n';
-        }
-      }
-    } catch {
-      // Cross-origin stylesheets throw SecurityError — skip them
-    }
-  }
-
-  return css;
 }
 
 /**
