@@ -5,6 +5,7 @@
 'use client';
 
 import { ChevronLeft, ChevronRight, Calendar, CalendarDays } from 'lucide-react';
+import { VERSION } from '../lib/version';
 
 interface DashboardHeaderProps {
   currentDate: Date;
@@ -32,7 +33,7 @@ export function DashboardHeader({
 
   return (
     <div className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 p-4">
-      <div className="flex items-center justify-center gap-4">
+      <div className="flex items-center justify-between gap-4">
         {/* Navigation */}
         <div className="flex items-center gap-1">
           <button
@@ -79,6 +80,10 @@ export function DashboardHeader({
             <CalendarDays size={16} className="inline mr-1" />
             Heute
           </button>
+        </div>
+        {/* Version */}
+        <div className="text-xs text-gray-500 dark:text-gray-400">
+          v{VERSION}
         </div>
       </div>
     </div>
