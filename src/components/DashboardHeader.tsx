@@ -32,7 +32,7 @@ export function DashboardHeader({
 
   return (
     <div className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 p-4">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex items-center justify-center gap-4">
         {/* Navigation */}
         <div className="flex items-center gap-1">
           <button

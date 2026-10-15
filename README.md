@@ -1,4 +1,4 @@
-﻿﻿# MatheManager
+﻿# MatheManager
 
 **[🌐 Live Demo](https://mathe-manager.vercel.app/)**
 
@@ -11,6 +11,7 @@ Next.js App zur Verwaltung von Mathe-Nachhilfe mit Tailwind CSS. Verwalten Sie F
 - Status-Bediener für jeden Termin: Stattgefunden, Ausfall bezahlt, Ausfall frei
 - **Gruppenunterricht**: Bis zu 2 Schüler pro Termin
 - **Korrekte Uhrzeitanzeige**: Start- und Endzeit pro Termin (z.B. `14:00 – 15:30`)
+- **Software-Version** in Einstellungen sichtbar (v1.2.0+)
 
 ### Termine
 - **Wochenansicht** mit allen 7 Tagen (Mo–So)
@@ -46,8 +47,7 @@ Next.js App zur Verwaltung von Mathe-Nachhilfe mit Tailwind CSS. Verwalten Sie F
 - **Einstellungen** um eigene Firmendaten einzugeben (Name, Adresse, Steuernummer)
 - **Serienrechnung**: Mehrere Familien gleichzeitig als einzelne PDF-Dateien herunterladen
   - Familien-Multiauswahl im Filter-Bereich (grüne Beschriftung "für Serienrechnung")
-  - Klick auf "Serienrechnung"-Button öffnet für jede ausgewählte Familie ein Browser-Fenster
-    mit druckfertiger Rechnung (Save-as-PDF über den Browser-Dialog)
+  - Klick auf "Serienrechnung"-Button öffnet ein Browser-Fenster mit **einer** kombinierten PDF (alle Familien, je eine Seite pro Familie) (v1.2.0+)
   - Rechnungsnummern werden automatisch pro Familie vergeben und im localStorage hochgezählt
   - Berücksichtigt denselben Datumsfilter wie die normale Rechnungsstellung
 
@@ -86,6 +86,7 @@ Next.js App zur Verwaltung von Mathe-Nachhilfe mit Tailwind CSS. Verwalten Sie F
 ### Einstellungen
 - Firmeninformationen für Rechnungen
 - Rechnungsnummer-Verwaltung
+- **Software-Version** als schreibgeschützter Info-Block (v1.2.0+)
 - **Zeitfenster-Konfiguration**: Mo–Fr und Sa–So getrennt (Start/Ende)
 - **Slot-Dauer** und **Pausenminuten** zwischen Terminen
 - **Mittagspause**: Start/Ende für Mo–Fr und Sa–So (leer = keine Pause)
