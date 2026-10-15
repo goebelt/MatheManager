@@ -4,9 +4,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Save, Building2, Mail, Phone, MapPin, FileText, CreditCard, AlertTriangle, Download, Upload, Clock, Coffee } from 'lucide-react';
+import { Save, Building2, Mail, Phone, MapPin, FileText, CreditCard, AlertTriangle, Download, Upload, Clock, Coffee, Info } from 'lucide-react';
 import type { InvoiceSettings, ScheduleSettings } from '@/types';
 import { getDefaultScheduleSettings } from '@/lib/scheduling';
+import { VERSION } from '@/lib/version';
 
 interface DataContainer {
   families?: any[];
@@ -171,6 +172,22 @@ export default function SettingsPage() {
           )}
         </div>
       </header>
+
+      {/* Version Info Block */}
+      <div className="max-w-3xl mx-auto px-4 py-4">
+        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
+              <Info size={20} className="text-green-700 dark:text-green-400" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Software-Version</h3>
+              <p className="text-xs text-gray-600 dark:text-slate-400 mt-0.5 font-mono">v{VERSION}</p>
+            </div>
+            <span className="text-xs text-gray-500 dark:text-slate-400 bg-gray-100 dark:bg-slate-700 px-2 py-1 rounded">Nicht änderbar</span>
+          </div>
+        </div>
+      </div>
 
       <main className="max-w-3xl mx-auto px-4 py-6">
         <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl shadow-sm">
