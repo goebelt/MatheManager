@@ -66,7 +66,12 @@ export async function generateBatchPdf(
   // Collect HTML from each element, then clean up
   const htmlParts: string[] = [];
   for (const { element, cleanup } of elements) {
-    htmlParts.push(element.outerHTML);
+    // Remove display:none added for hiding on main page before extracting HTML
+    const html = element.outerHTML.replace(/style="([^"]*)display:\s*none[^"]*"/, (match, styles) => {
+      const cleaned = styles.replace(/display:\s*none\s*;?\s*/g, '').trim();
+      return cleaned ? `style="${cleaned}"` : '';
+    });
+    htmlParts.push(html);
     cleanup?.();
   }
 

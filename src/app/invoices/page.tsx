@@ -513,8 +513,8 @@ export default function InvoicesPage() {
  container.style.boxSizing = 'border-box';
  container.style.background = '#fff';
  container.style.color = '#000';
- container.style.position = 'absolute';
- container.style.left = '-9999px';
+ // Hide on main page, but allow content extraction for print window
+ container.style.display = 'none';
 
  const inv = invoiceDataForFamily;
  const fmtDate = (ds: string) => new Date(ds).toLocaleDateString('de-DE', { year: 'numeric', month: '2-digit', day: '2-digit' });
