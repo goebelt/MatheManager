@@ -8,7 +8,7 @@ import { useState, useEffect, useMemo } from 'react';
 import {
   Calendar, Plus, Edit2, Trash2, X, ChevronLeft, ChevronRight,
   Clock, User, Save, AlertCircle, Sparkles, Check, AlertTriangle, CheckCircle,
-  CalendarPlus, Coffee,
+  CalendarPlus, Coffee, RotateCcw,
 } from 'lucide-react';
 import type { Student, Appointment, DataContainer, ScheduleSettings } from '@/types';
 import {
@@ -44,6 +44,12 @@ export default function AppointmentsPage() {
   const [autoScheduleWeeks, setAutoScheduleWeeks] = useState(4);
   const [autoScheduleStudentIds, setAutoScheduleStudentIds] = useState<string[]>([]);
   const [autoScheduleFilter, setAutoScheduleFilter] = useState('');
+
+  // Cleanup modal state
+  const [showCleanup, setShowCleanup] = useState(false);
+  const [cleanupDate, setCleanupDate] = useState('');
+  const [cleanupStudentId, setCleanupStudentId] = useState('');
+  const [cleanupFilter, setCleanupFilter] = useState('');
 
   // Student dropdown states
   const [studentDropdownOpen, setStudentDropdownOpen] = useState(false);
@@ -150,6 +156,29 @@ export default function AppointmentsPage() {
     updatedData.lastUpdated = new Date().toISOString();
     saveData(updatedData);
     closeModal();
+  };
+
+  const handleCleanupAppointments = () => {
+    if (!cleanupDate || !cleanupStudentId) {
+      alert('Bitte Datum und Schüler auswählen');
+      return;
+    }
+    if (!confirm(`Alle Termine von Schüler ab ${cleanupDate} wirklich löschen?`)) return;
+    const updatedData: DataContainer = data || { families: [], students: [], priceEntries: [], appointments: [], lastUpdated: new Date().toISOString() };
+    updatedData.appointments = (updatedData.appointments || []).filter(a => 
+      !(a.studentIds.includes(cleanupStudentId) && a.date >= cleanupDate)
+    );
+    updatedData.lastUpdated = new Date().toISOString();
+    saveData(updatedData);
+    closeCleanupModal();
+    alert('Termine wurden bereinigt!');
+  };
+
+  const closeCleanupModal = () => {
+    setShowCleanup(false);
+    setCleanupDate('');
+    setCleanupStudentId('');
+    setCleanupFilter('');
   };
 
   const handleEditAppointment = (appointment: Appointment) => {
@@ -370,6 +399,10 @@ export default function AppointmentsPage() {
               </p>
             </div>
             <div className="flex gap-2">
+              <button onClick={() => { setShowCleanup(true); setCleanupDate(new Date().toISOString().split('T')[0]); }}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-orange-600 text-white font-medium rounded-lg hover:bg-orange-700 transition-colors">
+                <RotateCcw size={18} /> Termine bereinigen
+              </button>
               <button onClick={() => setShowAutoSchedule(true)}
                 className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors">
                 <Sparkles size={18} /> Auto-Plan
@@ -476,6 +509,73 @@ export default function AppointmentsPage() {
               <button onClick={handleAutoSchedule} disabled={autoScheduleStudentIds.length === 0}
                 className="px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                 <Sparkles size={16} className="inline mr-1" /> Planen
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cleanup Modal */}
+      {showCleanup && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-md w-full p-6">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+              <RotateCcw size={20} className="text-orange-600" /> Termine bereinigen
+            </h2>
+            <p className="text-sm text-gray-600 dark:text-slate-400 mb-4">
+              Alle Termine des ausgewählten Schülers ab dem angegebenen Datum werden gelöscht.
+            </p>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1"> Ab Datum * </label>
+                <input type="date" value={cleanupDate} onChange={e => setCleanupDate(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1"> Schüler * </label>
+                <div className="relative">
+                  <input type="text" placeholder="Schüler suchen..." value={cleanupFilter}
+                    onChange={e => setCleanupFilter(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+                  <div className="absolute z-10 w-full mt-1 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg shadow-lg max-h-60 overflow-hidden">
+                    <div className="max-h-48 overflow-y-auto">
+                      {(data?.students || []).filter(student => {
+                        const filter = cleanupFilter.toLowerCase();
+                        const fullName = `${student.firstName} ${student.lastName || ''}`.toLowerCase();
+                        const familyName = getFamilyForStudent(student.id).toLowerCase();
+                        return fullName.includes(filter) || familyName.includes(filter);
+                      }).map(student => {
+                        const familyName = getFamilyForStudent(student.id);
+                        const isSelected = cleanupStudentId === student.id;
+                        return (
+                          <button key={student.id}
+                            onClick={() => setCleanupStudentId(student.id)}
+                            className={`w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors ${isSelected ? 'bg-orange-50 dark:bg-orange-900/20' : ''}`}>
+                            <div className="flex items-center gap-2">
+                              <div className={`w-5 h-5 rounded border flex items-center justify-center ${isSelected ? 'bg-orange-600 border-orange-600 text-white' : 'border-gray-300 dark:border-slate-600'}`}>
+                                {isSelected && <Check size={12} />}
+                              </div>
+                              <div className="flex flex-col">
+                                <span className="text-sm font-medium text-gray-900 dark:text-white"> {student.firstName} {student.lastName || ''} </span>
+                                {familyName && <span className="text-xs text-gray-500 dark:text-slate-400"> {familyName} </span>}
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 mt-6">
+              <button onClick={closeCleanupModal}
+                className="px-4 py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors">
+                Abbrechen
+              </button>
+              <button onClick={handleCleanupAppointments} disabled={!cleanupDate || !cleanupStudentId}
+                className="px-4 py-2 bg-orange-600 text-white font-medium rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                <Trash2 size={16} className="inline mr-1" /> Bereinigen
               </button>
             </div>
           </div>
