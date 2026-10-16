@@ -48,8 +48,11 @@ export default function AppointmentsPage() {
   // Cleanup modal state
   const [showCleanup, setShowCleanup] = useState(false);
   const [cleanupDate, setCleanupDate] = useState('');
-  const [cleanupStudentId, setCleanupStudentId] = useState('');
+  const [cleanupStudentIds, setCleanupStudentIds] = useState<string[]>([]);
   const [cleanupFilter, setCleanupFilter] = useState('');
+  const [cleanupDropdownOpen, setCleanupDropdownOpen] = useState(false);
+
+  // Student dropdown states
 
   // Student dropdown states
   const [studentDropdownOpen, setStudentDropdownOpen] = useState(false);
@@ -159,14 +162,14 @@ export default function AppointmentsPage() {
   };
 
   const handleCleanupAppointments = () => {
-    if (!cleanupDate || !cleanupStudentId) {
+    if (!cleanupDate || cleanupStudentIds.length === 0) {
       alert('Bitte Datum und Schüler auswählen');
       return;
     }
-    if (!confirm(`Alle Termine von Schüler ab ${cleanupDate} wirklich löschen?`)) return;
+    if (!confirm(`Alle Termine der ausgewählten Schüler ab ${cleanupDate} wirklich löschen?`)) return;
     const updatedData: DataContainer = data || { families: [], students: [], priceEntries: [], appointments: [], lastUpdated: new Date().toISOString() };
     updatedData.appointments = (updatedData.appointments || []).filter(a => 
-      !(a.studentIds.includes(cleanupStudentId) && a.date >= cleanupDate)
+      !cleanupStudentIds.some(id => a.studentIds.includes(id)) || !(a.date >= cleanupDate)
     );
     updatedData.lastUpdated = new Date().toISOString();
     saveData(updatedData);
@@ -177,8 +180,9 @@ export default function AppointmentsPage() {
   const closeCleanupModal = () => {
     setShowCleanup(false);
     setCleanupDate('');
-    setCleanupStudentId('');
+    setCleanupStudentIds([]);
     setCleanupFilter('');
+    setCleanupDropdownOpen(false);
   };
 
   const handleEditAppointment = (appointment: Appointment) => {
@@ -534,37 +538,67 @@ export default function AppointmentsPage() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1"> Schüler * </label>
                 <div className="relative">
-                  <input type="text" placeholder="Schüler suchen..." value={cleanupFilter}
-                    onChange={e => setCleanupFilter(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
-                  <div className="absolute z-10 w-full mt-1 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg shadow-lg max-h-60 overflow-hidden">
-                    <div className="max-h-48 overflow-y-auto">
-                      {(data?.students || []).filter(student => {
-                        const filter = cleanupFilter.toLowerCase();
-                        const fullName = `${student.firstName} ${student.lastName || ''}`.toLowerCase();
-                        const familyName = getFamilyForStudent(student.id).toLowerCase();
-                        return fullName.includes(filter) || familyName.includes(filter);
-                      }).map(student => {
-                        const familyName = getFamilyForStudent(student.id);
-                        const isSelected = cleanupStudentId === student.id;
-                        return (
-                          <button key={student.id}
-                            onClick={() => setCleanupStudentId(student.id)}
-                            className={`w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors ${isSelected ? 'bg-orange-50 dark:bg-orange-900/20' : ''}`}>
-                            <div className="flex items-center gap-2">
-                              <div className={`w-5 h-5 rounded border flex items-center justify-center ${isSelected ? 'bg-orange-600 border-orange-600 text-white' : 'border-gray-300 dark:border-slate-600'}`}>
-                                {isSelected && <Check size={12} />}
-                              </div>
-                              <div className="flex flex-col">
-                                <span className="text-sm font-medium text-gray-900 dark:text-white"> {student.firstName} {student.lastName || ''} </span>
-                                {familyName && <span className="text-xs text-gray-500 dark:text-slate-400"> {familyName} </span>}
-                              </div>
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
+                  <div
+                    onClick={() => setCleanupDropdownOpen(!cleanupDropdownOpen)}
+                    className="min-h-[42px] px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-green-500"
+                  >
+                    {cleanupStudentIds.length === 0 ? (
+                      <span className="text-gray-500 dark:text-slate-400 text-sm"> Schüler auswählen... </span>
+                    ) : (
+                      <div className="flex flex-wrap gap-1">
+                        {cleanupStudentIds.map(id => {
+                          const student = (data?.students || []).find(s => s.id === id);
+                          if (!student) return null;
+                          return (
+                            <span key={id} className="inline-flex items-center gap-1 px-2 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded text-sm">
+                              {student.firstName} {student.lastName || ''}
+                              <button onClick={(e) => { e.stopPropagation(); setCleanupStudentIds(cleanupStudentIds.filter(sid => sid !== id)); }}>
+                                <X size={14} />
+                              </button>
+                            </span>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
+                  {cleanupDropdownOpen && (
+                    <div className="absolute z-10 w-full mt-1 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg shadow-lg max-h-60 overflow-hidden">
+                      <div className="p-2 border-b border-gray-200 dark:border-slate-700">
+                        <input type="text" placeholder="Nach Schüler oder Familie filtern..." value={cleanupFilter}
+                          onChange={e => setCleanupFilter(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500" autoFocus />
+                      </div>
+                      <div className="max-h-48 overflow-y-auto">
+                        {(data?.students || []).filter(student => {
+                          const filter = cleanupFilter.toLowerCase();
+                          const fullName = `${student.firstName} ${student.lastName || ''}`.toLowerCase();
+                          const familyName = getFamilyForStudent(student.id).toLowerCase();
+                          return fullName.includes(filter) || familyName.includes(filter);
+                        }).map(student => {
+                          const familyName = getFamilyForStudent(student.id);
+                          const isSelected = cleanupStudentIds.includes(student.id);
+                          return (
+                            <button key={student.id}
+                              onClick={() => {
+                                if (isSelected) setCleanupStudentIds(cleanupStudentIds.filter(id => id !== student.id));
+                                else setCleanupStudentIds([...cleanupStudentIds, student.id]);
+                              }}
+                              className={`w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors ${isSelected ? 'bg-orange-50 dark:bg-orange-900/20' : ''}`}>
+                              <div className="flex items-center gap-2">
+                                <div className={`w-5 h-5 rounded border flex items-center justify-center ${isSelected ? 'bg-orange-600 border-orange-600 text-white' : 'border-gray-300 dark:border-slate-600'}`}>
+                                  {isSelected && <Check size={12} />}
+                                </div>
+                                <div className="flex flex-col">
+                                  <span className="text-sm font-medium text-gray-900 dark:text-white"> {student.firstName} {student.lastName || ''} </span>
+                                  {familyName && <span className="text-xs text-gray-500 dark:text-slate-400"> {familyName} </span>}
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
