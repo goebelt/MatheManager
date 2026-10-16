@@ -179,7 +179,7 @@ export default function SettingsPage() {
       {/* Version Info Block */}
       <div className="max-w-3xl mx-auto px-4 py-4">
         <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-4">
-          <div className="flex items-center gap-3 cursor-pointer hover:bg-green-100 dark:hover:bg-green-900/30 rounded-lg p-2" onClick={() => window.open('/manual.html', '_blank')}>
+          <div className="flex items-center gap-3 cursor-pointer hover:bg-green-100 dark:hover:bg-green-900/30 rounded-lg p-2" onClick={() => window.open('/manual', '_blank')}>
             <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
               <Info size={20} className="text-green-700 dark:text-green-400" />
             </div>
