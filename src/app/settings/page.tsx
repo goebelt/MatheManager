@@ -46,15 +46,19 @@ export default function SettingsPage() {
 
   const fetchReadme = async () => {
     try {
+      console.log('Fetching manual.html');
       const res = await fetch('/manual.html');
+      console.log('Fetch response:', res.status, res.statusText);
       if (!res.ok) {
         throw new Error(`Failed to fetch manual: ${res.status} ${res.statusText}`);
       }
       const text = await res.text();
+      console.log('Fetched length:', text.length);
       setReadmeContent(text);
     } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
       console.error('Fetch error:', err);
-      setReadmeContent('Fehler beim Laden der Bedienungsanleitung. Siehe Console für Details.');
+      setReadmeContent(`Fehler beim Laden der Bedienungsanleitung: ${message}`);
     }
   };
 
