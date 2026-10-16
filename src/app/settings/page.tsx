@@ -46,13 +46,13 @@ export default function SettingsPage() {
 
   const fetchReadme = async () => {
     try {
-      const res = await fetch('/README.md');
-      if (!res.ok) throw new Error('Failed to fetch README');
+      const res = await fetch('/manual.html');
+      if (!res.ok) throw new Error('Failed to fetch manual');
       const text = await res.text();
       setReadmeContent(text);
     } catch (err) {
       console.error(err);
-      setReadmeContent('Fehler beim Laden der Readme.');
+      setReadmeContent('Fehler beim Laden der Bedienungsanleitung.');
     }
   };
 
@@ -494,7 +494,7 @@ export default function SettingsPage() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto p-6">
             <div className="flex justify-between items-start mb-4">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Readme (v{VERSION})</h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Bedienungsanleitung (v{VERSION})</h3>
               <button onClick={() => setShowReadme(false)} className="text-gray-500 hover:text-gray-700">
                 <X size={20} />
               </button>
