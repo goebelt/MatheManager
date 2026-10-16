@@ -4,7 +4,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Save, Building2, Mail, Phone, MapPin, FileText, CreditCard, AlertTriangle, Download, Upload, Clock, Coffee, Info } from 'lucide-react';
+import { Save, Building2, Mail, Phone, MapPin, FileText, CreditCard, AlertTriangle, Download, Upload, Clock, Coffee, Info, X } from 'lucide-react';
 import type { InvoiceSettings, ScheduleSettings } from '@/types';
 import { getDefaultScheduleSettings } from '@/lib/scheduling';
 import { VERSION } from '@/lib/version';
@@ -41,6 +41,20 @@ export default function SettingsPage() {
   });
 
   const [scheduleSettings, setScheduleSettings] = useState<ScheduleSettings>(getDefaultScheduleSettings());
+  const [readmeContent, setReadmeContent] = useState('');
+  const [showReadme, setShowReadme] = useState(false);
+
+  const fetchReadme = async () => {
+    try {
+      const res = await fetch('/README.md');
+      if (!res.ok) throw new Error('Failed to fetch README');
+      const text = await res.text();
+      setReadmeContent(text);
+    } catch (err) {
+      console.error(err);
+      setReadmeContent('Fehler beim Laden der Readme.');
+    }
+  };
 
   useEffect(() => { loadData(); }, []);
 
@@ -176,7 +190,7 @@ export default function SettingsPage() {
       {/* Version Info Block */}
       <div className="max-w-3xl mx-auto px-4 py-4">
         <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-4">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 cursor-pointer hover:bg-green-100 dark:hover:bg-green-900/30 rounded-lg p-2" onClick={() => { fetchReadme(); setShowReadme(true); }}>
             <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
               <Info size={20} className="text-green-700 dark:text-green-400" />
             </div>
@@ -474,6 +488,23 @@ export default function SettingsPage() {
           Mit der Datenverwaltung kannst du deine Daten sichern und wiederherstellen.
         </p>
       </main>
+      
+      {/* Popup for Readme */}
+      {showReadme && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto p-6">
+            <div className="flex justify-between items-start mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Readme (v{VERSION})</h3>
+              <button onClick={() => setShowReadme(false)} className="text-gray-500 hover:text-gray-700">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="mt-4">
+              <pre className="whitespace-pre-wrap text-xs bg-gray-50 dark:bg-slate-700 rounded p-4 overflow-y-auto">{readmeContent}</pre>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
