@@ -60,6 +60,13 @@ export default function DashboardPage() {
   };
 
   const handlePreviousDay = () => {
+    setCurrentDate(prev => {
+      const date = new Date(prev);
+      date.setDate(date.getDate() - 1);
+      return date;
+    });
+  };
+
   const handlePaymentToggle = (appointmentId: string, isPaid: boolean) => {
     if (!data) return;
 
@@ -77,13 +84,6 @@ export default function DashboardPage() {
 
     localStorage.setItem("mathe_manager_data", JSON.stringify(updatedData));
     setData(updatedData);
-  };
-
-    setCurrentDate(prev => {
-      const date = new Date(prev);
-      date.setDate(date.getDate() - 1);
-      return date;
-    });
   };
 
   const handleNextDay = () => {
@@ -134,6 +134,7 @@ export default function DashboardPage() {
           students={data.students}
           priceEntries={data.priceEntries || []}
           onStatusUpdate={handleStatusUpdate}
+          onPaymentToggle={handlePaymentToggle}
           currentDate={currentDate}
         />
       </main>
