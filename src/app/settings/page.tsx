@@ -53,6 +53,13 @@ export default function SettingsPage() {
       const stored = localStorage.getItem('mathe_manager_data');
       if (stored) {
         const parsed: DataContainer = JSON.parse(stored);
+        // Migrate old data: ensure isPaid field exists on all appointments (default false)
+        if (parsed.appointments && Array.isArray(parsed.appointments)) {
+          parsed.appointments = parsed.appointments.map((app: any) => ({
+            ...app,
+            isPaid: app.isPaid ?? false, // default false for old data
+          }));
+        }
         setData(parsed);
         if (parsed.invoiceSettings) {
           setSettings(prev => ({ ...prev, ...parsed.invoiceSettings }));
@@ -101,6 +108,13 @@ export default function SettingsPage() {
         const importedData = JSON.parse(content);
         if (!importedData || typeof importedData !== 'object') {
           throw new Error('Ungültiges Datenformat');
+        }
+        // Migrate old data: ensure isPaid field exists on all appointments (default false)
+        if (importedData.appointments && Array.isArray(importedData.appointments)) {
+          importedData.appointments = importedData.appointments.map((app: any) => ({
+            ...app,
+            isPaid: app.isPaid ?? false, // default false for old data
+          }));
         }
         if (confirm('Möchtest du die Daten wirklich importieren? Alle vorhandenen Daten werden überschrieben!')) {
           localStorage.setItem('mathe_manager_data', JSON.stringify(importedData));
