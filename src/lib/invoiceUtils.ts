@@ -14,15 +14,14 @@ export function buildInvoiceDataForFamily(
   familyAddress: string | undefined,
   studentIdsInFamily: string[],
   appointmentsForFamily: Array<{
-    id: string;
+    appointmentId: string;
     date: string;
-    studentId: string;
     studentName: string;
     lessonType: 'individual' | 'group' | 'block';
     status: 'attended' | 'canceled_paid' | 'canceled_free' | 'planned';
     description: string;
     totalPrice: number;
-    isPaid: boolean;
+    isPaid?: boolean;
   }>,
   issuedBy: InvoiceData['issuedBy'],
   invoiceNumber: string,
@@ -46,7 +45,7 @@ export function buildInvoiceDataForFamily(
       city: undefined,
     },
     items: appointmentsForFamily.map(a => ({
-      appointmentId: a.id,
+      appointmentId: a.appointmentId,
       date: a.date,
       studentName: a.studentName,
       lessonType: a.lessonType,

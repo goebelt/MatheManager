@@ -653,63 +653,183 @@ export default function InvoicesPage() {
     setActiveView('preview');
   };
 
-  const handleBatchInvoice = () => {
+  const handleBatchInvoice = async () => {
     if (!data || selectedFamilyIds.length === 0) return;
-    selectedFamilyIds.forEach((familyId, index) => {
-      const familyItems = buildFamilyAppointmentItems(familyId, plannedAppointments);
-      if (familyItems.length === 0) return;
-      const firstStudentId = familyItems[0].appointmentId
-        ? filteredAppointments.find(app => app.id === familyItems[0].appointmentId)?.studentIds[0]
-        : null;
-      const student = firstStudentId ? data.students.find(s => s.id === firstStudentId) : null;
-      const family = student ? data.families.find(f => f.id === student.familyId) : null;
-      const { subtotal, taxAmount, total } = calculateInvoiceTotals(familyItems);
-      const currentYear = new Date().getFullYear();
-      const currentInvoiceNumber = (data.invoiceSettings?.invoiceNumberStart || 1) + index;
-      const invoiceNumber = formatInvoiceNumber(currentYear, currentInvoiceNumber);
-      const invoiceDate = new Date();
-      const dueDate = calculateDueDate(invoiceDate, data.invoiceSettings?.paymentTerms || 14);
-      const updatedData: DataContainer = {
+
+    const familiesToProcess = selectedFamilyIds
+      .map(id => (data.families || []).find(f => f.id === id))
+      .filter(Boolean) as Family[];
+
+    const invoiceDate = new Date();
+    const paymentTerms = data.invoiceSettings?.paymentTerms || 14;
+    const issuedBy: InvoiceData['issuedBy'] = {
+      name: data.invoiceSettings?.businessName || 'MatheManager',
+      street: data.invoiceSettings?.street,
+      zipCode: data.invoiceSettings?.zipCode,
+      city: data.invoiceSettings?.city,
+      email: data.invoiceSettings?.email,
+      phone: data.invoiceSettings?.phone,
+      vatId: data.invoiceSettings?.vatId,
+      iban: data.invoiceSettings?.iban,
+    };
+    const currentYear = new Date().getFullYear();
+    let sequenceNumber = data.invoiceSettings?.invoiceNumberStart || 1;
+
+    // Collect all elements to render into the batch PDF
+    const batchElements: { element: HTMLElement; cleanup: () => void }[] = [];
+
+    for (const family of familiesToProcess) {
+      const appointmentItems = buildFamilyAppointmentItems(family.id, filteredAppointments);
+      if (appointmentItems.length === 0) {
+        // Skip families with no appointments in range, but still increment counter
+        sequenceNumber++;
+        continue;
+      }
+
+      const invoiceNumber = formatInvoiceNumber(currentYear, sequenceNumber);
+      sequenceNumber++;
+
+      const invoiceDataForFamily = buildInvoiceDataForFamily(
+        family.id,
+        family.name,
+        family.address,
+        (data?.students || []).filter(s => s.familyId === family.id).map(s => s.id),
+        appointmentItems,
+        issuedBy,
+        invoiceNumber,
+        invoiceDate,
+        paymentTerms
+      );
+
+      // Update invoice number counter in localStorage
+      const updatedData = {
         ...data,
         invoiceSettings: {
+          ...data.invoiceSettings,
           businessName: data.invoiceSettings?.businessName || '',
           street: data.invoiceSettings?.street || '',
           zipCode: data.invoiceSettings?.zipCode || '',
           city: data.invoiceSettings?.city || '',
-          email: data.invoiceSettings?.email, phone: data.invoiceSettings?.phone,
-          vatId: data.invoiceSettings?.vatId, taxId: data.invoiceSettings?.taxId,
-          bankName: data.invoiceSettings?.bankName, iban: data.invoiceSettings?.iban,
+          email: data.invoiceSettings?.email,
+          phone: data.invoiceSettings?.phone,
+          vatId: data.invoiceSettings?.vatId,
+          taxId: data.invoiceSettings?.taxId,
+          bankName: data.invoiceSettings?.bankName,
+          iban: data.invoiceSettings?.iban,
           bankBic: data.invoiceSettings?.bankBic,
           paymentTerms: data.invoiceSettings?.paymentTerms || 14,
           hourlyRate: data.invoiceSettings?.hourlyRate || 0,
           lessonType: data.invoiceSettings?.lessonType || 'individual',
-          invoiceNumberStart: currentInvoiceNumber + 1,
+          invoiceNumberStart: sequenceNumber,
         },
         lastUpdated: new Date().toISOString(),
       };
       localStorage.setItem('mathe_manager_data', JSON.stringify(updatedData));
       setData(updatedData);
-      // For batch, we could generate all PDFs or just the last one
-      // For now, generate the last family's invoice
-      if (index === selectedFamilyIds.length - 1) {
-        setInvoiceData({
-          invoiceNumber,
-          invoiceDate: invoiceDate.toISOString(),
-          dueDate: dueDate.toISOString(),
-          issuedBy: {
-            name: data.invoiceSettings?.businessName || 'MatheManager',
-            street: data.invoiceSettings?.street, zipCode: data.invoiceSettings?.zipCode,
-            city: data.invoiceSettings?.city, email: data.invoiceSettings?.email,
-            phone: data.invoiceSettings?.phone, vatId: data.invoiceSettings?.vatId,
-            iban: data.invoiceSettings?.iban,
-          },
-          billedTo: { name: family?.name || 'Familie', street: family?.address },
-          items: familyItems.map(item => ({ ...item, quantity: item.quantity ?? 1 })),
-          subtotal, taxRate: 0, taxAmount, total,
+
+      // Create a temporary DOM element for this invoice (inline HTML rendering)
+      const container = document.createElement('div');
+      container.style.fontFamily = 'Arial, sans-serif';
+      container.style.maxWidth = '210mm';
+      container.style.padding = '10mm';
+      container.style.boxSizing = 'border-box';
+      container.style.background = '#fff';
+      container.style.color = '#000';
+      container.style.display = 'none'; // Hide on main page
+
+      const inv = invoiceDataForFamily;
+      const fmtDate = (ds: string) => new Date(ds).toLocaleDateString('de-DE', { year: 'numeric', month: '2-digit', day: '2-digit' });
+      const sub = inv.items.reduce((s: number, i: { totalPrice: number }) => s + i.totalPrice, 0);
+
+      const rowsHtml = inv.items.map((item: { date: string; studentName?: string; lessonType?: string; status?: string; totalPrice: number; isPaid?: boolean; description?: string }) => {
+        const dateStr = item.lessonType === 'block' ? '-' : fmtDate(item.date);
+        const typeStr = item.lessonType === 'group' ? 'Gruppenunterricht' : item.lessonType === 'block' ? 'Block-Unterricht' : 'Einzelunterricht';
+        const statusStr = item.status === 'attended' ? 'Besucht' : item.status === 'canceled_paid' ? 'Bezahlt ausgefallen' : item.status === 'canceled_free' ? 'Kostenlos ausgefallen' : 'Geplant';
+        const paidStr = item.lessonType === 'block' ? '-' : item.isPaid ? '✓ Ja' : '✗ Nein';
+        return `<tr style="border-bottom:1px dotted #999"><td style="padding:4px 6px;font-size:12px">${dateStr}</td><td style="padding:4px 6px;font-size:12px">${item.studentName || '-'}</td><td style="padding:4px 6px;font-size:12px">${typeStr}</td><td style="padding:4px 6px;font-size:12px">${statusStr}</td><td style="padding:4px 6px;font-size:12px;text-align:right;font-weight:600">€${item.totalPrice.toFixed(2)}</td><td style="padding:4px 6px;font-size:12px;text-align:center">${paidStr}</td></tr>`;
+      }).join('');
+
+      container.innerHTML = `
+        <div style="margin-bottom:16px;padding-bottom:12px;border-bottom:4px solid #000">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start">
+            <div>
+              <h1 style="font-size:20px;font-weight:900;letter-spacing:0.1em;margin:0 0 4px">${inv.issuedBy.name || 'MatheManager'}</h1>
+              ${inv.issuedBy.street ? `<p style="font-size:11px;font-weight:600;text-transform:uppercase;margin:0">${inv.issuedBy.street}</p>` : ''}
+              ${(inv.issuedBy.zipCode || inv.issuedBy.city) ? `<p style="font-size:11px;font-weight:600;text-transform:uppercase;margin:0">${inv.issuedBy.zipCode || ''} ${inv.issuedBy.city || ''}</p>` : ''}
+              ${inv.issuedBy.email ? `<p style="font-size:11px;margin:4px 0 0">${inv.issuedBy.email}</p>` : ''}
+              ${inv.issuedBy.phone ? `<p style="font-size:11px;margin:2px 0 0">${inv.issuedBy.phone}</p>` : ''}
+            </div>
+            <div style="text-align:right">
+              <h2 style="font-size:20px;font-weight:900;letter-spacing:0.1em;margin:0 0 4px">RECHNUNG</h2>
+              <p style="font-size:13px;font-weight:600">${fmtDate(inv.invoiceDate)}</p>
+              <p style="font-size:11px;color:#666;margin-top:4px">Rechnungsnummer: ${inv.invoiceNumber}</p>
+            </div>
+          </div>
+          <div style="margin-top:12px;padding-top:8px;border-top:2px dashed #000">
+            <p style="font-size:10px;font-weight:700;text-transform:uppercase;margin:0 0 4px">Rechnung an:</p>
+            <p style="font-size:14px;font-weight:700;margin:0">${inv.billedTo.name}</p>
+            ${inv.billedTo.street ? `<p style="font-size:11px;margin:2px 0 0">${inv.billedTo.street}</p>` : ''}
+          </div>
+        </div>
+        <table style="width:100%;border-collapse:collapse;border:2px solid #000;margin-bottom:16px">
+          <thead>
+            <tr style="background:#f0f0f0;border-bottom:3px solid #000">
+              <th style="text-align:left;padding:4px 6px;font-size:10px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase">Datum</th>
+              <th style="text-align:left;padding:4px 6px;font-size:10px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase">Schüler</th>
+              <th style="text-align:left;padding:4px 6px;font-size:10px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase">Typ</th>
+              <th style="text-align:left;padding:4px 6px;font-size:10px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase">Status</th>
+              <th style="text-align:right;padding:4px 6px;font-size:10px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase">Gesamtpreis</th>
+              <th style="text-align:center;padding:4px 6px;font-size:10px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase">Bezahlt</th>
+            </tr>
+          </thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+        <div style="display:flex;justify-content:flex-end">
+          <div style="width:45%">
+            <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dotted #999">
+              <span style="font-size:11px;color:#666">Zwischensumme (netto)</span>
+              <span style="font-size:11px;font-weight:600">€${sub.toFixed(2)}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:8px 0;border-top:3px solid #000;margin-top:4px">
+              <span style="font-size:14px;font-weight:700">Gesamtbetrag</span>
+              <span style="font-size:14px;font-weight:700">€${inv.total.toFixed(2)}</span>
+            </div>
+            <p style="text-align:center;font-size:10px;color:#666;font-style:italic;margin-top:8px">Gemäß §4 Nr. 21 bin ich von der Umsatzsteuer befreit.</p>
+            <div style="margin-top:8px;padding:8px;background:#f5f5f5;border:1px solid #ccc;border-radius:4px">
+              <p style="font-size:11px;font-weight:600;color:#333;margin:0 0 4px">Zahlungsbedingungen:</p>
+              <p style="font-size:11px;color:#666;margin:0">Fällig bis: ${fmtDate(inv.dueDate)}</p>
+              ${inv.issuedBy.iban ? `<p style="font-size:11px;color:#666;margin:4px 0 0">IBAN: ${inv.issuedBy.iban}</p>` : ''}
+            </div>
+          </div>
+        </div>
+        <div style="margin-top:16px;padding-top:8px;border-top:1px solid #ccc;text-align:center">
+          <p style="font-size:10px;color:#999">Vielen Dank für die gute Zusammenarbeit!</p>
+        </div>
+      `;
+
+      document.body.appendChild(container);
+      batchElements.push({ element: container, cleanup: () => document.body.removeChild(container) });
+    }
+
+    // Generate ONE combined PDF with all invoices
+    if (batchElements.length > 0) {
+      try {
+        await generateBatchPdf(batchElements, {
+          filename: `Serienrechnung_${new Date().toISOString().slice(0, 10)}.pdf`,
+          margin: [10, 10, 10, 10],
+          orientation: 'portrait',
+          format: 'a4',
+          imageQuality: 0.98,
+          scale: 2,
         });
-        setActiveView('invoice');
+      } catch (err) {
+        console.error('Batch PDF generation failed:', err);
+        batchElements.forEach(({ cleanup }) => { try { cleanup(); } catch {} });
       }
-    });
+    }
+
+    // Reset family selection after processing
+    setSelectedFamilyIds([]);
   };
 
   if (loading) {
