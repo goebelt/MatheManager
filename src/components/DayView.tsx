@@ -17,6 +17,7 @@ interface DayViewProps {
   priceEntries?: any[];
   onStatusUpdate?: (appointmentId: string, status: 'attended' | 'canceled_paid' | 'canceled_free' | 'planned') => void;
   onAddStudent?: (appointmentId: string, additionalStudentId: string) => void;
+  onPaymentToggle?: (appointmentId: string, isPaid: boolean) => void;
   currentDate?: Date;
 }
 
@@ -26,6 +27,7 @@ export function DayView({
   priceEntries = [],
   onStatusUpdate,
   onAddStudent,
+  onPaymentToggle,
   currentDate = new Date(),
 }: DayViewProps) {
   // Filter only non-canceled appointments for suggestions and conflict detection
@@ -97,6 +99,7 @@ export function DayView({
                   priceEntries={priceEntries}
                   onStatusChange={handleStatusChange}
                   onAddStudent={handleAddStudent}
+                  onPaymentToggle={onPaymentToggle}
                   conflictStatus={conflictStatus}
                 />
               );

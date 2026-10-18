@@ -1,4 +1,4 @@
-﻿# MatheManager
+﻿# MatheManager v1.3.0
 
 **[🌐 Live Demo](https://mathe-manager.vercel.app/)**
 
@@ -12,7 +12,7 @@ Next.js App zur Verwaltung von Mathe-Nachhilfe mit Tailwind CSS. Verwalten Sie F
 - **Gruppenunterricht**: Bis zu 2 Schüler pro Termin
 - **Korrekte Uhrzeitanzeige**: Start- und Endzeit pro Termin (z.B. `14:00 – 15:30`)
 - **Software-Version** in Einstellungen sichtbar (v1.2.0+)
-
+- **Bezahlstatus pro Termin**: Direkt im Dashboard den Bezahlstatus (bezahlt/offen) umschalten, synchronisiert mit der Abrechnungsseite\n
 ### Termine
 - **Wochenansicht** mit allen 7 Tagen (Mo–So)
 - **Platzhalter-Slots** für freie Zeitfenster (grün gestrichelte Karten, klickbar)
