@@ -59,17 +59,9 @@ export interface Appointment {
   duration: number; // in Minuten (60 oder 90)
   status: 'attended' | 'canceled_paid' | 'canceled_free' | 'planned';
   isSuggestion?: boolean;
+  isPaid?: boolean; // Bezahlstatus des Termins (default false)
 }
 
-/**
- * Payment status for a specific student in an appointment
- */
-export interface PaymentStatus {
-  appointmentId: string;
-  studentId: string;
-  isPaid: boolean;
-  paidDate?: string; // ISO Date when payment was recorded
-}
 
 /**
  * Snapshot for price calculation over time periods
@@ -107,7 +99,6 @@ export interface DataContainer {
   priceEntries: PriceEntry[];
   prices?: PriceEntry[];
   appointments: Appointment[];
-  paymentStatuses?: PaymentStatus[]; // Bezahlstatus pro Schüler pro Termin
   invoiceSettings?: InvoiceSettings; // User's letterhead settings
   scheduleSettings?: ScheduleSettings; // Time window config for placeholders
   lastUpdated?: string; // ISO timestamp

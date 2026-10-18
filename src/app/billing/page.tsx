@@ -6,7 +6,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { DollarSign, Calendar, User, Filter, ArrowUpRight, Loader2, X, Check, Clock } from 'lucide-react';
-import type { Appointment, Student, PriceEntry, DataContainer, PaymentStatus } from '@/types';
+import type { Appointment, Student, PriceEntry, DataContainer } from '@/types';
 import { calculateAppointmentFee } from '@/lib/billing';
 import { filterAppointmentsByDate } from '@/lib/dateFilters';
 
@@ -79,54 +79,31 @@ export default function BillingPage() {
   };
 
   // Get payment status for a specific student in an appointment
-  const getPaymentStatus = (appointmentId: string, studentId: string): boolean => {
-    const status = (data?.paymentStatuses || []).find(
-      s => s.appointmentId === appointmentId && s.studentId === studentId
-    );
-    return status?.isPaid || false;
+  const getPaymentStatus = (appointmentId: string): boolean | undefined => {
+    if (!data) return undefined;
+    const appointment = data.appointments.find(a => a.id === appointmentId);
+    return appointment?.isPaid ?? false;
   };
 
   // Toggle payment status for a specific student in an appointment
-  const togglePaymentStatus = (appointmentId: string, studentId: string) => {
+  const togglePaymentStatus = (appointmentId: string) => {
     if (!data) return;
 
-    const currentStatus = getPaymentStatus(appointmentId, studentId);
-    const newStatus = !currentStatus;
-
-    // Update payment statuses
-    const updatedPaymentStatuses = [...(data.paymentStatuses || [])];
-    const existingIndex = updatedPaymentStatuses.findIndex(
-      s => s.appointmentId === appointmentId && s.studentId === studentId
+    const updatedAppointments = data.appointments.map(appointment =>
+      appointment.id === appointmentId
+        ? { ...appointment, isPaid: !appointment.isPaid }
+        : appointment
     );
 
-    if (existingIndex >= 0) {
-      // Update existing status
-      updatedPaymentStatuses[existingIndex] = {
-        ...updatedPaymentStatuses[existingIndex],
-        isPaid: newStatus,
-        paidDate: newStatus ? new Date().toISOString() : undefined,
-      };
-    } else {
-      // Add new status
-      updatedPaymentStatuses.push({
-        appointmentId,
-        studentId,
-        isPaid: newStatus,
-        paidDate: newStatus ? new Date().toISOString() : undefined,
-      });
-    }
-
-    // Update data
     const updatedData = {
       ...data,
-      paymentStatuses: updatedPaymentStatuses,
-      lastUpdated: new Date().toISOString(),
+      appointments: updatedAppointments,
+      lastUpdated: new Date().toISOString()
     };
 
+    localStorage.setItem("mathe_manager_data", JSON.stringify(updatedData));
     setData(updatedData);
-    localStorage.setItem('mathe_manager_data', JSON.stringify(updatedData));
   };
-
   // Filter appointments based on selected filters
   const filteredAppointments = useMemo(() => {
     return filterAppointmentsByDate(data?.appointments || [], {
@@ -211,7 +188,7 @@ export default function BillingPage() {
         const fee = calculateAppointmentFee(appointment, studentId, data.priceEntries || []);
         const student = (data?.students || []).find(s => s.id === studentId);
         const family = student ? (data?.families || []).find(f => f.id === student.familyId) : null;
-        const isPaid = getPaymentStatus(appointment.id, studentId);
+        const isPaid = getPaymentStatus(appointment.id);
 
         // Determine display type
         let displayType: 'individual' | 'group' | 'block' = appointmentType;
@@ -668,7 +645,7 @@ const teachingTimeFormatted = `${String(teachingHours).padStart(2, '0')}:${Strin
                         </td>
                         <td className="px-4 py-3 text-center">
                           <button
-                            onClick={() => togglePaymentStatus(appointment.id, appointment.studentId)}
+                            onClick={() => togglePaymentStatus(appointment.id)}
                             className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
                               appointment.isPaid
                                 ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-900/50'

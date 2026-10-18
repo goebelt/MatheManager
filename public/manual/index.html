@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MatheManager v1.3.0 - Bedienungsanleitung & Changelog</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; margin: 0; padding: 20px; background: #f5f5f5; }
+        .container { max-width: 800px; margin: auto; background: white; padding: 20px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        h1, h2, h3 { color: #2c3e50; }
+        ul { margin-left: 20px; }
+        a { color: #3498db; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .footer { margin-top: 30px; font-size: 0.9em; color: #7f8c8d; text-align: center; }
+        pre { background: #ecf0f1; padding: 10px; border-radius: 5px; overflow-x: auto; }
+        .changelog-item { margin-bottom: 15px; padding-left: 10px; border-left: 3px solid #3498db; }
+        .changelog-item h4 { margin-top: 0; color: #2c3e50; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>MatheManager v1.3.0</h1>
+    <p><strong>Bedienungsanleitung & Changelog</strong></p>
+    <p><a href="https://mathe-manager.vercel.app/">Live Demo</a></p>
+    
+    <h2>Überblick</h2>
+    <p>MatheManager ist eine Next.js-Anwendung zur Verwaltung von Mathe-Nachhilfe mit Tailwind CSS. Sie ermöglicht die Verwaltung von Familien, Schülern, Terminen und Preisen in einer übersichtlichen Oberfläche.</p>
+    
+    <h2>Neue Features in v1.3.0</h2>
+    <ul>
+        <li><strong>Termine bereinigen</strong>: Löscht alle Termine eines Schülers ab einem gewählten Datum (Popup mit Datumsauswahl + filterbarer Schülerliste).</li>
+        <li><strong>Direkter Link zum Manual</strong>: Klick auf die Versionsnummer öffnet das Manual in einem neuen Browser-Tab.</li>
+        <li>Verbesserungen bei Gruppenterminen und UI-Feinheiten.</li>
+        <li><strong>Bezahlstatus im Dashboard</strong>: Direkt am Termin im Dashboard den Bezahlstatus (bezahlt/offen) umschalten, wie auf der Abrechnungsseite.</li>\n    </ul>
+    
+    <h2>Dashboard</h2>
+    <ul>
+        <li>Tagesübersicht mit automatischen Terminvorschlägen basierend auf Schüler-Rhythmus (wöchentlich / zweiwöchentlich).</li>
+        <li>Sortierung nach Uhrzeit: Termine werden chronologisch nach Startzeit angezeigt.</li>
+        <li>Status-Bediener für jeden Termin: Stattgefunden, Ausfall bezahlt, Ausfall frei.</li>
+        <li>Gruppenunterricht: Bis zu 2 Schüler pro Termin.</li>
+        <li>Software-Version in Einstellungen sichtbar.</li>
+        <li>Bezahlstatus pro Termin: Direkt im Dashboard den Bezahlstatus (bezahlt/offen) umschalten, synchronisiert mit der Abrechnungsseite.</li>\n    </ul>
+    
+    <h2>Termine</h2>
+    <ul>
+        <li>Wochenansicht mit allen 7 Tagen (Mo–So).</li>
+        <li>Platzhalter-Slots für freie Zeitfenster (grün gestrichelte Karten, klickbar).</li>
+        <li>Mittagspause-Blocker (graue Karten mit ☕-Icon).</li>
+        <li>Popup-Dialog zum Erstellen/Bearbeiten von Terminen (universelles Modal).</li>
+        <li>Lösch-Button mit Konfliktvermeidung.</li>
+        <li>Auto-Planung ignoriert Platzhalter, Pausenblocker und inaktive Schüler.</li>
+    </ul>
+    
+    <h2>Abrechnung</h2>
+    <ul>
+        <li>Automatische Honorarberechnung basierend auf Preis-Einträgen und gültigen Zeiträumen.</li>
+        <li>Filterbare Übersichten nach Zeitraum und Schüler/Familie.</li>
+        <li>Aufteilung in Einzelstunden vs. Gruppenstunden.</li>
+        <li>Stundensatz-Spalte für detaillierte Übersicht.</li>
+    </ul>
+    
+    <h2>Rechnungen</h2>
+    <ul>
+        <li>Professionelle Druckvorlage mit Firmenkopfzeile.</li>
+        <li>Auswahl der Familie und Wunschzeitraum.</li>
+        <li>Automatische Rechnungsnummer Generierung (YYYY/NNNNN).</li>
+        <li>Drucken per window.print() – optimiert für A4 Ausgabe.</li>
+        <li>Terminvorschau-Button: Zeigt geplante Termine (status=planned) mit Preisberechnung.</li>
+        <li>Serienrechnung: Mehrere Familien gleichzeitig als einzelne PDF-Dateien herunterladen.</li>
+    </ul>
+    
+    <h2>Preise</h2>
+    <ul>
+        <li>Standardpreise für Einzel- und Gruppenstunden (gilt für alle ohne eigenen Eintrag).</li>
+        <li>Flexible Preiseinträge mit Start-/Enddatum.</li>
+        <li>Individuelle Preisgestaltung pro Schüler/Familie.</li>
+        <li>Block-Unterricht: Festpreis für einen bestimmten Zeitraum (kein Stundensatz).</li>
+    </ul>
+    
+    <h2>Schüler</h2>
+    <ul>
+        <li>Verwaltung aller Schüler.</li>
+        <li>Zuordnung zu Familien.</li>
+        <li>Individuelle Preisregelungen möglich.</li>
+        <li>Aktiv/Inaktiv-Flag: Inaktive Schüler werden bei Auto-Planung übersprungen.</li>
+        <li>Bevorzugte Termine: Wochentag, Uhrzeit und Rhythmus pro Schüler konfigurierbar.</li>
+        <li>Gruppentermine: Bevorzugte Termine können als Gruppentermine markiert werden.</li>
+    </ul>
+    
+    <h2>Familien</h2>
+    <ul>
+        <li>Verwaltung von Familien.</li>
+        <li>Zentrale Verwaltung für mehrere Schüler.</li>
+    </ul>
+    
+    <h2>Einstellungen</h2>
+    <ul>
+        <li>Firmeninformationen für Rechnungen.</li>
+        <li>Rechnungsnummer-Verwaltung.</li>
+        <li>Software-Version als schreibgeschützter Info-Block (klickbar zum Öffnen des Manuals).</li>
+        <li>Zeitfenster-Konfiguration: Mo–Fr und Sa–So getrennt (Start/Ende).</li>
+        <li>Slot-Dauer und Pausenminuten zwischen Terminen.</li>
+        <li>Mittagspause: Start/Ende für Mo–Fr und Sa–So (leer = keine Pause).</li>
+    </ul>
+    
+    <h2>Wichtige Regeln</h2>
+    <h3>Gruppentermine</h3>
+    <p>Gruppentermine erlauben es, zwei Schüler für denselben Termin zu planen. Dies ist nützlich für Partnerarbeit, Kleingruppen-Unterricht usw.</p>
+    <ul>
+        <li>Einrichtung: Schüler-Verwaltung → Bevorzugte Termine → Hinzufügen → Wochentag, Uhrzeit, Rhythmus → Checkbox „Gruppentermin“ aktivieren → Partner-Schüler aus Dropdown auswählen → Speichern.</li>
+        <li>Bei der Auto-Planung werden Gruppentermine automatisch erstellt, wenn beide Schüler denselben bevorzugten Termin haben.</li>
+        <li>Die Dauer entspricht der längeren Dauer der beiden Schüler.</li>
+        <li>Duplikat-Vermeidung: Es wird kein neuer Termin erstellt, wenn bereits ein Gruppentermin für beide Schüler existiert.</li>
+        <li>Gruppentermine werden lila gekennzeichnet.</li>
+    </ul>
+    
+    <h2>Changelog: Änderungen gegenüber v1.2.0</h2>
+    <div class="changelog-item">
+        <h4>Neu hinzugefügt</h4>
+        <ul>
+            <li><strong>Funktion "Termine bereinigen"</strong>: Neue Funktion zum Löschen aller Termine eines Schülers ab einem gewählten Datum. Zugang über den Schüler-Detailbildschirm.</li>
+            <li><strong>Direkter Link zum Manual</strong>: Die Versionsnummer in den Einstellungen öffnet nun direkt das Manual in einem neuen Browser-Tab (statt eines Popups).</li>
+            <li><strong>Verbesserte Gruppentermin-Logik</strong>: Optimierte Duplikat-Vermeidung und klarere Visualisierung von Gruppenterminen.</li>
+            <li><strong>Bezahlstatus im Dashboard</strong>: Direkt am Termin im Dashboard den Bezahlstatus (bezahlt/offen) umschalten, wie auf der Abrechnungsseite.</li>\n        </ul>
+    </div>
+    <div class="changelog-item">
+        <h4>Verbessert</h4>
+        <ul>
+            <li><strong>UI/UX</strong>: Feineinstellungen an Farben, Abständen und Responsivität für bessere Bedienbarkeit.</li>
+            <li><strong>Leistung</strong>: Optimierte Datenstrukturen und schnellere Rendering bei großen Datensätzen.</li>
+            <li><strong>Fehlerbehandlung</strong>: Verbesserte Fehlermeldungen und validierte Eingaben an kritischen Stellen.</li>
+        </ul>
+    </div>
+    <div class="changelog-item">
+        <h4>Entfernt</h4>
+        <ul>
+            <li><strong>Readme-Popup</strong>: Das Popup zur Anzeige der Readme wurde entfernt und durch einen direkten Link ersetzt, basierend auf Benutzerfeedback.</li>
+        </ul>
+    </div>
+    
+    <div class="footer">
+        &copy; 2026 MatheManager. Alle Rechte vorbehalten.
+    </div>
+</div>
+</body>
+</html>

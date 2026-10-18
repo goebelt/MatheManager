@@ -3,7 +3,7 @@
  */
 'use client';
 
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
  Printer, User, Calendar, DollarSign, Building2, FileText,
  Check, X, Clock, Eye, Download, Files, Loader2,
@@ -26,6 +26,10 @@ export interface AppointmentPreviewItem {
   unitPrice: number;
   totalPrice: number;
   blockName?: string; // Block name for block lesson type
+  isPaid?: boolean;
+  hourlyRate?: number;
+  description: string;
+  quantity?: number;
 }
 
 export interface AppointmentPreviewData {
@@ -327,16 +331,22 @@ export default function InvoicesPage() {
     );
   };
 
+  // Derived appointment lists
+  const filteredAppointments = useMemo(() => 
+    filterAppointmentsByDate(data?.appointments || [], { 
+      timeRange: 'custom', 
+      startDate, 
+      endDate 
+    }), 
+  [data?.appointments, startDate, endDate]);
+
+  const plannedAppointments = useMemo(() => 
+    (data?.appointments || []).filter(app => app.status === 'planned'),
+  [data?.appointments]);
+
   // ── Build invoice items for a specific family (used by batch + single invoice) ──
-  const buildFamilyAppointmentItems = (
-    familyId: string,
-    appointments: Appointment[]
-  ): Array<{
-    id: string; date: string; studentId: string; studentName: string;
-    lessonType: 'individual' | 'group' | 'block';
-    status: 'attended' | 'canceled_paid' | 'canceled_free' | 'planned';
-    description: string; totalPrice: number; isPaid: boolean;
-  }> => {
+  const buildFamilyAppointmentItems = useCallback(
+    (familyId: string, appointments: Appointment[]): AppointmentPreviewItem[] => {
     const studentsInFamily = (data?.students || []).filter(s => s.familyId === familyId);
     const studentIdsInFamily = new Set(studentsInFamily.map(s => s.id));
 
@@ -345,12 +355,7 @@ export default function InvoicesPage() {
       app.studentIds.some(id => studentIdsInFamily.has(id))
     );
 
-    const items: Array<{
-      id: string; date: string; studentId: string; studentName: string;
-      lessonType: 'individual' | 'group' | 'block';
-      status: 'attended' | 'canceled_paid' | 'canceled_free' | 'planned';
-      description: string; totalPrice: number; isPaid: boolean;
-    }> = [];
+    const items: AppointmentPreviewItem[] = [];
     const seen = new Set<string>();
 
     // Track block pricing per student to avoid duplicates
@@ -386,19 +391,21 @@ export default function InvoicesPage() {
           const blockKey = `${studentId}-${blockEntry.id}`;
           if (!blockItemsSeen.has(blockKey)) {
             blockItemsSeen.add(blockKey);
-            const paymentStatus = (data?.paymentStatuses || []).find(
-              s => s.appointmentId === appointment.id && s.studentId === studentId
-            );
+            const isPaid = appointment.isPaid ?? false;
             items.push({
-              id: appointment.id,
+              appointmentId: appointment.id,
               date: blockEntry.blockName || 'Block-Unterricht',
-              studentId,
+              time: appointment.time || '--:--',
               studentName: student ? `${student.firstName} ${student.lastName || ''}`.trim() : 'Unknown',
               lessonType: 'block',
+              duration: appointment.duration,
               status: 'attended',
-              description: blockEntry.blockName || 'Block-Unterricht',
+              unitPrice: blockEntry.blockPrice || 0,
               totalPrice: blockEntry.blockPrice || 0,
-              isPaid: paymentStatus?.isPaid || false,
+              isPaid: appointment.isPaid ?? false,
+              blockName: blockEntry.blockName,
+              quantity: 1,
+              description: blockEntry.blockName || 'Block-Unterricht',
             });
           }
           return;
@@ -406,331 +413,39 @@ export default function InvoicesPage() {
 
         // Standard pricing
         let fee = calculateAppointmentFee(appointment, studentId, data?.priceEntries || []);
-        if (appointment.status === 'canceled_free') fee = 0;
-        const paymentStatus = (data?.paymentStatuses || []).find(
-          s => s.appointmentId === appointment.id && s.studentId === studentId
-        );
-        let description = lessonType === 'group' ? 'Gruppenunterricht' : 'Einzelunterricht';
-        if (appointment.status === 'attended') description += ' (besucht)';
-        else if (appointment.status === 'canceled_paid') description += ' (ausgefallen, 50%)';
-        else if (appointment.status === 'canceled_free') description += ' (ausgefallen, kostenlos)';
-        else if (appointment.status === 'planned') description += ' (geplant)';
-
-        items.push({
-          id: appointment.id, date: appointment.date, studentId,
-          studentName: student ? `${student.firstName} ${student.lastName || ''}`.trim() : 'Unknown',
-          lessonType, status: appointment.status as 'attended' | 'canceled_paid' | 'canceled_free' | 'planned',
-          description, totalPrice: fee, isPaid: paymentStatus?.isPaid || false,
-        });
-      });
-    });
-
-    // Sort by date
-    items.sort((a, b) => a.date.localeCompare(b.date));
-    return items;
-  };
-
- // ── Serienrechnung: generate ONE PDF with all families (one page each) ──
- const handleBatchInvoice = async () => {
- if (!data || selectedFamilyIds.length === 0) return;
-
- const familiesToProcess = selectedFamilyIds
- .map(id => (data.families || []).find(f => f.id === id))
- .filter(Boolean) as Family[];
-
- const invoiceDate = new Date();
- const paymentTerms = data.invoiceSettings?.paymentTerms || 14;
- const issuedBy: InvoiceData['issuedBy'] = {
- name: data.invoiceSettings?.businessName || 'MatheManager',
- street: data.invoiceSettings?.street,
- zipCode: data.invoiceSettings?.zipCode,
- city: data.invoiceSettings?.city,
- email: data.invoiceSettings?.email,
- phone: data.invoiceSettings?.phone,
- vatId: data.invoiceSettings?.vatId,
- iban: data.invoiceSettings?.iban,
- };
- const currentYear = new Date().getFullYear();
- let sequenceNumber = data.invoiceSettings?.invoiceNumberStart || 1;
-
- // Collect all elements to render into the batch PDF
- const batchElements: { element: HTMLElement; cleanup: () => void }[] = [];
-
- for (const family of familiesToProcess) {
- const appointmentItems = buildFamilyAppointmentItems(family.id, filteredAppointments);
- if (appointmentItems.length === 0) {
- // Skip families with no appointments in range, but still increment counter
- sequenceNumber++;
- continue;
- }
-
- const invoiceNumber = formatInvoiceNumber(currentYear, sequenceNumber);
- sequenceNumber++;
-
- const invoiceDataForFamily = buildInvoiceDataForFamily(
- family.id,
- family.name,
- family.address,
- (data?.students || []).filter(s => s.familyId === family.id).map(s => s.id),
- appointmentItems,
- issuedBy,
- invoiceNumber,
- invoiceDate,
- paymentTerms
- );
-
- // Update invoice number counter in localStorage
- const updatedData = {
- ...data,
- invoiceSettings: {
- ...data.invoiceSettings,
- businessName: data.invoiceSettings?.businessName || '',
- street: data.invoiceSettings?.street || '',
- zipCode: data.invoiceSettings?.zipCode || '',
- city: data.invoiceSettings?.city || '',
- email: data.invoiceSettings?.email,
- phone: data.invoiceSettings?.phone,
- vatId: data.invoiceSettings?.vatId,
- taxId: data.invoiceSettings?.taxId,
- bankName: data.invoiceSettings?.bankName,
- iban: data.invoiceSettings?.iban,
- bankBic: data.invoiceSettings?.bankBic,
- paymentTerms: data.invoiceSettings?.paymentTerms || 14,
- hourlyRate: data.invoiceSettings?.hourlyRate || 0,
- lessonType: data.invoiceSettings?.lessonType || 'individual',
- invoiceNumberStart: sequenceNumber,
- },
- lastUpdated: new Date().toISOString(),
- };
- localStorage.setItem('mathe_manager_data', JSON.stringify(updatedData));
- setData(updatedData);
-
- // Create a temporary DOM element for this invoice
- const container = document.createElement('div');
- container.style.fontFamily = 'Arial, sans-serif';
- container.style.maxWidth = '210mm';
- container.style.padding = '10mm';
- container.style.boxSizing = 'border-box';
- container.style.background = '#fff';
- container.style.color = '#000';
- // Hide on main page, but allow content extraction for print window
- container.style.display = 'none';
-
- const inv = invoiceDataForFamily;
- const fmtDate = (ds: string) => new Date(ds).toLocaleDateString('de-DE', { year: 'numeric', month: '2-digit', day: '2-digit' });
- const sub = inv.items.reduce((s: number, i: { totalPrice: number }) => s + i.totalPrice, 0);
-
- const rowsHtml = inv.items.map((item: { date: string; studentName?: string; lessonType?: string; status?: string; totalPrice: number; isPaid?: boolean; description?: string }) => {
- const dateStr = item.lessonType === 'block' ? '-' : fmtDate(item.date);
- const typeStr = item.lessonType === 'group' ? 'Gruppenunterricht' : item.lessonType === 'block' ? 'Block-Unterricht' : 'Einzelunterricht';
- const statusStr = item.status === 'attended' ? 'Besucht' : item.status === 'canceled_paid' ? 'Bezahlt ausgefallen' : item.status === 'canceled_free' ? 'Kostenlos ausgefallen' : 'Geplant';
- const paidStr = item.lessonType === 'block' ? '-' : item.isPaid ? '✓ Ja' : '✗ Nein';
- return `<tr style="border-bottom:1px dotted #999"><td style="padding:4px 6px;font-size:12px">${dateStr}</td><td style="padding:4px 6px;font-size:12px">${item.studentName || '-'}</td><td style="padding:4px 6px;font-size:12px">${typeStr}</td><td style="padding:4px 6px;font-size:12px">${statusStr}</td><td style="padding:4px 6px;font-size:12px;text-align:right;font-weight:600">€${item.totalPrice.toFixed(2)}</td><td style="padding:4px 6px;font-size:12px;text-align:center">${paidStr}</td></tr>`;
- }).join('');
-
- container.innerHTML = `
- <div style="margin-bottom:16px;padding-bottom:12px;border-bottom:4px solid #000">
- <div style="display:flex;justify-content:space-between;align-items:flex-start">
- <div>
- <h1 style="font-size:20px;font-weight:900;letter-spacing:0.1em;margin:0 0 4px">${inv.issuedBy.name || 'MatheManager'}</h1>
- ${inv.issuedBy.street ? `<p style="font-size:11px;font-weight:600;text-transform:uppercase;margin:0">${inv.issuedBy.street}</p>` : ''}
- ${(inv.issuedBy.zipCode || inv.issuedBy.city) ? `<p style="font-size:11px;font-weight:600;text-transform:uppercase;margin:0">${inv.issuedBy.zipCode || ''} ${inv.issuedBy.city || ''}</p>` : ''}
- ${inv.issuedBy.email ? `<p style="font-size:11px;margin:4px 0 0">${inv.issuedBy.email}</p>` : ''}
- ${inv.issuedBy.phone ? `<p style="font-size:11px;margin:2px 0 0">${inv.issuedBy.phone}</p>` : ''}
- </div>
- <div style="text-align:right">
- <h2 style="font-size:20px;font-weight:900;letter-spacing:0.1em;margin:0 0 4px">RECHNUNG</h2>
- <p style="font-size:13px;font-weight:600">${fmtDate(inv.invoiceDate)}</p>
- <p style="font-size:11px;color:#666;margin-top:4px">Rechnungsnummer: ${inv.invoiceNumber}</p>
- </div>
- </div>
- <div style="margin-top:12px;padding-top:8px;border-top:2px dashed #000">
- <p style="font-size:10px;font-weight:700;text-transform:uppercase;margin:0 0 4px">Rechnung an:</p>
- <p style="font-size:14px;font-weight:700;margin:0">${inv.billedTo.name}</p>
- ${inv.billedTo.street ? `<p style="font-size:11px;margin:2px 0 0">${inv.billedTo.street}</p>` : ''}
- </div>
- </div>
- <table style="width:100%;border-collapse:collapse;border:2px solid #000;margin-bottom:16px">
- <thead>
- <tr style="background:#f0f0f0;border-bottom:3px solid #000">
- <th style="text-align:left;padding:4px 6px;font-size:10px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase">Datum</th>
- <th style="text-align:left;padding:4px 6px;font-size:10px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase">Schüler</th>
- <th style="text-align:left;padding:4px 6px;font-size:10px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase">Typ</th>
- <th style="text-align:left;padding:4px 6px;font-size:10px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase">Status</th>
- <th style="text-align:right;padding:4px 6px;font-size:10px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase">Gesamtpreis</th>
- <th style="text-align:center;padding:4px 6px;font-size:10px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase">Bezahlt</th>
- </tr>
- </thead>
- <tbody>${rowsHtml}</tbody>
- </table>
- <div style="display:flex;justify-content:flex-end">
- <div style="width:45%">
- <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dotted #999">
- <span style="font-size:11px;color:#666">Zwischensumme (netto)</span>
- <span style="font-size:11px;font-weight:600">€${sub.toFixed(2)}</span>
- </div>
- <div style="display:flex;justify-content:space-between;padding:8px 0;border-top:3px solid #000;margin-top:4px">
- <span style="font-size:14px;font-weight:700">Gesamtbetrag</span>
- <span style="font-size:14px;font-weight:700">€${inv.total.toFixed(2)}</span>
- </div>
- <p style="text-align:center;font-size:10px;color:#666;font-style:italic;margin-top:8px">Gemäß §4 Nr. 21 bin ich von der Umsatzsteuer befreit.</p>
- <div style="margin-top:8px;padding:8px;background:#f5f5f5;border:1px solid #ccc;border-radius:4px">
- <p style="font-size:11px;font-weight:600;color:#333;margin:0 0 4px">Zahlungsbedingungen:</p>
- <p style="font-size:11px;color:#666;margin:0">Fällig bis: ${fmtDate(inv.dueDate)}</p>
- ${inv.issuedBy.iban ? `<p style="font-size:11px;color:#666;margin:4px 0 0">IBAN: ${inv.issuedBy.iban}</p>` : ''}
- </div>
- </div>
- </div>
- <div style="margin-top:16px;padding-top:8px;border-top:1px solid #ccc;text-align:center">
- <p style="font-size:10px;color:#999">Vielen Dank für die gute Zusammenarbeit!</p>
- </div>`;
-
- document.body.appendChild(container);
- batchElements.push({ element: container, cleanup: () => document.body.removeChild(container) });
- }
-
- // Generate ONE combined PDF with all invoices
- if (batchElements.length > 0) {
- try {
- await generateBatchPdf(batchElements, {
- filename: `Serienrechnung_${new Date().toISOString().slice(0, 10)}.pdf`,
- margin: [10, 10, 10, 10],
- orientation: 'portrait',
- format: 'a4',
- imageQuality: 0.98,
- scale: 2,
- });
- } catch (err) {
- console.error('Batch PDF generation failed:', err);
- // Clean up any remaining containers
- batchElements.forEach(({ cleanup }) => { try { cleanup(); } catch {} });
- }
- }
-
- // Reset family selection after processing
- setSelectedFamilyIds([]);
- };
-
-  // ── Filtered appointments for INVOICE (exclude planned) ──
-  const filteredAppointments = useMemo(() => {
-    // If endDate is set, use custom range – startDate defaults to today if empty
-    const effectiveStartDate = startDate || new Date().toISOString().split('T')[0];
-    return filterAppointmentsByDate(data?.appointments || [], {
-      timeRange: endDate ? 'custom' : 'all',
-      startDate: effectiveStartDate,
-      endDate,
-    }).filter(app => {
-      if (selectedStudentIds.length === 0) return true;
-      return app.studentIds.some(id => selectedStudentIds.includes(id));
-    });
-  }, [data, selectedStudentIds, startDate, endDate]);
-
-  // ── Filtered appointments for PREVIEW (ONLY planned) ──
-  const plannedAppointments = useMemo(() => {
-    let result = (data?.appointments || []).filter(app => app.status === 'planned');
-    if (startDate && endDate) {
-      const start = new Date(startDate); start.setHours(0, 0, 0, 0);
-      const end = new Date(endDate); end.setHours(23, 59, 59, 999);
-      result = result.filter(app => {
-        const appDate = new Date(app.date);
-        return appDate >= start && appDate <= end;
-      });
-    }
-    if (selectedStudentIds.length > 0) {
-      result = result.filter(app => app.studentIds.some(id => selectedStudentIds.includes(id)));
-    }
-    result.sort((a, b) => {
-      const dateCompare = a.date.localeCompare(b.date);
-      if (dateCompare !== 0) return dateCompare;
-      return (a.time || '').localeCompare(b.time || '');
-    });
-    return result;
-  }, [data, selectedStudentIds, startDate, endDate]);
-
-  // ── Invoice items ──
-  const invoiceItems = useMemo(() => {
-    if (!data) return [];
-    const items: InvoiceItem[] = [];
-    const seen = new Set<string>();
-    
-    // Track block pricing per student to avoid duplicates
-    const blockItemsSeen = new Set<string>();
-    
-    filteredAppointments.forEach(appointment => {
-      appointment.studentIds.forEach(studentId => {
-        if (selectedStudentIds.length > 0 && !selectedStudentIds.includes(studentId)) return;
-        const key = `${appointment.id}-${studentId}`;
-        if (seen.has(key)) return;
-        seen.add(key);
-        const student = data.students.find(s => s.id === studentId);
-        const lessonType = appointment.studentIds.length > 1 ? 'group' : 'individual';
-        
-        // Check if student has block pricing for this date
-        let blockEntry: PriceEntry | undefined;
-        for (const entry of data.priceEntries || []) {
-          if (entry.type === 'block' && 
-              entry.studentIds && entry.studentIds.includes(studentId) &&
-              entry.blockStartDate && entry.blockEndDate) {
-            const appointmentDate = new Date(appointment.date);
-            const blockStart = new Date(entry.blockStartDate);
-            const blockEnd = new Date(entry.blockEndDate);
-            if (appointmentDate >= blockStart && appointmentDate <= blockEnd) {
-              blockEntry = entry;
-              break;
-            }
-          }
+        if (appointment.status === "canceled_free") {
+            fee = 0;
         }
-        
-        // If student has block pricing, add block item (only once per student per block)
-        if (blockEntry) {
-          const blockKey = `${studentId}-${blockEntry.id}`;
-          if (!blockItemsSeen.has(blockKey)) {
-            blockItemsSeen.add(blockKey);
-            const paymentStatus = (data?.paymentStatuses || []).find(s => s.appointmentId === appointment.id && s.studentId === studentId);
-            items.push({
-              appointmentId: appointment.id,
-              date: blockEntry.blockName || 'Block-Unterricht', // Use block name instead of date
-              studentName: student ? `${student.firstName} ${student.lastName || ''}`.trim() : 'Unknown',
-              lessonType: 'block',
-              status: 'attended' as const,
-              hourlyRate: 0,
-              description: blockEntry.blockName || 'Block-Unterricht',
-              unitPrice: blockEntry.blockPrice || 0,
-              quantity: 1,
-              totalPrice: blockEntry.blockPrice || 0,
-              isPaid: paymentStatus?.isPaid || false,
-            });
-          }
-          return; // Skip individual appointment items for block pricing
+        const isPaid = appointment.isPaid ?? false;
+        let description = lessonType === "group" ? "Gruppenunterricht" : "Einzelunterricht";
+        if (appointment.status === "attended") {
+            description += " (besucht)";
+        } else if (appointment.status === "canceled_paid") {
+            description += " (ausgefallen, 50%)"
+        } else if (appointment.status === "canceled_free") {
+            description += " (ausgefallen, kostenlos)"
+        } else if (appointment.status === "planned") {
+            description += " (geplant)"
         }
-        
-        // Standard pricing logic
+        let hourlyRate = 0;
+        // Find price entry for hourly rate calculation
         let priceEntry: PriceEntry | undefined;
-        for (const entry of data.priceEntries || []) {
-          if (entry.type === 'block') continue; // Skip block entries for standard pricing
+        for (const entry of data?.priceEntries || []) {
+          if (entry.type === 'block') continue;
           if (new Date(appointment.date) >= new Date(entry.validFrom) && entry.studentIds && entry.studentIds.includes(studentId)) {
             const validTo = entry.validTo ? new Date(entry.validTo) : null;
             if (!validTo || new Date(appointment.date) <= validTo) { priceEntry = entry; break; }
           }
         }
         if (!priceEntry) {
-          for (const entry of data.priceEntries || []) {
-            if (entry.type === 'block') continue; // Skip block entries for standard pricing
+          for (const entry of data?.priceEntries || []) {
+            if (entry.type === 'block') continue;
             if (new Date(appointment.date) >= new Date(entry.validFrom) && (!entry.studentIds || entry.studentIds.length === 0)) {
               const validTo = entry.validTo ? new Date(entry.validTo) : null;
               if (!validTo || new Date(appointment.date) <= validTo) { priceEntry = entry; break; }
             }
           }
         }
-        let fee = calculateAppointmentFee(appointment, studentId, data.priceEntries || []);
-        if (appointment.status === 'canceled_free') fee = 0;
-        const paymentStatus = (data?.paymentStatuses || []).find(s => s.appointmentId === appointment.id && s.studentId === studentId);
-        let description = lessonType === 'group' ? 'Gruppenunterricht' : 'Einzelunterricht';
-        if (appointment.status === 'attended') description += ' (besucht)';
-        else if (appointment.status === 'canceled_paid') description += ' (ausgefallen, 50%)';
-        else if (appointment.status === 'canceled_free') description += ' (ausgefallen, kostenlos)';
-        else if (appointment.status === 'planned') description += ' (geplant)';
-        let hourlyRate = 0;
         if (priceEntry) {
           if (lessonType === 'individual') {
             hourlyRate = appointment.duration === 90 ? (priceEntry.individual90 || 0) / 1.5 : (priceEntry.individual60 || 0);
@@ -739,20 +454,24 @@ export default function InvoicesPage() {
           }
         }
         items.push({
-          appointmentId: appointment.id, date: appointment.date,
+          appointmentId: appointment.id,
+          date: appointment.date,
+          time: appointment.time || '--:--',
           studentName: student ? `${student.firstName} ${student.lastName || ''}`.trim() : 'Unknown',
-          lessonType, status: appointment.status as 'attended' | 'canceled_paid' | 'canceled_free' | 'planned',
-          hourlyRate, description, unitPrice: fee, quantity: 1, totalPrice: fee,
-          isPaid: paymentStatus?.isPaid || false,
+          lessonType,
+          duration: appointment.duration,
+          status: appointment.status as 'attended' | 'canceled_paid' | 'canceled_free' | 'planned',
+          hourlyRate,
+          description,
+          unitPrice: fee,
+          totalPrice: fee,
+          isPaid: appointment.isPaid ?? false,
         });
       });
     });
     return items;
-  }, [filteredAppointments, data, selectedStudentIds]);
-
-  // ── Preview items ──
+   }, [data, selectedStudentIds]);
   const previewItems = useMemo(() => {
-    if (!data) return [];
     const items: AppointmentPreviewItem[] = [];
     const seen = new Set<string>();
     
@@ -765,12 +484,12 @@ export default function InvoicesPage() {
         const key = `${appointment.id}-${studentId}`;
         if (seen.has(key)) return;
         seen.add(key);
-        const student = data.students.find(s => s.id === studentId);
+        const student = data?.students.find(s => s.id === studentId);
         const lessonType = appointment.studentIds.length > 1 ? 'group' : 'individual';
         
         // Check if student has block pricing for this date
         let blockEntry: PriceEntry | undefined;
-        for (const entry of data.priceEntries || []) {
+        for (const entry of data?.priceEntries || []) {
           if (entry.type === 'block' && 
               entry.studentIds && entry.studentIds.includes(studentId) &&
               entry.blockStartDate && entry.blockEndDate) {
@@ -797,13 +516,14 @@ export default function InvoicesPage() {
             unitPrice: 0, // Show as "-" in preview
             totalPrice: 0, // Show as "-" in preview; excluded from total
             blockName: blockEntry.blockName || 'Block-Unterricht',
+            description: blockEntry.blockName || 'Block-Unterricht',
           });
           return; // Skip standard pricing for block appointments
         }
         
         // Standard pricing logic
         let priceEntry: PriceEntry | undefined;
-        for (const entry of data.priceEntries || []) {
+        for (const entry of data?.priceEntries || []) {
           if (entry.type === 'block') continue; // Skip block entries for standard pricing
           if (new Date(appointment.date) >= new Date(entry.validFrom) && entry.studentIds && entry.studentIds.includes(studentId)) {
             const validTo = entry.validTo ? new Date(entry.validTo) : null;
@@ -811,7 +531,7 @@ export default function InvoicesPage() {
           }
         }
         if (!priceEntry) {
-          for (const entry of data.priceEntries || []) {
+          for (const entry of data?.priceEntries || []) {
             if (entry.type === 'block') continue; // Skip block entries for standard pricing
             if (new Date(appointment.date) >= new Date(entry.validFrom) && (!entry.studentIds || entry.studentIds.length === 0)) {
               const validTo = entry.validTo ? new Date(entry.validTo) : null;
@@ -827,16 +547,36 @@ export default function InvoicesPage() {
             unitPrice = appointment.duration === 90 ? (priceEntry.group90 || 0) : (priceEntry.group60 || 0);
           }
         }
+        let description = lessonType === "group" ? "Gruppenunterricht" : "Einzelunterricht";
+        if (appointment.status === "attended") {
+          description += " (besucht)";
+        } else if (appointment.status === "canceled_paid") {
+          description += " (ausgefallen, 50%)"
+        } else if (appointment.status === "canceled_free") {
+          description += " (ausgefallen, kostenlos)"
+        } else if (appointment.status === "planned") {
+          description += " (geplant)"
+        }
         items.push({
           appointmentId: appointment.id, date: appointment.date, time: appointment.time || '--:--',
           studentName: student ? `${student.firstName} ${student.lastName || ''}`.trim() : 'Unknown',
           lessonType, duration: appointment.duration, status: appointment.status,
           unitPrice, totalPrice: unitPrice,
+          description,
         });
       });
     });
     return items;
   }, [plannedAppointments, data, selectedStudentIds]);
+
+  const invoiceItems = useMemo(() => {
+    if (!data || selectedFamilyIds.length === 0) return [];
+    let items: AppointmentPreviewItem[] = [];
+    selectedFamilyIds.forEach(familyId => {
+      items = items.concat(buildFamilyAppointmentItems(familyId, plannedAppointments));
+    });
+    return items;
+  }, [selectedFamilyIds, plannedAppointments, data, buildFamilyAppointmentItems]);
 
   const calculateInvoice = () => {
     if (!data || invoiceItems.length === 0) return;
@@ -883,7 +623,7 @@ export default function InvoicesPage() {
         iban: data.invoiceSettings?.iban,
       },
       billedTo: { name: family?.name || 'Familie', street: family?.address },
-      items: invoiceItems, subtotal, taxRate: 0, taxAmount, total,
+      items: invoiceItems.map(item => ({ ...item, quantity: item.quantity ?? 1 })), subtotal, taxRate: 0, taxAmount, total,
     });
     setActiveView('invoice');
   };
@@ -911,6 +651,65 @@ export default function InvoicesPage() {
       },
     });
     setActiveView('preview');
+  };
+
+  const handleBatchInvoice = () => {
+    if (!data || selectedFamilyIds.length === 0) return;
+    selectedFamilyIds.forEach((familyId, index) => {
+      const familyItems = buildFamilyAppointmentItems(familyId, plannedAppointments);
+      if (familyItems.length === 0) return;
+      const firstStudentId = familyItems[0].appointmentId
+        ? filteredAppointments.find(app => app.id === familyItems[0].appointmentId)?.studentIds[0]
+        : null;
+      const student = firstStudentId ? data.students.find(s => s.id === firstStudentId) : null;
+      const family = student ? data.families.find(f => f.id === student.familyId) : null;
+      const { subtotal, taxAmount, total } = calculateInvoiceTotals(familyItems);
+      const currentYear = new Date().getFullYear();
+      const currentInvoiceNumber = (data.invoiceSettings?.invoiceNumberStart || 1) + index;
+      const invoiceNumber = formatInvoiceNumber(currentYear, currentInvoiceNumber);
+      const invoiceDate = new Date();
+      const dueDate = calculateDueDate(invoiceDate, data.invoiceSettings?.paymentTerms || 14);
+      const updatedData: DataContainer = {
+        ...data,
+        invoiceSettings: {
+          businessName: data.invoiceSettings?.businessName || '',
+          street: data.invoiceSettings?.street || '',
+          zipCode: data.invoiceSettings?.zipCode || '',
+          city: data.invoiceSettings?.city || '',
+          email: data.invoiceSettings?.email, phone: data.invoiceSettings?.phone,
+          vatId: data.invoiceSettings?.vatId, taxId: data.invoiceSettings?.taxId,
+          bankName: data.invoiceSettings?.bankName, iban: data.invoiceSettings?.iban,
+          bankBic: data.invoiceSettings?.bankBic,
+          paymentTerms: data.invoiceSettings?.paymentTerms || 14,
+          hourlyRate: data.invoiceSettings?.hourlyRate || 0,
+          lessonType: data.invoiceSettings?.lessonType || 'individual',
+          invoiceNumberStart: currentInvoiceNumber + 1,
+        },
+        lastUpdated: new Date().toISOString(),
+      };
+      localStorage.setItem('mathe_manager_data', JSON.stringify(updatedData));
+      setData(updatedData);
+      // For batch, we could generate all PDFs or just the last one
+      // For now, generate the last family's invoice
+      if (index === selectedFamilyIds.length - 1) {
+        setInvoiceData({
+          invoiceNumber,
+          invoiceDate: invoiceDate.toISOString(),
+          dueDate: dueDate.toISOString(),
+          issuedBy: {
+            name: data.invoiceSettings?.businessName || 'MatheManager',
+            street: data.invoiceSettings?.street, zipCode: data.invoiceSettings?.zipCode,
+            city: data.invoiceSettings?.city, email: data.invoiceSettings?.email,
+            phone: data.invoiceSettings?.phone, vatId: data.invoiceSettings?.vatId,
+            iban: data.invoiceSettings?.iban,
+          },
+          billedTo: { name: family?.name || 'Familie', street: family?.address },
+          items: familyItems.map(item => ({ ...item, quantity: item.quantity ?? 1 })),
+          subtotal, taxRate: 0, taxAmount, total,
+        });
+        setActiveView('invoice');
+      }
+    });
   };
 
   if (loading) {

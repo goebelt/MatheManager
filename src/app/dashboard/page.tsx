@@ -60,6 +60,25 @@ export default function DashboardPage() {
   };
 
   const handlePreviousDay = () => {
+  const handlePaymentToggle = (appointmentId: string, isPaid: boolean) => {
+    if (!data) return;
+
+    const updatedAppointments = data.appointments.map(appointment =>
+      appointment.id === appointmentId
+        ? { ...appointment, isPaid }
+        : appointment
+    );
+
+    const updatedData = {
+      ...data,
+      appointments: updatedAppointments,
+      lastUpdated: new Date().toISOString()
+    };
+
+    localStorage.setItem("mathe_manager_data", JSON.stringify(updatedData));
+    setData(updatedData);
+  };
+
     setCurrentDate(prev => {
       const date = new Date(prev);
       date.setDate(date.getDate() - 1);
