@@ -217,16 +217,17 @@ export function AppointmentCard({
                   )}
                 </button>
               );
-          {/* Payment toggle */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-medium text-gray-600 dark:text-gray-300">Bezahlt:</span>
-            <button
-              onClick={() => onPaymentToggle?.(appointment.id, !appointment.isPaid)}
-              className={`p-2 rounded-lg transition-colors ${appointment.isPaid ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' : 'bg-gray-100 text-gray-800 dark:bg-slate-700 dark:text-slate-300'} hover:${appointment.isPaid ? 'bg-green-200' : 'bg-gray-200'}`}
-            >
-              {appointment.isPaid ? 'Ja' : 'Nein'}
-            </button>
-          </div>            })}
+            })}
+            {/* Payment toggle */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-gray-600 dark:text-gray-300">Bezahlt:</span>
+              <button
+                onClick={() => onPaymentToggle?.(appointment.id, !appointment.isPaid)}
+                className={`p-2 rounded-lg transition-colors ${appointment.isPaid ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' : 'bg-gray-100 text-gray-800 dark:bg-slate-700 dark:text-slate-300'} hover:${appointment.isPaid ? 'bg-green-200' : 'bg-gray-200'}`}
+              >
+                {appointment.isPaid ? 'Ja' : 'Nein'}
+              </button>
+            </div>
           </div>
         </div>
       )}
