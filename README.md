@@ -1,4 +1,4 @@
-﻿# MatheManager v1.3.0
+﻿# MatheManager v1.4.0
 
 **[🌐 Live Demo](https://mathe-manager.vercel.app/)**
 
@@ -26,7 +26,7 @@ Next.js App zur Verwaltung von Mathe-Nachhilfe mit Tailwind CSS. Verwalten Sie F
 - **Popup-Dialog** zum Erstellen/Bearbeiten von Terminen (universelles Modal)
 - Klickbare Termin-Karten zum Bearbeiten
 - Lösch-Button mit Konfliktvermeidung
-- **Termine bereinigen**: Löscht alle Termine eines Schülers ab einem gewählten Datum (Popup mit Datumsauswahl + filterbarer Schülerliste) (v1.3.0+)
+- **Termine bereinigen**: Löscht alle Termine eines Schülers ab einem gewählten Datum (Popup mit Datumsauswahl + filterbarer Schülerliste) (v1.4.0+)
 - Auto-Planung ignoriert Platzhalter, Pausenblocker und **inaktive Schüler**
 
 ### Abrechnung
