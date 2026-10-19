@@ -34,6 +34,7 @@ export default function FamiliesPage() {
 
     const [depositFamilyId, setDepositFamilyId] = useState<string | null>(null);
     const [depositAmount, setDepositAmount] = useState<string>('');
+    const [historyFamilyId, setHistoryFamilyId] = useState<string | null>(null);
     const [depositDate, setDepositDate] = useState<string>('');
     const [depositNote, setDepositNote] = useState<string>('');
 
@@ -171,6 +172,21 @@ export default function FamiliesPage() {
       setDepositNote('');
     };
 
+    const handleOpenHistory = (familyId: string) => {
+      setHistoryFamilyId(familyId);
+    };
+
+    const handleDeleteCredit = (familyId: string, creditId: string) => {
+      if (!data || !confirm('Diesen Guthabeneintrag wirklich löschen?')) return;
+      const updatedFamilies = (data?.families || []).map(family =>
+        family.id === familyId
+          ? { ...family, credits: (family.credits || []).filter(c => c.id !== creditId) }
+          : family
+      );
+      const updatedData = { ...data, families: updatedFamilies, lastUpdated: new Date().toISOString() };
+      saveData(updatedData);
+    };
+
     const handleSubmitDeposit = () => {
       if (!data || !depositFamilyId) return;
       const amount = parseFloat(depositAmount);
@@ -207,6 +223,11 @@ export default function FamiliesPage() {
 
   const getStudentsForFamily = (familyId: string): Student[] =>
     (data?.students || []).filter(s => s.familyId === familyId);
+
+  const calculateFamilyCreditBalance = (family: Family): number => {
+    if (!family.credits || family.credits.length === 0) return 0;
+    return family.credits.reduce((sum, credit) => sum + credit.amount, 0);
+  };
 
   const filteredFamilies = (data?.families || []).filter(f =>
     f.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -394,6 +415,17 @@ export default function FamiliesPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
+                      {/* Credit Balance Display */}
+                      {(function() {
+                        const balance = calculateFamilyCreditBalance(family);
+                        const balanceColor = balance >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400';
+                        const bgColor = balance >= 0 ? 'bg-green-100 dark:bg-green-900/30' : 'bg-red-100 dark:bg-red-900/30';
+                        return (
+                          <span className={`text-xs px-2 py-1 rounded-full font-semibold ${bgColor} ${balanceColor}`}>
+                            {balance >= 0 ? '+' : ''}{balance.toFixed(2)} €
+                          </span>
+                        );
+                      })()}
                       <span className="text-xs px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full">
                         {students.length} Schüler
                       </span>
@@ -402,6 +434,9 @@ export default function FamiliesPage() {
                       </button>
                       <button onClick={() => handleOpenDeposit(family.id)} className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors" title="Guthaben einzahlen">
                         <Wallet size={18} />
+                      </button>
+                      <button onClick={() => handleOpenHistory(family.id)} className="p-2 text-gray-500 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/30 rounded-lg transition-colors" title="Guthaben-Historie">
+                        <Clock size={18} />
                       </button>
                       <button onClick={() => handleDeleteFamily(family.id, family.name)} className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors" title="Löschen">
                         <Trash2 size={18} />
@@ -625,6 +660,57 @@ export default function FamiliesPage() {
           </div>
         )}
       </main>
+    {/* History Dialog */}
+    {historyFamilyId !== null && (function() {
+      const family = data?.families?.find(f => f.id === historyFamilyId);
+      const credits = family?.credits || [];
+      return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg w-96 max-w-xs p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Guthaben-Historie: {family?.name}</h2>
+              <button onClick={() => setHistoryFamilyId(null)} className="p-1 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700">
+                <X size={20} />
+              </button>
+            </div>
+            {credits.length === 0 ? (
+              <p className="text-center text-gray-500 dark:text-slate-400 py-8">Keine Guthabeneinträge vorhanden.</p>
+            ) : (
+              <div className="space-y-2 max-h-[60vh] overflow-y-auto">
+                {credits
+                  .slice()
+                  .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                  .map(credit => (
+                    <div key={credit.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-slate-700/50 rounded-lg">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className={`font-semibold ${credit.amount >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                            {credit.amount >= 0 ? '+' : ''}{credit.amount.toFixed(2)} €
+                          </span>
+                          <span className="text-xs text-gray-500 dark:text-slate-400">
+                            {new Date(credit.date).toLocaleDateString('de-DE')}
+                          </span>
+                        </div>
+                        {credit.note && (
+                          <p className="text-sm text-gray-600 dark:text-slate-400 mt-1">{credit.note}</p>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => handleDeleteCredit(historyFamilyId!, credit.id)}
+                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
+                        title="Löschen"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ))}
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    })()}
+
     {depositFamilyId !== null && (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
         <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg w-96 max-w-xs p-6 space-y-4">
