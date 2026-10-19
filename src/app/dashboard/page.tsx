@@ -8,6 +8,7 @@ import { useState, useEffect } from 'react';
 import type { Student, Appointment, DataContainer } from '@/types';
 import { DashboardHeader } from '@/components/DashboardHeader';
 import { DayView } from '@/components/DayView';
+import { applyCreditForAppointment } from '@/lib/credits';
 
 
 export default function DashboardPage() {
@@ -43,17 +44,34 @@ export default function DashboardPage() {
   const handleStatusUpdate = (appointmentId: string, newStatus: 'attended' | 'canceled_paid' | 'canceled_free' | 'planned') => {
     if (!data) return;
 
-    const updatedAppointments = data.appointments.map(appointment =>
+    // First, update the status
+    let updatedAppointments = data.appointments.map(appointment =>
       appointment.id === appointmentId
         ? { ...appointment, status: newStatus }
         : appointment
     );
 
-    const updatedData = {
+    let updatedData = {
       ...data,
       appointments: updatedAppointments,
       lastUpdated: new Date().toISOString()
     };
+
+    // If status is attended or canceled_paid, try auto-payment from family credit
+    if (newStatus === 'attended' || newStatus === 'canceled_paid') {
+      const result = applyCreditForAppointment(appointmentId, updatedData);
+      if (result) {
+        // Auto-payment succeeded
+        updatedData = result as typeof updatedData;
+        alert('Termin bezahlt aus Guthaben der Familie.');
+      } else {
+        // Check if it was already paid or free
+        const appointment = updatedAppointments.find(a => a.id === appointmentId);
+        if (appointment && !appointment.isPaid) {
+          alert('Nicht ausreichend Guthaben für automatische Bezahlung. Bitte manuell bezahlen.');
+        }
+      }
+    }
 
     localStorage.setItem('mathe_manager_data', JSON.stringify(updatedData));
     setData(updatedData);
