@@ -680,30 +680,52 @@ export default function FamiliesPage() {
                 {credits
                   .slice()
                   .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-                  .map(credit => (
-                    <div key={credit.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-slate-700/50 rounded-lg">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className={`font-semibold ${credit.amount >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                            {credit.amount >= 0 ? '+' : ''}{credit.amount.toFixed(2)} €
-                          </span>
-                          <span className="text-xs text-gray-500 dark:text-slate-400">
-                            {new Date(credit.date).toLocaleDateString('de-DE')}
-                          </span>
+                  .map(credit => {
+                    // Try to extract student name from note (for consumption entries)
+                    let studentName = '';
+                    if (credit.note && credit.note.includes('Termin ')) {
+                      const match = credit.note.match(/Termin ([^ ]+)/);
+                      if (match) {
+                        const apptId = match[1];
+                        const appointment = data?.appointments?.find(a => a.id === apptId);
+                        if (appointment?.studentIds[0]) {
+                          const student = data?.students?.find(s => s.id === appointment.studentIds[0]);
+                          if (student) {
+                            studentName = student.firstName + (student.lastName ? ' ' + student.lastName : '');
+                          }
+                        }
+                      }
+                    }
+                    return (
+                      <div key={credit.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-slate-700/50 rounded-lg">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className={`font-semibold ${credit.amount >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                              {credit.amount >= 0 ? '+' : ''}{credit.amount.toFixed(2)} €
+                            </span>
+                            <span className="text-xs text-gray-500 dark:text-slate-400">
+                              {new Date(credit.date).toLocaleDateString('de-DE')}
+                            </span>
+                            {studentName && (
+                              <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded">
+                                {studentName}
+                              </span>
+                            )}
+                          </div>
+                          {credit.note && (
+                            <p className="text-sm text-gray-600 dark:text-slate-400 mt-1">{credit.note}</p>
+                          )}
                         </div>
-                        {credit.note && (
-                          <p className="text-sm text-gray-600 dark:text-slate-400 mt-1">{credit.note}</p>
-                        )}
+                        <button
+                          onClick={() => handleDeleteCredit(historyFamilyId!, credit.id)}
+                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
+                          title="Löschen"
+                        >
+                          <Trash2 size={14} />
+                        </button>
                       </div>
-                      <button
-                        onClick={() => handleDeleteCredit(historyFamilyId!, credit.id)}
-                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
-                        title="Löschen"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  ))}
+                    );
+                  })}
               </div>
             )}
           </div>
