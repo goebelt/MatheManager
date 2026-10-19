@@ -110,8 +110,10 @@ export function applyCreditForAppointment(
   const appointment = data.appointments?.find(a => a.id === appointmentId);
   if (!appointment) return null;
 
-  // Only apply for attended or canceled_paid
-  if (appointment.status !== 'attended' && appointment.status !== 'canceled_paid') {
+  // Only apply for attended or canceled_paid or canceled_free
+  if (appointment.status !== 'attended' && 
+      appointment.status !== 'canceled_paid' && 
+      appointment.status !== 'canceled_free') {
     return data;
   }
 
@@ -128,8 +130,24 @@ export function applyCreditForAppointment(
   const family = data.families?.find(f => f.id === student.familyId);
   if (!family) return null;
 
-  // Calculate price
-  const price = calculateAppointmentTotalPrice(appointment, data);
+  // Calculate price based on status
+  let price = 0;
+  let notePrefix = '';
+  
+  if (appointment.status === 'canceled_free') {
+    // Free cancellation - no charge
+    price = 0;
+    notePrefix = 'Kostenloser Ausfall: ';
+  } else if (appointment.status === 'canceled_paid') {
+    // Paid cancellation - HALF price
+    price = calculateAppointmentTotalPrice(appointment, data) / 2;
+    notePrefix = 'Bezahlter Ausfall (50%): ';
+  } else {
+    // attended - full price
+    price = calculateAppointmentTotalPrice(appointment, data);
+    notePrefix = '';
+  }
+
   if (price <= 0) {
     // Free appointment, mark as paid
     return {
@@ -137,7 +155,7 @@ export function applyCreditForAppointment(
       appointments: data.appointments.map(a =>
         a.id === appointmentId ? { ...a, isPaid: true } : a
       ),
-      lastUpdated: new Date().toISOString() as string
+      lastUpdated: new Date().toISOString()
     };
   }
 
@@ -154,7 +172,7 @@ export function applyCreditForAppointment(
     familyId: family.id,
     amount: -price,
     date: new Date().toISOString().split('T')[0],
-    note: `Termin ${appointment.id} (${appointment.date} ${appointment.time || ''})`
+    note: `${notePrefix}Termin ${appointment.id} (${appointment.date} ${appointment.time || ''})`
   };
 
   // Update family credits
@@ -173,7 +191,7 @@ export function applyCreditForAppointment(
     ...data,
     families: updatedFamilies,
     appointments: updatedAppointments,
-    lastUpdated: new Date().toISOString() as string
+    lastUpdated: new Date().toISOString()
   };
 }
 
