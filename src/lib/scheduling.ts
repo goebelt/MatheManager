@@ -351,16 +351,11 @@ export function generateTimeSlots(
     end: b.end + breakMinutes,
   }));
 
-  // Add break block (lunch) as-is – no extra breakMinutes padding
-  if (breakStart && breakEnd) {
-    const bs = timeToMinutes(breakStart);
-    const be = timeToMinutes(breakEnd);
-    if (be > bs) {
-      expandedApptBlocks.push({ start: bs, end: be });
-    }
-  }
+  // LUNCH BREAK (breakStart/breakEnd) is NOT added to occupied blocks
+  // It's only for UI display via getBreakBlocks() - slots CAN span across lunch break
+  // This allows scheduling appointments during lunch time if needed
 
-  // Merge everything together
+  // Merge everything together (only real appointments with padding)
   expandedApptBlocks.sort((a, b) => a.start - b.start);
   const mergedOccupied: Block[] = [];
   for (const block of expandedApptBlocks) {

@@ -118,6 +118,11 @@ export default function AppointmentsPage() {
       alert('Bitte Datum und mindestens einen Schüler auswählen');
       return;
     }
+    // Validate duration: only 60 or 90 minutes allowed
+    if (formDuration !== 60 && formDuration !== 90) {
+      alert('Termindauer muss 60 oder 90 Minuten betragen');
+      return;
+    }
     const newAppointment: Appointment = {
       id: `appointment-${Date.now()}`,
       studentIds: formStudentIds,
@@ -137,6 +142,11 @@ export default function AppointmentsPage() {
   const handleUpdateAppointment = () => {
     if (!formDate || formStudentIds.length === 0 || !editingAppointmentId || editingAppointmentId === 'new') {
       alert('Bitte Datum und mindestens einen Schüler auswählen');
+      return;
+    }
+    // Validate duration: only 60 or 90 minutes allowed
+    if (formDuration !== 60 && formDuration !== 90) {
+      alert('Termindauer muss 60 oder 90 Minuten betragen');
       return;
     }
     const updatedAppointments = (data?.appointments || []).map(appointment =>
@@ -197,7 +207,8 @@ export default function AppointmentsPage() {
   const handleSlotClick = (slot: TimeSlot) => {
     setFormDate(slot.date);
     setFormTime(slot.startTime);
-    setFormDuration(slot.duration);
+    // Use 60 as default, will be updated when student is selected
+    setFormDuration(60);
     setFormStudentIds([]);
     setFormStatus('planned');
     setEditingAppointmentId('new');
@@ -362,8 +373,16 @@ export default function AppointmentsPage() {
                   return (
                     <button key={student.id}
                       onClick={() => {
-                        if (isSelected) setFormStudentIds(formStudentIds.filter(id => id !== student.id));
-                        else setFormStudentIds([...formStudentIds, student.id]);
+                        if (isSelected) {
+                          setFormStudentIds(formStudentIds.filter(id => id !== student.id));
+                        } else {
+                          const newIds = [...formStudentIds, student.id];
+                          setFormStudentIds(newIds);
+                          // Set duration from first selected student's defaultDuration
+                          if (newIds.length === 1) {
+                            setFormDuration(student.defaultDuration || 60);
+                          }
+                        }
                       }}
                       className={`w-full px-3 py-2 text-left hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors ${isSelected ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}>
                       <div className="flex items-center justify-between">

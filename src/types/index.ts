@@ -8,6 +8,7 @@ export interface Family {
   address?: string;
   email?: string;
   phone?: string;
+  credits?: FamilyCredit[];
 }
 
 export interface Student {
@@ -88,6 +89,17 @@ export interface ScheduleSettings {
   weekdayBreakEnd: string; // "HH:MM" e.g. "13:00" (empty = no break)
   weekendBreakStart: string; // "HH:MM" e.g. "" (empty = no break on weekends)
   weekendBreakEnd: string; // "HH:MM" e.g. "" (empty = no break on weekends)
+}
+
+/**
+ * Credit entry for a family
+ */
+export interface FamilyCredit {
+  id: string;
+  familyId: string;
+  amount: number; // EUR
+  date: string; // ISO date
+  note?: string;
 }
 
 /**

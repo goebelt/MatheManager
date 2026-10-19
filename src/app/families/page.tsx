@@ -4,9 +4,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Users, Plus, Search, Edit2, Trash2, X, ChevronRight, ChevronLeft, Phone, Mail, MapPin, Clock, User, ArrowLeft, UserCheck, UserX } from 'lucide-react';
+import { Users, Plus, Search, Edit2, Trash2, X, ChevronRight, ChevronLeft, Phone, Mail, MapPin, Clock, User, ArrowLeft, UserCheck, UserX, Wallet } from 'lucide-react';
 import Link from 'next/link';
-import type { Family, Student, DataContainer } from '@/types';
+import type { Family, Student, DataContainer, FamilyCredit } from '@/types';
 import { DURATION_OPTIONS, RHYTHM_OPTIONS } from '@/lib/constants';
 
 type PaginationState = { familyPage: number; studentPage: number; };
@@ -31,6 +31,12 @@ export default function FamiliesPage() {
   const [studentLastName, setStudentLastName] = useState('');
   const [studentDuration, setStudentDuration] = useState(60);
   const [studentRhythm, setStudentRhythm] = useState<'weekly' | 'biweekly'>('weekly');
+
+    const [depositFamilyId, setDepositFamilyId] = useState<string | null>(null);
+    const [depositAmount, setDepositAmount] = useState<string>('');
+    const [depositDate, setDepositDate] = useState<string>('');
+    const [depositNote, setDepositNote] = useState<string>('');
+
 
   useEffect(() => { loadData(); }, []);
 
@@ -156,6 +162,48 @@ export default function FamiliesPage() {
     setFormName(''); setFormAddress(''); setFormEmail(''); setFormPhone('');
     setStudentFirstName(''); setStudentLastName(''); setStudentDuration(60); setStudentRhythm('weekly');
   };
+
+    const handleOpenDeposit = (familyId: string) => {
+      if (!data) return;
+      setDepositFamilyId(familyId);
+      setDepositAmount('');
+      setDepositDate(new Date().toISOString().split('T')[0]);
+      setDepositNote('');
+    };
+
+    const handleSubmitDeposit = () => {
+      if (!data || !depositFamilyId) return;
+      const amount = parseFloat(depositAmount);
+      if (isNaN(amount) || amount <= 0) {
+        alert('Bitte gib einen gültigen Betrag ein.');
+        return;
+      }
+      const date = depositDate || new Date().toISOString().split('T')[0];
+      const note = depositNote;
+      const newCredit: FamilyCredit = {
+        id: `credit-${Date.now()}`,
+        familyId: depositFamilyId,
+        amount,
+        date,
+        ...(note ? { note } : {}),
+      };
+      const updatedFamilies = (data?.families || []).map(family =>
+        family.id === depositFamilyId
+          ? {
+              ...family,
+              credits: [...(family.credits || []), newCredit],
+            }
+          : family
+      );
+      const updatedData = { ...data, families: updatedFamilies, lastUpdated: new Date().toISOString() };
+      saveData(updatedData);
+      setDepositFamilyId(null);
+      setDepositAmount('');
+      setDepositDate('');
+      setDepositNote('');
+      alert('Guthaben erfolgreich eingezahlt.');
+    };
+
 
   const getStudentsForFamily = (familyId: string): Student[] =>
     (data?.students || []).filter(s => s.familyId === familyId);
@@ -351,6 +399,9 @@ export default function FamiliesPage() {
                       </span>
                       <button onClick={() => handleEditFamily(family)} className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors" title="Bearbeiten">
                         <Edit2 size={18} />
+                      </button>
+                      <button onClick={() => handleOpenDeposit(family.id)} className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors" title="Guthaben einzahlen">
+                        <Wallet size={18} />
                       </button>
                       <button onClick={() => handleDeleteFamily(family.id, family.name)} className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors" title="Löschen">
                         <Trash2 size={18} />
@@ -574,6 +625,68 @@ export default function FamiliesPage() {
           </div>
         )}
       </main>
+    {depositFamilyId !== null && (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg w-96 max-w-xs p-6 space-y-4">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Guthaben einzahlen</h2>
+          <form onSubmit={(e) => { e.preventDefault(); handleSubmitDeposit(); }}>
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300">Betrag (EUR)</label>
+              <input
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={depositAmount}
+                onChange={e => setDepositAmount(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                placeholder="z.B. 50.00"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300">Datum</label>
+              <input
+                type="date"
+                value={depositDate}
+                onChange={e => setDepositDate(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                defaultValue={new Date().toISOString().split('T')[0]}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300">Notiz (optional)</label>
+              <textarea
+                value={depositNote}
+                onChange={e => setDepositNote(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                rows={3}
+                placeholder="Optional"
+              />
+            </div>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => {
+                  setDepositFamilyId(null);
+                  setDepositAmount('');
+                  setDepositDate('');
+                  setDepositNote('');
+                }}
+                className="px-4 py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700"
+              >
+                Abbrechen
+              </button>
+              <button
+                type="submit"
+                disabled={!depositAmount || parseFloat(depositAmount) <= 0}
+                className="px-4 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700"
+              >
+                Einzahlen
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    )}
     </div>
   );
 }
