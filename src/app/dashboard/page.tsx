@@ -57,7 +57,7 @@ export default function DashboardPage() {
       lastUpdated: new Date().toISOString()
     };
 
-    // If status is attended or canceled_paid, try auto-payment from family credit
+    // Handle status change with auto-payment logic
     if (newStatus === 'attended' || newStatus === 'canceled_paid') {
       const result = applyCreditForAppointment(appointmentId, updatedData);
       if (result) {
@@ -70,6 +70,12 @@ export default function DashboardPage() {
         if (appointment && !appointment.isPaid) {
           alert('Nicht ausreichend Guthaben für automatische Bezahlung. Bitte manuell bezahlen.');
         }
+      }
+    } else if (newStatus === 'canceled_free') {
+      // Free cancellation - mark as paid (no charge) but don't deduct credit
+      const result = applyCreditForAppointment(appointmentId, updatedData);
+      if (result) {
+        updatedData = result as typeof updatedData;
       }
     }
 
