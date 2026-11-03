@@ -14,6 +14,8 @@ All notable changes to MatheManager are documented here.
 - README documents the current billing, family-credit, and group-payment behavior.
 
 ### Fixed
+- Imported backups without explicit payment data no longer infer payment from `attended` or `canceled_paid`; missing state defaults to unpaid.
+- When participant-level statuses exist, the aggregate `isPaid` flag is derived from those participant entries.
 - Scheduling tests now assert that the lunch-break display block does not block or split placeholder slots.
 - Invoice utility test fixtures use the `appointmentId` field consumed by the builder.
 - Test coverage now includes payment totals and participant-level payment states to prevent regressions in this area.

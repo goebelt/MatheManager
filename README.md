@@ -35,6 +35,7 @@ Next.js App zur Verwaltung von Mathe-Nachhilfe mit Tailwind CSS. Verwalten Sie F
 - Zusätzlicher Filter für den Bezahlstatus: bezahlt, offen oder alle
 - Die Gesamtsumme zeigt standardmäßig nur bezahlte Termine; beim Bezahlstatus-Filter folgt sie der aktuellen Auswahl
 - Gruppentermine können je Schüler separat als bezahlt/offen markiert werden
+- Bei alten Imports ohne gespeicherten Bezahlstatus wird nicht aus „stattgefunden“ auf bezahlt geschlossen; explizite Zahlungswerte bleiben erhalten
 - Aufteilung in Einzelstunden vs. Gruppenstunden
 - Stundensatz-Spalte für detaillierte Übersicht
 

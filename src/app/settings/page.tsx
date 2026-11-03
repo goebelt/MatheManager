@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react';
 import { Save, Building2, Mail, Phone, MapPin, FileText, CreditCard, AlertTriangle, Download, Upload, Clock, Coffee, Info } from 'lucide-react';
 import type { InvoiceSettings, ScheduleSettings } from '@/types';
 import { getDefaultScheduleSettings } from '@/lib/scheduling';
+import { migrateAppointmentPaymentStatuses } from '@/lib/paymentMigration';
 import { VERSION } from '@/lib/version';
 
 interface DataContainer {
@@ -53,17 +54,8 @@ export default function SettingsPage() {
       const stored = localStorage.getItem('mathe_manager_data');
       if (stored) {
         const parsed: DataContainer = JSON.parse(stored);
-        // Migrate old data: ensure isPaid field exists on all appointments
-        // Past attended/canceled_paid appointments default to paid (true)
-        if (parsed.appointments && Array.isArray(parsed.appointments)) {
-          parsed.appointments = parsed.appointments.map((app: any) => {
-            const hasIsPaid = 'isPaid' in app;
-            const isPaidStatus = app.status === 'attended' || app.status === 'canceled_paid';
-            return {
-              ...app,
-              isPaid: hasIsPaid ? app.isPaid : isPaidStatus, // migrate: past paid statuses = true
-            };
-          });
+        if (Array.isArray(parsed.appointments)) {
+          parsed.appointments = migrateAppointmentPaymentStatuses(parsed.appointments);
         }
         setData(parsed);
         if (parsed.invoiceSettings) {
@@ -114,17 +106,8 @@ export default function SettingsPage() {
         if (!importedData || typeof importedData !== 'object') {
           throw new Error('Ungültiges Datenformat');
         }
-        // Migrate old data: ensure isPaid field exists on all appointments
-        // Past attended/canceled_paid appointments default to paid (true)
-        if (importedData.appointments && Array.isArray(importedData.appointments)) {
-          importedData.appointments = importedData.appointments.map((app: any) => {
-            const hasIsPaid = 'isPaid' in app;
-            const isPaidStatus = app.status === 'attended' || app.status === 'canceled_paid';
-            return {
-              ...app,
-              isPaid: hasIsPaid ? app.isPaid : isPaidStatus, // migrate: past paid statuses = true
-            };
-          });
+        if (Array.isArray(importedData.appointments)) {
+          importedData.appointments = migrateAppointmentPaymentStatuses(importedData.appointments);
         }
         if (confirm('Möchtest du die Daten wirklich importieren? Alle vorhandenen Daten werden überschrieben!')) {
           localStorage.setItem('mathe_manager_data', JSON.stringify(importedData));
