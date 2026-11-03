@@ -1,4 +1,4 @@
-﻿# MatheManager v1.4.0
+﻿# MatheManager v1.5.0
 
 **[🌐 Live Demo](https://mathe-manager.vercel.app/)**
 

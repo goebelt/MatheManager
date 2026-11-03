@@ -4,6 +4,8 @@ All notable changes to MatheManager are documented here.
 
 ## [Unreleased]
 
+## [1.5.0]
+
 ### Added
 - Family list filter for families with a positive remaining credit balance.
 - Payment-status filter on the billing overview: paid, unpaid, or all; payment amounts are calculated from the selected rows.

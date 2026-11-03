@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MatheManager v1.4.0 - Bedienungsanleitung & Changelog</title>
+    <title>MatheManager v1.5.0 - Bedienungsanleitung & Changelog</title>
     <style>
         body { font-family: Arial, sans-serif; line-height: 1.6; margin: 0; padding: 20px; background: #f5f5f5; }
         .container { max-width: 800px; margin: auto; background: white; padding: 20px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
@@ -17,18 +17,19 @@
 </head>
 <body>
 <div class="container">
-    <h1>MatheManager v1.4.0</h1>
+    <h1>MatheManager v1.5.0</h1>
     <p><strong>Bedienungsanleitung & Changelog</strong></p>
     <p><a href="https://mathe-manager.vercel.app/">Live Demo</a></p>
     
     <h2>Überblick</h2>
     <p>MatheManager ist eine Next.js-Anwendung zur Verwaltung von Mathe-Nachhilfe mit Tailwind CSS. Sie ermöglicht die Verwaltung von Familien, Schülern, Terminen und Preisen in einer übersichtlichen Oberfläche.</p>
     
-    <h2>Neue Features in v1.4.0</h2>
+    <h2>Neue Features in v1.5.0</h2>
     <ul>
-        <li><strong>Termine bereinigen</strong>: Löscht alle Termine eines Schülers ab einem gewählten Datum (Popup mit Datumsauswahl + filterbarer Schülerliste).</li>
-        <li><strong>Readme-Popup in Einstellungen</strong>: Klick auf die Versionsnummer öffnet ein scrollbares Popup mit dem Inhalt der Readme.md.</li>
-        <li>Verbesserungen bei Gruppenterminen und UI-Feinheiten.</li>
+        <li><strong>Abrechnungsfilter</strong>: Nach bezahlten, offenen oder allen Terminen filtern; die Standardsumme umfasst nur bezahlte Positionen.</li>
+        <li><strong>Gruppenzahlungen</strong>: Bezahlstatus je Schüler getrennt führen und Teilzahlungen im Dashboard erkennen.</li>
+        <li><strong>Restguthabenfilter</strong>: Familien mit positivem Nettoguthaben gezielt anzeigen.</li>
+        <li><strong>Import älterer Backups</strong>: Fehlender Bezahlstatus wird als offen behandelt, nicht aus dem Terminstatus abgeleitet.</li>
     </ul>
     
     <h2>Dashboard</h2>
@@ -54,6 +55,8 @@
     <ul>
         <li>Automatische Honorarberechnung basierend auf Preis-Einträgen und gültigen Zeiträumen.</li>
         <li>Filterbare Übersichten nach Zeitraum und Schüler/Familie.</li>
+        <li>Bezahlstatus-Filter: bezahlt, offen oder alle; die Standardsumme zählt nur bezahlte Positionen.</li>
+        <li>Bei Gruppenterminen ist der Bezahlstatus je Schüler separat erfassbar.</li>
         <li>Aufteilung in Einzelstunden vs. Gruppenstunden.</li>
         <li>Stundensatz-Spalte für detaillierte Übersicht.</li>
     </ul>
@@ -90,12 +93,13 @@
     <ul>
         <li>Verwaltung von Familien.</li>
         <li>Zentrale Verwaltung für mehrere Schüler.</li>
+        <li>Filter für Familien mit positivem Restguthaben.</li>
     </ul>
     
     <h2>Guthabenverwaltung</h2>
     <ul>
-        <li><strong>Familien-Seite</strong>: Anzeige des Restguthabens pro Familie, Buttons zum Aufladen und Verbrauchen von Guthaben, Popup-Dialog zur Bestätigung von Transaktionen.</li>
-        <li><strong>Automatische Bezahlung bei Guthaben</strong>: Wenn das Guthaben ausreichend ist, werden Termine automatisch als bezahlt markiert und das Guthaben entsprechend reduziert.</li>
+        <li><strong>Familien-Seite</strong>: Anzeige des Restguthabens pro Familie, Aufladen und Guthaben-Historie.</li>
+        <li><strong>Automatische Bezahlung bei Guthaben</strong>: Unbezahlte Teilnehmer werden gegen das Guthaben ihrer jeweiligen Familie abgerechnet; beim Gruppentermin je Teilnehmer.</li>
     </ul>
 
     <h2>Einstellungen</h2>
@@ -138,6 +142,15 @@ npm run test:coverage
     </ul>
     
     <h2>Changelog</h2>
+    <div class="changelog-item">
+        <h4>v1.5.0</h4>
+        <ul>
+            <li>Abrechnungsfilter mit bezahlten/offenen Terminen; die Standardsumme zählt nur bezahlte Positionen.</li>
+            <li>Separate Gruppenzahlungen je Schüler und automatische Abbuchung bei der jeweiligen Familie.</li>
+            <li>Familienfilter für positives Restguthaben.</li>
+            <li>Alte Imports ohne Zahlungsinformation werden als offen übernommen.</li>
+        </ul>
+    </div>
     <div class="changelog-item">
         <h4>v1.4.0</h4>
         <ul>
