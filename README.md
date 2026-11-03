@@ -43,6 +43,7 @@ Next.js App zur Verwaltung von Mathe-Nachhilfe mit Tailwind CSS. Verwalten Sie F
 - Guthaben pro Familie mit Saldo und nachvollziehbarer Buchungshistorie
 - Automatische Abbuchung bei „stattgefunden" bzw. „Ausfall bezahlt" (Ausfall zum halben Preis)
 - Guthabenstatus und Zahlungshistorie sind in der Familienverwaltung einsehbar
+- Familienliste kann auf Familien mit positivem Restguthaben gefiltert werden
 
 ### Rechnungen
 - Professionelle Druckvorlage mit Firmenkopfzeile

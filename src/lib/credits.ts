@@ -15,6 +15,15 @@ export function calculateFamilyCreditBalance(familyId: string, data: DataContain
   return family.credits.reduce((sum, credit) => sum + credit.amount, 0);
 }
 
+/** Keep only families whose net balance is a positive remaining credit. */
+export function filterFamiliesWithRemainingCredit<T extends { credits?: Array<Pick<FamilyCredit, 'amount'>> }>(
+  families: T[],
+): T[] {
+  return families.filter(family =>
+    (family.credits || []).reduce((balance, credit) => balance + credit.amount, 0) > 0,
+  );
+}
+
 /**
  * Get all credit entries for a family
  */

@@ -8,6 +8,7 @@ import { Users, Plus, Search, Edit2, Trash2, X, ChevronRight, ChevronLeft, Phone
 import Link from 'next/link';
 import type { Family, Student, DataContainer, FamilyCredit } from '@/types';
 import { DURATION_OPTIONS, RHYTHM_OPTIONS } from '@/lib/constants';
+import { filterFamiliesWithRemainingCredit } from '@/lib/credits';
 
 type PaginationState = { familyPage: number; studentPage: number; };
 
@@ -15,6 +16,7 @@ export default function FamiliesPage() {
   const [data, setData] = useState<DataContainer | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [onlyFamiliesWithCredit, setOnlyFamiliesWithCredit] = useState(false);
   const [editingFamilyId, setEditingFamilyId] = useState<string | null>(null);
   const [addingStudentToFamilyId, setAddingStudentToFamilyId] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -229,10 +231,13 @@ export default function FamiliesPage() {
     return family.credits.reduce((sum, credit) => sum + credit.amount, 0);
   };
 
-  const filteredFamilies = (data?.families || []).filter(f =>
+  const allFamilies = data?.families || [];
+  const familiesWithRemainingCredit = filterFamiliesWithRemainingCredit(allFamilies);
+  const filteredFamilies = (onlyFamiliesWithCredit ? familiesWithRemainingCredit : allFamilies).filter(f =>
     f.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (f.email && f.email.toLowerCase().includes(searchTerm.toLowerCase()))
   );
+  const hasFamilyFilters = onlyFamiliesWithCredit || searchTerm.trim().length > 0;
 
   const pageSize = 10;
   const totalPagesFamilies = Math.max(1, Math.ceil(filteredFamilies.length / pageSize));
@@ -272,15 +277,27 @@ export default function FamiliesPage() {
             </button>
           </div>
 
-          {/* Search */}
-          <div className="mt-4">
-            <div className="relative">
+          {/* Search and credit filter */}
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input type="text" placeholder="Nach Familie suchen..." value={searchTerm}
                 onChange={e => { setSearchTerm(e.target.value); setPagination(p => ({ ...p, familyPage: 1 })); }}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
               />
             </div>
+            <label className="inline-flex items-center gap-2 px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm text-gray-700 dark:text-slate-200 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={onlyFamiliesWithCredit}
+                onChange={event => {
+                  setOnlyFamiliesWithCredit(event.target.checked);
+                  setPagination(p => ({ ...p, familyPage: 1 }));
+                }}
+                className="rounded border-gray-300 text-green-600 focus:ring-green-500"
+              />
+              <span>Nur Familien mit Restguthaben ({familiesWithRemainingCredit.length})</span>
+            </label>
           </div>
 
           {/* Stats */}
@@ -385,12 +402,25 @@ export default function FamiliesPage() {
         {paginatedFamilies.length === 0 && !showAddForm ? (
           <div className="text-center py-16">
             <Users className="w-16 h-16 text-gray-300 dark:text-slate-600 mx-auto mb-4" />
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Noch keine Familien angelegt</h2>
-            <p className="text-gray-500 dark:text-slate-400 mb-6">Erstelle deine erste Familie um Schüler hinzuzufügen.</p>
-            <button onClick={() => setShowAddForm(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors">
-              <Plus size={18} /> Erste Familie anlegen
-            </button>
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+              {allFamilies.length > 0 && hasFamilyFilters ? 'Keine passenden Familien gefunden' : 'Noch keine Familien angelegt'}
+            </h2>
+            <p className="text-gray-500 dark:text-slate-400 mb-6">
+              {allFamilies.length > 0 && hasFamilyFilters
+                ? 'Passe die Suche oder den Restguthaben-Filter an.'
+                : 'Erstelle deine erste Familie um Schüler hinzuzufügen.'}
+            </p>
+            {allFamilies.length > 0 && hasFamilyFilters ? (
+              <button onClick={() => { setSearchTerm(''); setOnlyFamiliesWithCredit(false); setPagination(p => ({ ...p, familyPage: 1 })); }}
+                className="px-4 py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700">
+                Filter zurücksetzen
+              </button>
+            ) : (
+              <button onClick={() => setShowAddForm(true)}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors">
+                <Plus size={18} /> Erste Familie anlegen
+              </button>
+            )}
           </div>
         ) : (
           <div className="space-y-4">

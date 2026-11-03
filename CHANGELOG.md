@@ -5,6 +5,7 @@ All notable changes to MatheManager are documented here.
 ## [Unreleased]
 
 ### Added
+- Family list filter for families with a positive remaining credit balance.
 - Payment-status filter on the billing overview: paid, unpaid, or all; payment amounts are calculated from the selected rows.
 - Independent paid/unpaid status for each student in a group appointment, including a "Teilweise" indicator in the dashboard.
 - Automatic credit payment now settles each unpaid group participant against that student's family balance.

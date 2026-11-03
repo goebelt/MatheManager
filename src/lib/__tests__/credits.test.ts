@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 import type { DataContainer } from '@/types';
-import { applyCreditForAppointment, calculateAppointmentTotalPrice } from '../credits';
+import { applyCreditForAppointment, calculateAppointmentTotalPrice, filterFamiliesWithRemainingCredit } from '../credits';
 
 const baseData = (): DataContainer => ({
   appointments: [{
@@ -19,6 +19,18 @@ const baseData = (): DataContainer => ({
     id: 'default', type: 'standard', studentIds: [], validFrom: '2026-01-01', validTo: null,
     group60: 40, group90: 60, individual60: 50, individual90: 75,
   }],
+});
+
+describe('family remaining-credit filter', () => {
+  it('keeps only families with a positive net credit balance', () => {
+    const families = [
+      { id: 'positive', credits: [{ amount: 30 }, { amount: -10 }] },
+      { id: 'zero', credits: [{ amount: 15 }, { amount: -15 }] },
+      { id: 'negative', credits: [{ amount: 10 }, { amount: -20 }] },
+      { id: 'empty' },
+    ];
+    expect(filterFamiliesWithRemainingCredit(families).map(family => family.id)).toEqual(['positive']);
+  });
 });
 
 describe('group appointment credit payment', () => {
