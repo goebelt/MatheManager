@@ -151,6 +151,25 @@ describe('AppointmentCard', () => {
     expect(screen.getByText('Max Müller, Anna Schmidt')).toBeInTheDocument();
   });
 
+  it('shows partially paid status for a group with one paid participant', () => {
+    const groupAppt: Appointment = {
+      ...BASE_APPOINTMENT,
+      studentIds: ['s1', 's2'],
+      paidStudentIds: ['s1'],
+      isPaid: false,
+    };
+    const student2: Student = { ...BASE_STUDENT, id: 's2', firstName: 'Anna' };
+    render(
+      <AppointmentCard
+        appointment={groupAppt}
+        student={BASE_STUDENT}
+        allStudents={[BASE_STUDENT, student2]}
+        onStatusChange={jest.fn()}
+      />,
+    );
+    expect(screen.getByText('Teilweise')).toBeInTheDocument();
+  });
+
   it('shows pupil count for group appointments', () => {
     const groupAppt: Appointment = { ...BASE_APPOINTMENT, studentIds: ['s1', 's2'] };
     const student2: Student = { ...BASE_STUDENT, id: 's2', firstName: 'Anna' };

@@ -9,6 +9,7 @@ import { DollarSign, Calendar, User, Filter, ArrowUpRight, Loader2, X, Check, Cl
 import type { Appointment, Student, PriceEntry, DataContainer } from '@/types';
 import { calculateAppointmentFee } from '@/lib/billing';
 import { filterAppointmentsByDate } from '@/lib/dateFilters';
+import { filterPaymentRows, getStudentPaymentStatus, setStudentPaymentStatus, sumPaymentRows, type PaymentStatusFilter } from '@/lib/paymentStatus';
 
 
 export default function BillingPage() {
@@ -20,6 +21,7 @@ export default function BillingPage() {
   const [timeRange, setTimeRange] = useState<'month' | 'year' | 'custom' | 'all'>('month');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
+  const [paymentFilter, setPaymentFilter] = useState<PaymentStatusFilter>('paid');
 
   // Student dropdown states
   const [studentDropdownOpen, setStudentDropdownOpen] = useState(false);
@@ -78,20 +80,13 @@ export default function BillingPage() {
     });
   };
 
-  // Get payment status for a specific student in an appointment
-  const getPaymentStatus = (appointmentId: string): boolean | undefined => {
-    if (!data) return undefined;
-    const appointment = data.appointments.find(a => a.id === appointmentId);
-    return appointment?.isPaid ?? false;
-  };
-
-  // Toggle payment status for a specific student in an appointment
-  const togglePaymentStatus = (appointmentId: string) => {
+  // Toggle one student's payment state (group appointments are participant-specific)
+  const togglePaymentStatus = (appointmentId: string, studentId: string, isPaid: boolean) => {
     if (!data) return;
 
     const updatedAppointments = data.appointments.map(appointment =>
       appointment.id === appointmentId
-        ? { ...appointment, isPaid: !appointment.isPaid }
+        ? setStudentPaymentStatus(appointment, studentId, isPaid)
         : appointment
     );
 
@@ -188,7 +183,7 @@ export default function BillingPage() {
         const fee = calculateAppointmentFee(appointment, studentId, data.priceEntries || []);
         const student = (data?.students || []).find(s => s.id === studentId);
         const family = student ? (data?.families || []).find(f => f.id === student.familyId) : null;
-        const isPaid = getPaymentStatus(appointment.id);
+        const isPaid = getStudentPaymentStatus(appointment, studentId);
 
         // Determine display type
         let displayType: 'individual' | 'group' | 'block' = appointmentType;
@@ -221,23 +216,25 @@ export default function BillingPage() {
     return rows;
   }, [filteredAppointments, data, selectedStudentIds]);
 
-  // Calculate totals
-  const individualEarnings = useMemo(() => {
-    return appointmentsWithFees.filter(a => a.priceEntryType === 'individual').reduce(
-      (sum, app) => sum + (app.calculatedFee || 0), 0
-    );
-  }, [appointmentsWithFees]);
+  const paymentFilteredRows = useMemo(
+    () => filterPaymentRows(appointmentsWithFees, paymentFilter),
+    [appointmentsWithFees, paymentFilter],
+  );
 
-  const groupEarnings = useMemo(() => {
-    return appointmentsWithFees.filter(a => a.priceEntryType === 'group').reduce(
-      (sum, app) => sum + (app.calculatedFee || 0), 0
-    );
-  }, [appointmentsWithFees]);
+  const individualEarnings = useMemo(() =>
+    sumPaymentRows(appointmentsWithFees, paymentFilter, app =>
+      app.priceEntryType === 'individual' ? app.calculatedFee || 0 : 0,
+    ), [appointmentsWithFees, paymentFilter]);
 
-  // Calculate block earnings - only once per student per block
+  const groupEarnings = useMemo(() =>
+    sumPaymentRows(appointmentsWithFees, paymentFilter, app =>
+      app.priceEntryType === 'group' ? app.calculatedFee || 0 : 0,
+    ), [appointmentsWithFees, paymentFilter]);
+
+  // Block prices are deduplicated per student and block, after the payment filter.
   const blockEarnings = useMemo(() => {
-    const seen = new Set<string>(); // Track student-block combinations
-    return appointmentsWithFees.reduce((sum, app) => {
+    const seen = new Set<string>();
+    return paymentFilteredRows.reduce((sum, app) => {
       if (app.priceEntryType === 'block' && app.blockPrice) {
         const key = `${app.studentId}-${app.blockName}`;
         if (!seen.has(key)) {
@@ -247,18 +244,22 @@ export default function BillingPage() {
       }
       return sum;
     }, 0);
-  }, [appointmentsWithFees]);
+  }, [paymentFilteredRows]);
 
-  const totalEarnings = useMemo(() => {
-    return individualEarnings + groupEarnings + blockEarnings;
-  }, [individualEarnings, groupEarnings, blockEarnings]);
+  const totalEarnings = useMemo(() =>
+    individualEarnings + groupEarnings + blockEarnings,
+  [individualEarnings, groupEarnings, blockEarnings]);
 
-  const appointmentCount = filteredAppointments.length;
-  const freeFallCount = filteredAppointments.filter(a => a.status === 'canceled_free').length;
-const totalTeachingMinutes = filteredAppointments.reduce((sum, app) => sum + (app.duration || 0), 0);
-const teachingHours = Math.floor(totalTeachingMinutes / 60);
-const teachingRemainderMinutes = totalTeachingMinutes % 60;
-const teachingTimeFormatted = `${String(teachingHours).padStart(2, '0')}:${String(teachingRemainderMinutes).padStart(2, '0')}`;
+  const visibleAppointmentIds = new Set(paymentFilteredRows.map(app => app.id));
+  const visibleAppointments = filteredAppointments.filter(app => visibleAppointmentIds.has(app.id));
+  const appointmentCount = visibleAppointments.length;
+  const freeFallCount = visibleAppointments.filter(a => a.status === 'canceled_free').length;
+  const totalTeachingMinutes = visibleAppointments.reduce((sum, app) => sum + (app.duration || 0), 0);
+  const teachingHours = Math.floor(totalTeachingMinutes / 60);
+  const teachingRemainderMinutes = totalTeachingMinutes % 60;
+  const teachingTimeFormatted = `${String(teachingHours).padStart(2, '0')}:${String(teachingRemainderMinutes).padStart(2, '0')}`;
+  const paymentFilterLabel = paymentFilter === 'paid' ? 'Bezahlte Summe'
+    : paymentFilter === 'unpaid' ? 'Offener Betrag' : 'Summe (alle)';
 
   if (loading) {
     return (
@@ -286,7 +287,7 @@ const teachingTimeFormatted = `${String(teachingHours).padStart(2, '0')}:${Strin
           </div>
 
           {/* Filter Controls */}
-          <div className="mt-6 grid gap-4 sm:grid-cols-3">
+          <div className="mt-6 grid gap-4 sm:grid-cols-4">
             {/* Student Filter */}
             <div className="student-dropdown-container flex items-center gap-2 p-3 bg-gray-50 dark:bg-slate-700/50 rounded-lg border border-gray-200 dark:border-slate-600">
               <User className="w-4 h-4 text-gray-400" />
@@ -437,11 +438,26 @@ const teachingTimeFormatted = `${String(teachingHours).padStart(2, '0')}:${Strin
               )}
             </div>
 
+            <div className="flex items-center gap-2 p-3 bg-gray-50 dark:bg-slate-700/50 rounded-lg border border-gray-200 dark:border-slate-600">
+              <Check className="w-4 h-4 text-gray-400" />
+              <label htmlFor="payment-status-filter" className="sr-only">Bezahlstatus</label>
+              <select
+                id="payment-status-filter"
+                value={paymentFilter}
+                onChange={event => setPaymentFilter(event.target.value as PaymentStatusFilter)}
+                className="flex-1 bg-transparent text-sm focus:outline-none dark:text-white"
+              >
+                <option value="paid">Bezahlt (Standard)</option>
+                <option value="unpaid">Offen ({appointmentsWithFees.filter(row => !row.isPaid).length})</option>
+                <option value="all">Alle</option>
+              </select>
+            </div>
+
             {/* Results Summary */}
             <div className="flex items-center gap-2 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
               <DollarSign className="w-4 h-4 text-green-600" />
               <div>
-                <p className="text-xs text-green-600 dark:text-green-400 uppercase font-medium">Gesamtsumme</p>
+                <p className="text-xs text-green-600 dark:text-green-400 uppercase font-medium">{paymentFilterLabel}</p>
                 <p className="text-lg font-bold text-gray-900 dark:text-white">
                   {totalEarnings.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}
                 </p>
@@ -463,17 +479,17 @@ const teachingTimeFormatted = `${String(teachingHours).padStart(2, '0')}:${Strin
             />
             <SummaryCard
               label="Einzeltermine"
-              value={appointmentsWithFees.filter(a => a.priceEntryType === 'individual').length.toString()}
+              value={paymentFilteredRows.filter(a => a.priceEntryType === 'individual').length.toString()}
               icon={<User className="w-5 h-5 text-purple-600" />}
             />
             <SummaryCard
               label="Gruppentermine"
-              value={appointmentsWithFees.filter(a => a.priceEntryType === 'group').length.toString()}
+              value={paymentFilteredRows.filter(a => a.priceEntryType === 'group').length.toString()}
               icon={<DollarSign className="w-5 h-5 text-green-600" />}
             />
             <SummaryCard
               label="Block-Unterricht"
-              value={appointmentsWithFees.filter(a => a.priceEntryType === 'block').length.toString()}
+              value={paymentFilteredRows.filter(a => a.priceEntryType === 'block').length.toString()}
               icon={<DollarSign className="w-5 h-5 text-orange-600" />}
             />
             <SummaryCard
@@ -561,14 +577,14 @@ const teachingTimeFormatted = `${String(teachingHours).padStart(2, '0')}:${Strin
                   </tr>
                 </thead>
                 <tbody className="bg-white dark:bg-slate-800 divide-y divide-gray-200 dark:divide-slate-700">
-                  {appointmentsWithFees.length === 0 ? (
+                  {paymentFilteredRows.length === 0 ? (
                     <tr>
                       <td colSpan={8} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">
                         Keine Termine im ausgewählten Zeitraum gefunden.
                       </td>
                     </tr>
                   ) : (
-                    appointmentsWithFees.map((appointment) => (
+                    paymentFilteredRows.map((appointment) => (
                       <tr key={`${appointment.id}-${appointment.studentId}`} className="hover:bg-gray-50 dark:hover:bg-slate-700/30">
                         <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                           {new Date(appointment.date).toLocaleDateString('de-DE', {
@@ -645,7 +661,7 @@ const teachingTimeFormatted = `${String(teachingHours).padStart(2, '0')}:${Strin
                         </td>
                         <td className="px-4 py-3 text-center">
                           <button
-                            onClick={() => togglePaymentStatus(appointment.id)}
+                            onClick={() => togglePaymentStatus(appointment.id, appointment.studentId, !appointment.isPaid)}
                             className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
                               appointment.isPaid
                                 ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-900/50'
@@ -673,14 +689,14 @@ const teachingTimeFormatted = `${String(teachingHours).padStart(2, '0')}:${Strin
             </div>
 
             {/* Footer Total */}
-            {!loading && appointmentsWithFees.length > 0 && (
+            {!loading && paymentFilteredRows.length > 0 && (
               <div className="bg-gray-50 dark:bg-slate-700/30 px-4 py-4 sm:px-6">
                 <div className="flex flex-col sm:flex-row justify-between items-center gap-2">
                   <p className="text-sm text-gray-500 dark:text-slate-400">
-                    {timeRange === 'month' ? 'Gesamtsumme für diesen Monat' :
-                     timeRange === 'year' ? 'Gesamtsumme für dieses Jahr' :
-                     timeRange === 'all' ? 'Gesamtsumme (alle Termine bis heute)' :
-                     'Gesamtsumme für den gewählten Zeitraum'}
+                    {paymentFilterLabel} {timeRange === 'month' ? 'für diesen Monat' :
+                     timeRange === 'year' ? 'für dieses Jahr' :
+                     timeRange === 'all' ? '(alle Termine bis heute)' :
+                     'für den gewählten Zeitraum'}
                   </p>
                   <p className="text-lg font-bold text-green-600 dark:text-green-500 flex items-center gap-2">
                     <ArrowUpRight className="w-5 h-5" />

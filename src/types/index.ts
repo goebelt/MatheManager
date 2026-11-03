@@ -60,7 +60,8 @@ export interface Appointment {
   duration: number; // in Minuten (60 oder 90)
   status: 'attended' | 'canceled_paid' | 'canceled_free' | 'planned';
   isSuggestion?: boolean;
-  isPaid?: boolean; // Bezahlstatus des Termins (default false)
+  isPaid?: boolean; // alle Teilnehmer bezahlt (legacy flag / abgeleiteter Gruppenstatus)
+  paidStudentIds?: string[]; // Teilnehmer eines Gruppentermins, deren Anteil bezahlt ist
 }
 
 

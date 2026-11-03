@@ -3,6 +3,8 @@
  */
 
 import type { DataContainer, FamilyCredit, Appointment, Student, PriceEntry, Family } from '@/types';
+import { calculateAppointmentFee } from './billing';
+import { getStudentPaymentStatus, setStudentPaymentStatus } from './paymentStatus';
 
 /**
  * Calculate current credit balance for a family
@@ -78,25 +80,10 @@ export function calculateAppointmentTotalPrice(
   appointment: Appointment,
   data: DataContainer
 ): number {
-  const studentIds = appointment.studentIds;
-  if (studentIds.length === 0) return 0;
-
-  const isGroup = studentIds.length > 1;
-  const appointmentDate = appointment.date;
-  const duration = appointment.duration || 60;
-
-  // For group appointments, one price for all
-  if (isGroup) {
-    return getAppointmentPrice(appointment, data);
-  }
-
-  // For individual appointments, sum up each student's price
-  let total = 0;
-  for (const studentId of studentIds) {
-    const singleAppointment = { ...appointment, studentIds: [studentId] };
-    total += getAppointmentPrice(singleAppointment, data);
-  }
-  return total;
+  return appointment.studentIds.reduce(
+    (total, studentId) => total + calculateAppointmentFee(appointment, studentId, data.priceEntries || []),
+    0,
+  );
 }
 
 /**
@@ -110,88 +97,71 @@ export function applyCreditForAppointment(
   const appointment = data.appointments?.find(a => a.id === appointmentId);
   if (!appointment) return null;
 
-  // Only apply for attended or canceled_paid or canceled_free
-  if (appointment.status !== 'attended' && 
-      appointment.status !== 'canceled_paid' && 
+  if (appointment.status !== 'attended' &&
+      appointment.status !== 'canceled_paid' &&
       appointment.status !== 'canceled_free') {
     return data;
   }
 
-  // Already paid? Skip
-  if (appointment.isPaid) return data;
+  const unpaidStudentIds = appointment.studentIds.filter(
+    studentId => !getStudentPaymentStatus(appointment, studentId),
+  );
+  if (unpaidStudentIds.length === 0) return data;
 
-  // Get student's family
-  const studentId = appointment.studentIds[0];
-  if (!studentId) return null;
+  // Group participants by family: each student owes the group rate, but a family
+  // with siblings in one group needs only one combined credit transaction.
+  const chargesByFamily = new Map<string, { amount: number; studentIds: string[] }>();
+  for (const studentId of unpaidStudentIds) {
+    const student = data.students?.find(s => s.id === studentId);
+    if (!student) return null;
+    const family = data.families?.find(f => f.id === student.familyId);
+    if (!family) return null;
 
-  const student = data.students?.find(s => s.id === studentId);
-  if (!student) return null;
-
-  const family = data.families?.find(f => f.id === student.familyId);
-  if (!family) return null;
-
-  // Calculate price based on status
-  let price = 0;
-  let notePrefix = '';
-  
-  if (appointment.status === 'canceled_free') {
-    // Free cancellation - no charge
-    price = 0;
-    notePrefix = 'Kostenloser Ausfall: ';
-  } else if (appointment.status === 'canceled_paid') {
-    // Paid cancellation - HALF price
-    price = calculateAppointmentTotalPrice(appointment, data) / 2;
-    notePrefix = 'Bezahlter Ausfall (50%): ';
-  } else {
-    // attended - full price
-    price = calculateAppointmentTotalPrice(appointment, data);
-    notePrefix = '';
+    const amount = appointment.status === 'canceled_free'
+      ? 0
+      : calculateAppointmentFee(appointment, studentId, data.priceEntries || []);
+    const charge = chargesByFamily.get(family.id) || { amount: 0, studentIds: [] };
+    charge.amount += amount;
+    charge.studentIds.push(studentId);
+    chargesByFamily.set(family.id, charge);
   }
 
-  if (price <= 0) {
-    // Free appointment, mark as paid
-    return {
-      ...data,
-      appointments: data.appointments.map(a =>
-        a.id === appointmentId ? { ...a, isPaid: true } : a
-      ),
-      lastUpdated: new Date().toISOString()
+  for (const [familyId, charge] of chargesByFamily) {
+    if (calculateFamilyCreditBalance(familyId, data) < charge.amount) return null;
+  }
+
+  const updatedFamilies = data.families.map(family => {
+    const charge = chargesByFamily.get(family.id);
+    if (!charge || charge.amount <= 0) return family;
+
+    const names = charge.studentIds
+      .map(id => data.students.find(student => student.id === id))
+      .filter((student): student is Student => !!student)
+      .map(student => `${student.firstName} ${student.lastName || ''}`.trim());
+    const notePrefix = appointment.status === 'canceled_paid' ? 'Bezahlter Ausfall (50%): ' : '';
+    const newCredit: FamilyCredit = {
+      id: `credit-${Date.now()}-${family.id}`,
+      familyId: family.id,
+      amount: -charge.amount,
+      date: new Date().toISOString().split('T')[0],
+      note: `${notePrefix}Termin ${appointment.id} (${appointment.date} ${appointment.time || ''})${names.length ? ` – ${names.join(', ')}` : ''}`,
     };
-  }
+    return { ...family, credits: [...(family.credits || []), newCredit] };
+  });
 
-  // Check credit balance
-  const balance = calculateFamilyCreditBalance(family.id, data);
-  if (balance < price) {
-    // Insufficient credit
-    return null;
-  }
-
-  // Sufficient credit - create negative credit entry (consumption)
-  const newCredit: FamilyCredit = {
-    id: `credit-${Date.now()}`,
-    familyId: family.id,
-    amount: -price,
-    date: new Date().toISOString().split('T')[0],
-    note: `${notePrefix}Termin ${appointment.id} (${appointment.date} ${appointment.time || ''})`
-  };
-
-  // Update family credits
-  const updatedFamilies = data.families.map(f =>
-    f.id === family.id
-      ? { ...f, credits: [...(f.credits || []), newCredit] }
-      : f
-  );
-
-  // Update appointment as paid
-  const updatedAppointments = data.appointments.map(a =>
-    a.id === appointmentId ? { ...a, isPaid: true } : a
-  );
+  const updatedAppointments = data.appointments.map(current => {
+    if (current.id !== appointmentId) return current;
+    return unpaidStudentIds.reduce(
+      (updated, studentId) => setStudentPaymentStatus(updated, studentId, true),
+      current,
+    );
+  });
 
   return {
     ...data,
     families: updatedFamilies,
     appointments: updatedAppointments,
-    lastUpdated: new Date().toISOString()
+    lastUpdated: new Date().toISOString(),
   };
 }
 

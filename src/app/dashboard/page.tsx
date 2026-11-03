@@ -9,6 +9,7 @@ import type { Student, Appointment, DataContainer } from '@/types';
 import { DashboardHeader } from '@/components/DashboardHeader';
 import { DayView } from '@/components/DayView';
 import { applyCreditForAppointment } from '@/lib/credits';
+import { setAppointmentPaymentStatus } from '@/lib/paymentStatus';
 
 
 export default function DashboardPage() {
@@ -96,7 +97,7 @@ export default function DashboardPage() {
 
     const updatedAppointments = data.appointments.map(appointment =>
       appointment.id === appointmentId
-        ? { ...appointment, isPaid }
+        ? setAppointmentPaymentStatus(appointment, isPaid)
         : appointment
     );
 

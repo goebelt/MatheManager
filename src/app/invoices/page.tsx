@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import type { DataContainer, InvoiceItem, Family, Student, PriceEntry, Appointment } from '@/types';
 import { calculateAppointmentFee } from '@/lib/billing';
+import { getStudentPaymentStatus } from '@/lib/paymentStatus';
 import { formatInvoiceNumber, calculateDueDate, calculateInvoiceTotals, buildInvoiceDataForFamily } from '@/lib/invoiceUtils';
 import { filterAppointmentsByDate } from '@/lib/dateFilters';
 import { InvoiceTemplate, type InvoiceData } from '@/components/InvoiceTemplate';
@@ -391,7 +392,7 @@ export default function InvoicesPage() {
           const blockKey = `${studentId}-${blockEntry.id}`;
           if (!blockItemsSeen.has(blockKey)) {
             blockItemsSeen.add(blockKey);
-            const isPaid = appointment.isPaid ?? false;
+            const isPaid = getStudentPaymentStatus(appointment, studentId);
             items.push({
               appointmentId: appointment.id,
               date: blockEntry.blockName || 'Block-Unterricht',
@@ -402,7 +403,7 @@ export default function InvoicesPage() {
               status: 'attended',
               unitPrice: blockEntry.blockPrice || 0,
               totalPrice: blockEntry.blockPrice || 0,
-              isPaid: appointment.isPaid ?? false,
+              isPaid,
               blockName: blockEntry.blockName,
               quantity: 1,
               description: blockEntry.blockName || 'Block-Unterricht',
@@ -416,7 +417,7 @@ export default function InvoicesPage() {
         if (appointment.status === "canceled_free") {
             fee = 0;
         }
-        const isPaid = appointment.isPaid ?? false;
+        const isPaid = getStudentPaymentStatus(appointment, studentId);
         let description = lessonType === "group" ? "Gruppenunterricht" : "Einzelunterricht";
         if (appointment.status === "attended") {
             description += " (besucht)";
@@ -465,7 +466,7 @@ export default function InvoicesPage() {
           description,
           unitPrice: fee,
           totalPrice: fee,
-          isPaid: appointment.isPaid ?? false,
+          isPaid,
         });
       });
     });
