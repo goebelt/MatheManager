@@ -346,35 +346,29 @@ describe('generateTimeSlots', () => {
     expect(slots[3]).toMatchObject({ startTime: '11:30', endTime: '12:00', duration: 30 }); // last
   });
 
-  it('last slot before break blocker fills full gap without extra break', () => {
+  it('allows a placeholder slot to span the configured lunch break', () => {
     const slots = generateTimeSlots('2026-04-20', [], '08:00', '17:00', 90, 10, '12:10', '13:00');
-    // Morning gap: 08:00-12:10 = 250 min
-    // Slot 1: 08:00-09:30 (90), break → 09:40
-    // Slot 2: 09:40-11:10 (90), break → 11:20
-    // Slot 3: 11:20-12:10 (50) → last slot, no break
-    const morning = slots.filter(s => s.endTime <= '12:10');
-    expect(morning.length).toBe(3);
-    expect(morning[2]).toMatchObject({ startTime: '11:20', endTime: '12:10', duration: 50 });
+    expect(slots).toContainEqual(expect.objectContaining({
+      startTime: '11:20', endTime: '12:50', duration: 90,
+    }));
   });
 
-  it('first slot after break blocker starts at break end', () => {
+  it('first slot after configured lunch time follows the normal slot sequence', () => {
     const slots = generateTimeSlots('2026-04-20', [], '08:00', '17:00', 90, 10, '12:10', '13:00');
     const afternoon = slots.filter(s => s.startTime >= '13:00');
     expect(afternoon[0].startTime).toBe('13:00');
   });
 
-  it('slot can touch break block directly (no extra padding)', () => {
-    const slots = generateTimeSlots('2026-04-20', [], '08:00', '17:00', 90, 10, '12:10', '13:00');
-    const lastMorning = slots.filter(s => s.endTime <= '12:10').pop();
-    expect(lastMorning?.endTime).toBe('12:10');
-    const firstAfternoon = slots.find(s => s.startTime >= '13:00');
-    expect(firstAfternoon?.startTime).toBe('13:00');
+  it('does not change slot generation when a lunch display block is configured', () => {
+    const withoutLunch = generateTimeSlots('2026-04-20', [], '08:00', '17:00', 90, 10);
+    const withLunch = generateTimeSlots('2026-04-20', [], '08:00', '17:00', 90, 10, '12:10', '13:00');
+    expect(withLunch).toEqual(withoutLunch);
   });
 
-  it('excludes lunch break area from slots', () => {
+  it('allows placeholders to overlap the configured lunch period', () => {
     const slots = generateTimeSlots('2026-04-20', [], '08:00', '20:00', 90, 10, '12:10', '13:00');
     const overlapping = slots.find(s => s.startTime < '13:00' && s.endTime > '12:10');
-    expect(overlapping).toBeUndefined();
+    expect(overlapping).toMatchObject({ startTime: '11:20', endTime: '12:50' });
   });
 
   it('leaves breakMinutes padding around real appointments', () => {

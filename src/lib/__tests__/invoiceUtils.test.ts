@@ -114,7 +114,7 @@ describe('buildInvoiceDataForFamily', () => {
 
   const mockAppointmentItems = [
     {
-      id: 'app1',
+      appointmentId: 'app1',
       date: '2026-01-15',
       studentId: 'st1',
       studentName: 'Anna Müller',
@@ -125,7 +125,7 @@ describe('buildInvoiceDataForFamily', () => {
       isPaid: false,
     },
     {
-      id: 'app2',
+      appointmentId: 'app2',
       date: '2026-01-22',
       studentId: 'st1',
       studentName: 'Anna Müller',
@@ -136,7 +136,7 @@ describe('buildInvoiceDataForFamily', () => {
       isPaid: false,
     },
     {
-      id: 'app3',
+      appointmentId: 'app3',
       date: '2026-01-19',
       studentId: 'st2',
       studentName: 'Ben Müller',
