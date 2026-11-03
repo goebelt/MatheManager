@@ -1,4 +1,4 @@
-﻿# MatheManager v1.3.0
+﻿# MatheManager v1.4.0
 
 **[🌐 Live Demo](https://mathe-manager.vercel.app/)**
 
@@ -32,8 +32,16 @@ Next.js App zur Verwaltung von Mathe-Nachhilfe mit Tailwind CSS. Verwalten Sie F
 ### Abrechnung
 - **Automatische Honorarberechnung** basierend auf Preis-Einträgen und gültigen Zeiträumen
 - Filterbare Übersichten nach Zeitraum und Schüler/Familie
+- Zusätzlicher Filter für den Bezahlstatus: bezahlt, offen oder alle
+- Die Gesamtsumme zeigt standardmäßig nur bezahlte Termine; beim Bezahlstatus-Filter folgt sie der aktuellen Auswahl
+- Gruppentermine können je Schüler separat als bezahlt/offen markiert werden
 - Aufteilung in Einzelstunden vs. Gruppenstunden
 - Stundensatz-Spalte für detaillierte Übersicht
+
+### Guthabenverwaltung
+- Guthaben pro Familie mit Saldo und nachvollziehbarer Buchungshistorie
+- Automatische Abbuchung bei „stattgefunden" bzw. „Ausfall bezahlt" (Ausfall zum halben Preis)
+- Guthabenstatus und Zahlungshistorie sind in der Familienverwaltung einsehbar
 
 ### Rechnungen
 - Professionelle Druckvorlage mit Firmenkopfzeile
@@ -167,7 +175,9 @@ interface Appointment {
   date: string;               // Format: "YYYY-MM-DD"
   time: string;               // Format: "HH:MM"
   duration: number;           // Dauer in Minuten
-  status: 'planned' | 'attended' | 'canceled' | 'missed';
+  status: 'attended' | 'canceled_paid' | 'canceled_free' | 'planned';
+  isPaid?: boolean;            // true, wenn alle Teilnehmer bezahlt haben (Alt-/Aggregatfeld)
+  paidStudentIds?: string[];   // bereits bezahlte Teilnehmer bei Gruppenterminen
 }
 ```
 
@@ -338,6 +348,7 @@ Gruppentermine erlauben es, zwei Schüler für denselben Termin zu planen. Dies 
 
 ## Gruppenstunden
 - Bei Gruppenstunden muss jeder Schüler den Gruppenpreis bezahlen (gilt immer für dieses Projekt)
+- Jede Teilnehmerzahlung eines Gruppentermins wird separat als bezahlt/offen gespeichert und in der Abrechnung einzeln umschaltbar dargestellt
 - **Gruppentermine bei bevorzugten Terminen**:
   - Bevorzugte Termine können als Gruppentermine markiert werden
   - Partner-Schüler wird über filterbares Dropdown ausgewählt
